@@ -5,70 +5,53 @@ import numpy as np
 import plotly.graph_objects as go
 import google.generativeai as genai
 
+# 1. КОНФИГУРАЦИЯ НА СТРАНИЦАТА (Скриване на менюта за App-like усещане)
 st.set_page_config(
-    page_title="Global Swing Screener (EU Tax-Free)",
-    page_icon="🌍",
+    page_title="Swing Screener AI",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .stTabs [data-baseweb="tab-list"] {gap: 10px;}
+            .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #1E1E1E; border-radius: 4px 4px 0px 0px; gap: 1px; padding-top: 10px; padding-bottom: 10px;}
+            .stTabs [aria-selected="true"] {background-color: #2E5B88; color: white;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 TICKERS = {
-    "SXRV (iShares Nasdaq 100)": "SXRV.DE",
-    "SXR8 (iShares Core S&P 500)": "SXR8.DE",
-    "SXRG (iShares MSCI World)": "SXRG.DE",
-    "EXH1 (iShares STOXX Europe 600)": "EXH1.DE",
-    "SEC0 (iShares Semiconductor)": "SEC0.DE",
-    "QDVE (iShares S&P 500 Info Tech)": "QDVE.DE",
-    "2B7K (iShares Cybersecurity)": "2B7K.DE",
-    "URNU (Global X Uranium)": "URNU.DE",
-    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE",
-    "WGLD (WisdomTree Gold)": "WGLD.DE",
+    "SXRV (iShares Nasdaq 100)": "SXRV.DE", "SXR8 (iShares Core S&P 500)": "SXR8.DE",
+    "SXRG (iShares MSCI World)": "SXRG.DE", "EXH1 (iShares STOXX Europe 600)": "EXH1.DE",
+    "SEC0 (iShares Semiconductor)": "SEC0.DE", "QDVE (iShares S&P 500 Info Tech)": "QDVE.DE",
+    "2B7K (iShares Cybersecurity)": "2B7K.DE", "URNU (Global X Uranium)": "URNU.DE",
+    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE", "WGLD (WisdomTree Gold)": "WGLD.DE",
     "PHAG (WisdomTree Silver)": "PHAG.DE",
     
-    "APC (Apple)": "APC.DE",
-    "MSF (Microsoft)": "MSF.DE",
-    "ABE (Alphabet/Google)": "ABE.DE",
-    "AMZ (Amazon)": "AMZ.DE",
-    "NVD (Nvidia)": "NVD.DE",
-    "FB2A (Meta/Facebook)": "FB2A.DE",
+    "APC (Apple)": "APC.DE", "MSF (Microsoft)": "MSF.DE", "ABE (Alphabet/Google)": "ABE.DE",
+    "AMZ (Amazon)": "AMZ.DE", "NVD (Nvidia)": "NVD.DE", "FB2A (Meta/Facebook)": "FB2A.DE",
     "TL0 (Tesla)": "TL0.DE",
-
-    "AMD (AMD)": "AMD.DE",
-    "14B (Broadcom)": "14B.DE",
-    "QCI (Qualcomm)": "QCI.DE",
-    "INL (Intel)": "INL.DE",
-    "CIS (Cisco)": "CIS.DE",
-    "CRM (Salesforce)": "CRM.DE",
+    
+    "AMD (AMD)": "AMD.DE", "14B (Broadcom)": "14B.DE", "QCI (Qualcomm)": "QCI.DE",
+    "INL (Intel)": "INL.DE", "CIS (Cisco)": "CIS.DE", "CRM (Salesforce)": "CRM.DE",
     "ORC (Oracle)": "ORC.DE",
 
-    "ELY (Eli Lilly)": "ELY.DE",
-    "NOVC (Novo Nordisk)": "NOVC.DE",
-    "JNJ (Johnson & Johnson)": "JNJ.DE",
-    "PFE (Pfizer)": "PFE.DE",
-    "MRK (Merck & Co)": "MCC.DE",
-    "UNH (UnitedHealth)": "UNH.DE",
+    "ELY (Eli Lilly)": "ELY.DE", "NOVC (Novo Nordisk)": "NOVC.DE", "JNJ (Johnson & Johnson)": "JNJ.DE",
+    "PFE (Pfizer)": "PFE.DE", "MRK (Merck & Co)": "MCC.DE", "UNH (UnitedHealth)": "UNH.DE",
 
-    "3V64 (Visa)": "3V64.DE",
-    "M4I (Mastercard)": "M4I.DE",
-    "NFC (Netflix)": "NFC.DE",
-    "DIS (Walt Disney)": "DIS.DE",
-    "WMT (Walmart)": "WMT.DE",
-    "SBUX (Starbucks)": "SRB.DE",
-    "MCD (McDonald's)": "MDO.DE",
-    "KO (Coca-Cola)": "CCC3.DE",
+    "3V64 (Visa)": "3V64.DE", "M4I (Mastercard)": "M4I.DE", "NFC (Netflix)": "NFC.DE",
+    "DIS (Walt Disney)": "DIS.DE", "WMT (Walmart)": "WMT.DE", "SBUX (Starbucks)": "SRB.DE",
+    "MCD (McDonald's)": "MDO.DE", "KO (Coca-Cola)": "CCC3.DE",
 
-    "ASML (ASML Holding)": "ASML.DE",
-    "SAP (SAP SE)": "SAP.DE",
-    "RHM (Rheinmetall)": "RHM.DE",
-    "SIE (Siemens)": "SIE.DE",
-    "ALV (Allianz)": "ALV.DE",
-    "AIR (Airbus)": "AIR.DE",
-    "MOH (LVMH)": "MOH.DE",
-    "LOR (L'Oreal)": "LOR.DE",
-    "TOT (TotalEnergies)": "TOT.DE",
-    "MBG (Mercedes-Benz)": "MBG.DE",
-    "BMW (BMW Group)": "BMW.DE",
-    "VOW3 (Volkswagen)": "VOW3.DE"
+    "ASML (ASML)": "ASML.DE", "SAP (SAP SE)": "SAP.DE", "RHM (Rheinmetall)": "RHM.DE",
+    "SIE (Siemens)": "SIE.DE", "ALV (Allianz)": "ALV.DE", "AIR (Airbus)": "AIR.DE",
+    "MOH (LVMH)": "MOH.DE", "LOR (L'Oreal)": "LOR.DE", "TOT (TotalEnergies)": "TOT.DE",
+    "MBG (Mercedes-Benz)": "MBG.DE", "BMW (BMW)": "BMW.DE", "VOW3 (Volkswagen)": "VOW3.DE"
 }
 
 def compute_rsi(data, window=14):
@@ -111,28 +94,24 @@ def fetch_market_data():
             ema50_val = float(latest['EMA50'])
             ema200_val = float(latest['EMA200'])
             
-            # Изчисляване на състоянието на тренда
-            if ema50_val > ema200_val and close_price > ema200_val:
-                trend = "Възходящ"
-            elif ema50_val < ema200_val:
-                trend = "Низходящ"
-            else:
-                trend = "Консолидация"
+            if ema50_val > ema200_val and close_price > ema200_val: trend = "↗ Възходящ"
+            elif ema50_val < ema200_val: trend = "↘ Низходящ"
+            else: trend = "→ Консолидация"
             
             diff_ema50 = ((close_price - ema50_val) / ema50_val) * 100
             diff_ema200 = ((close_price - ema200_val) / ema200_val) * 100
             
             vol20 = float(latest['Vol20'])
             vol_surge = float(latest['Volume']) / vol20 if vol20 > 0 else 0
-
-            # Добавяме и обема в критерия за Buy Zone
+            
             in_buy_zone = (abs(diff_ema50) <= 3.5) or (abs(diff_ema200) <= 4.0) or (float(latest['RSI']) < 42) or (vol_surge >= 1.2)
 
             summary_list.append({
-                "Име": name, "Тикер": symbol, "Последна цена (€)": round(close_price, 2),
-                "Промяна (%)": round(change_pct, 2), "Тренд": trend, "RSI (14)": round(float(latest['RSI']), 1),
-                "Отстояние EMA50 (%)": round(diff_ema50, 2), "Отстояние EMA200 (%)": round(diff_ema200, 2),
-                "MACD Хистограма": round(float(latest['MACD_Hist']), 3), "Обем Спрямо Среден": vol_surge,
+                "Име": name, "Тикер": symbol, "Цена (€)": round(close_price, 2),
+                "Промяна (%)": round(change_pct, 2), "Тренд": trend, 
+                "RSI": round(float(latest['RSI']), 1),
+                "От EMA50 (%)": round(diff_ema50, 2), "От EMA200 (%)": round(diff_ema200, 2),
+                "MACD Hist": round(float(latest['MACD_Hist']), 3), "Обем (x Средния)": round(vol_surge, 2),
                 "Бай Зона": in_buy_zone
             })
             charts_data[name] = df
@@ -144,83 +123,109 @@ def generate_ai_analysis(df_data, api_key):
     model = genai.GenerativeModel('gemini-3.6-flash')
 
     df_filtered = df_data[df_data["Бай Зона"] == True]
-    if len(df_filtered) < 15: 
-        df_filtered = df_data.sort_values(by="RSI (14)").head(20)
+    if len(df_filtered) < 15: df_filtered = df_data.sort_values(by="RSI").head(20)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Пред теб са високоликвидни глобални акции (търгувани в евро на Xetra / Trading 212):
+    Ти си професионален суинг търговец. Пред теб са глобални акции (търгувани в евро на Xetra / Trading 212):
     {df_filtered.to_string(index=False)}
 
     ИЗБЕРИ ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ, КАТО СПАЗВАШ СЛЕДНИТЕ ЖЕЛЕЗНИ ПРАВИЛА:
 
     КАТЕГОРИЯ 1: 5 Акции "За бърз суинг по тренда (Trend Following Swing)"
-    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции, при които колоната "Тренд" е "Възходящ"!
-    - Обосновка: Търсим акции, които са в генерален възходящ тренд (EMA50 > EMA200), но в момента правят лека корекция (pullback) към подкрепа.
-    - АБСОЛЮТНО ЗАБРАНЕНО е да включваш акции с "Низходящ" тренд в тази категория.
+    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции, при които "Тренд" е "↗ Възходящ"! АБСОЛЮТНО ЗАБРАНЕНО е да включваш акции с Низходящ тренд.
 
     КАТЕГОРИЯ 2: 5 Акции "За дългосрочно акумулиране (Mean Reversion)"
-    - Тук можеш да избереш акции в "Низходящ" или "Консолидация" тренд.
-    - Търсим екстремна свръхпродаденост (много нисък RSI) ИЛИ огромен институционален обем (Обем > 1.2x), който подсказва капитулация на продавачите и формиране на дъно.
+    - Тук можеш да избереш акции в "↘ Низходящ" или "→ Консолидация". Търсим екстремна свръхпродаденост (много нисък RSI) ИЛИ огромен обем (над 1.2x).
     
-    За всяка акция бъди ясен и систематизиран с булети:
-    - Обясни защо техническият им сетъп е добър (посочи цената спрямо EMA, Обема и MACD).
+    За всяка акция бъди ясен с булети:
+    - Обясни защо техническият им сетъп е добър.
     - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
     """
     return model.generate_content(prompt).text
 
-st.title("🌍 Global Swing Screener AI")
-st.caption("Автоматичен скринер с потвърждение на Тренда (EMA 50 & 200)")
+st.title("⚡ Swing Screener AI")
 
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 if not api_key: api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-with st.spinner("Изчисляване на индикатори и трендове... (може да отнеме 15 сек)"):
+with st.spinner("Синхронизиране на пазарни данни..."):
     df_summary, charts_data = fetch_market_data()
 
-if st.button("🤖 Генерирай ТОП Суинг Анализ", type="primary"):
-    if not api_key: st.error("Въведи Gemini API ключ!")
-    else:
-        with st.spinner("Gemini анализира данните според строгите тренд правила..."):
-            try:
-                st.subheader("🎯 ТОП 10 Суинг Възможности за Днес")
-                st.markdown(generate_ai_analysis(df_summary, api_key))
-            except Exception as e: st.error(f"Грешка: {e}")
-
-st.divider()
-st.subheader("📊 Данни за всички активи (1D)")
-
-def style_dataframe(row):
-    styles = [''] * len(row)
-    
-    # Оцветяване на новата колона "Тренд"
-    if row['Тренд'] == 'Възходящ': styles[row.index.get_loc('Тренд')] = 'color: #00ff00; font-weight: bold'
-    elif row['Тренд'] == 'Низходящ': styles[row.index.get_loc('Тренд')] = 'color: #ff4c4c; font-weight: bold'
-    
-    if 0 < row['RSI (14)'] < 40: styles[row.index.get_loc('RSI (14)')] = 'background-color: #1e4620; color: white'
-    if abs(row['Отстояние EMA50 (%)']) <= 3.5: styles[row.index.get_loc('Отстояние EMA50 (%)')] = 'background-color: #1e3a5f; color: white'
-    if abs(row['Отстояние EMA200 (%)']) <= 4.0: styles[row.index.get_loc('Отстояние EMA200 (%)')] = 'background-color: #1e3a5f; color: white'
-    if row['MACD Хистограма'] > 0: styles[row.index.get_loc('MACD Хистограма')] = 'color: #00ff00'
-    elif row['MACD Хистограма'] < 0: styles[row.index.get_loc('MACD Хистограма')] = 'color: #ff4c4c'
-    if row['Обем Спрямо Среден'] >= 1.2: styles[row.index.get_loc('Обем Спрямо Среден')] = 'color: #00ff00; font-weight: bold'
-    return styles
-
 if not df_summary.empty:
-    display_df = df_summary.drop(columns=["Бай Зона"])
+    # 2. KPI МЕТРИКИ (Бърз поглед)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Възможности (Бай Зона)", len(df_summary[df_summary["Бай Зона"] == True]))
+    with col2:
+        top_vol = df_summary.loc[df_summary["Обем (x Средния)"].idxmax()]
+        st.metric("Институционален Обем", f"{top_vol['Тикер']}", f"{top_vol['Обем (x Средния)']}x")
+    with col3:
+        top_rsi = df_summary.loc[df_summary["RSI"].idxmin()]
+        st.metric("Най-свръхпродадена (RSI)", f"{top_rsi['Тикер']}", f"{top_rsi['RSI']}")
+    with col4:
+        bullish = len(df_summary[df_summary["Тренд"] == "↗ Възходящ"])
+        st.metric("Активи във възходящ тренд", bullish)
     
-    # Стилизиране
-    styled_df = display_df.style.apply(style_dataframe, axis=1).format({
-        'Обем Спрямо Среден': '{:.2f}x'
-    })
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    st.markdown("---")
 
-st.divider()
-st.subheader("🔍 Преглед на графика")
-selected_name = st.selectbox("Избери инструмент:", list(TICKERS.keys()))
-if selected_name in charts_data:
-    df_chart = charts_data[selected_name].tail(150)
-    fig = go.Figure()
-    fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], name='Цена'))
-    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA50'], line=dict(color='orange', width=1.5), name='EMA 50'))
-    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA200'], line=dict(color='blue', width=1.5), name='EMA 200'))
-    fig.update_layout(title=f"{selected_name} - 1D Графика", yaxis_title="Цена (€)", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10), height=450, template="plotly_dark")
-    st.plotly_chart(fig, use_container_width=True)
+    # 3. РАЗДЕЛЯНЕ НА ТАБОВЕ
+    tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
+
+    with tab1:
+        if st.button("🚀 Генерирай ТОП 10 Анализ", type="primary", use_container_width=True):
+            if not api_key: st.error("Въведи Gemini API ключ!")
+            else:
+                with st.spinner("Gemini анализира данните..."):
+                    try:
+                        st.markdown(generate_ai_analysis(df_summary, api_key))
+                    except Exception as e: st.error(f"Грешка: {e}")
+
+    with tab2:
+        display_df = df_summary.drop(columns=["Бай Зона"])
+        
+        # Интерактивна колона за прогрес бар
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "RSI": st.column_config.ProgressColumn(
+                    "RSI (Моментум)",
+                    help="Стойности под 40 са свръхпродадени, над 70 са свръхкупени",
+                    format="%.1f",
+                    min_value=0,
+                    max_value=100,
+                ),
+                "Обем (x Средния)": st.column_config.NumberColumn(
+                    "Обем (x Средния)",
+                    help="Обем спрямо 20-дневната средна",
+                    format="%.2fx",
+                ),
+                "Тренд": st.column_config.TextColumn(
+                    "Тренд",
+                )
+            }
+        )
+
+    with tab3:
+        selected_name = st.selectbox("Избери инструмент за анализ:", list(TICKERS.keys()))
+        if selected_name in charts_data:
+            df_chart = charts_data[selected_name].tail(150)
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], name='Цена'))
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA50'], line=dict(color='orange', width=1.5), name='EMA 50'))
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA200'], line=dict(color='blue', width=1.5), name='EMA 200'))
+            
+            # Добавяме MACD Хистограма на графиката
+            colors = ['green' if val >= 0 else 'red' for val in df_chart['MACD_Hist']]
+            fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['MACD_Hist'], marker_color=colors, name='MACD', yaxis='y2', opacity=0.3))
+            
+            fig.update_layout(
+                yaxis_title="Цена (€)",
+                xaxis_rangeslider_visible=False,
+                margin=dict(l=10, r=10, t=30, b=10),
+                height=550,
+                template="plotly_dark",
+                yaxis2=dict(title="MACD", overlaying='y', side='right', showgrid=False, range=[df_chart['MACD_Hist'].min()*3, df_chart['MACD_Hist'].max()*3])
+            )
+            st.plotly_chart(fig, use_container_width=True)
