@@ -132,17 +132,25 @@ def generate_ai_analysis(df_data, api_key):
     model = genai.GenerativeModel('gemini-3.6-flash')
 
     df_filtered = df_data[df_data["Бай Зона"] == True]
-    if df_filtered.empty: df_filtered = df_data.sort_values(by="RSI (14)").head(10)
+    
+    # Гарантираме, че AI ще има поне 15 инструмента, от които да избере най-добрите 10
+    if len(df_filtered) < 15: 
+        df_filtered = df_data.sort_values(by="RSI (14)").head(15)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Пред теб са високоликвидни глобални акции (търгувани в евро на Xetra / Trading 212), които днес са в "Бай Зона":
+    Ти си професионален суинг търговец. Пред теб са високоликвидни глобални акции (търгувани в евро на Xetra / Trading 212), които днес показват потенциал:
     {df_filtered.to_string(index=False)}
 
-    Избери ТОП 4 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ. Дай категорично предимство на активи с "Обем Спрямо Среден" над 1.0 и позитивен "MACD Хистограма".
-    1. Обясни защо техническият им сетъп е добър (посочи цената спрямо EMA, Обема и MACD).
-    2. Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
-    3. Раздели ги на: "За бърз суинг" и "За дългосрочно акумулиране".
-    Бъди ясен и систематизиран с булети.
+    Избери ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ. Дай категорично предимство на активи с "Обем Спрямо Среден" над 1.0 и позитивен "MACD Хистограма".
+    
+    СТРИКТНО ИЗИСКВАНЕ:
+    Раздели анализа си в точно 2 категории:
+    1. 5 акции в категория: "За бърз суинг"
+    2. 5 акции в категория: "За дългосрочно акумулиране"
+
+    За всяка акция бъди ясен и систематизиран с булети:
+    - Обясни защо техническият им сетъп е добър (посочи цената спрямо EMA, Обема и MACD).
+    - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
     """
     return model.generate_content(prompt).text
 
@@ -158,9 +166,9 @@ with st.spinner("Изчисляване на индикатори... (може �
 if st.button("🤖 Генерирай ТОП Суинг Анализ", type="primary"):
     if not api_key: st.error("Въведи Gemini API ключ!")
     else:
-        with st.spinner("Gemini анализира..."):
+        with st.spinner("Gemini анализира данните за Топ 10 възможности..."):
             try:
-                st.subheader("🎯 ТОП Суинг Възможности за Днес")
+                st.subheader("🎯 ТОП 10 Суинг Възможности за Днес")
                 st.markdown(generate_ai_analysis(df_summary, api_key))
             except Exception as e: st.error(f"Грешка: {e}")
 
@@ -179,12 +187,9 @@ def style_dataframe(row):
 
 if not df_summary.empty:
     display_df = df_summary.drop(columns=["Бай Зона"])
-    
-    # Коригирано стилизиране и форматиране
     styled_df = display_df.style.apply(style_dataframe, axis=1).format({
         'Обем Спрямо Среден': '{:.2f}x'
     })
-    
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 st.divider()
