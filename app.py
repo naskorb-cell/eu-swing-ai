@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Променен CSS за СВЕТЛА таблица с черен текст
+# CSS за СВЕТЛА таблица с черен текст
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -42,7 +42,7 @@ hide_st_style = """
                 padding: 12px 8px !important;
                 border-bottom: 1px solid #eee;
                 font-size: 14px;
-                color: #000000 !important; /* Форсираме черен цвят на текста */
+                color: #000000 !important; 
             }
             /* Зеброва шарка: бяло и светло сиво */
             .stMarkdown tbody tr:nth-child(even) {
@@ -51,7 +51,7 @@ hide_st_style = """
             .stMarkdown tbody tr:nth-child(odd) {
                 background-color: #FFFFFF !important; 
             }
-            /* Ховър ефект: леко потъмняване при посочване */
+            /* Ховър ефект */
             .stMarkdown tbody tr:hover {
                 background-color: #E2E6EA !important;
                 transition: background-color 0.2s ease;
@@ -116,6 +116,7 @@ def fetch_market_data():
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
 
+            df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
             df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
             df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
             df['RSI'] = compute_rsi(df['Close'], 14)
@@ -126,27 +127,39 @@ def fetch_market_data():
             close_price = float(latest['Close'])
             change_pct = ((close_price - float(prev['Close'])) / float(prev['Close'])) * 100
             
+            ema20_val = float(latest['EMA20'])
             ema50_val = float(latest['EMA50'])
             ema200_val = float(latest['EMA200'])
+            rsi_val = float(latest['RSI'])
+            macd_val = float(latest['MACD_Hist'])
+            vol20 = float(latest['Vol20'])
+            vol_surge = float(latest['Volume']) / vol20 if vol20 > 0 else 0
             
-            if ema50_val > ema200_val and close_price > ema200_val: trend = "↗ Възходящ"
-            elif ema50_val < ema200_val: trend = "↘ Низходящ"
+            # Определяне на Тренда
+            is_uptrend = (ema50_val > ema200_val) and (close_price > ema200_val)
+            is_downtrend = ema50_val < ema200_val
+            
+            if is_uptrend: trend = "↗ Възходящ"
+            elif is_downtrend: trend = "↘ Низходящ"
             else: trend = "→ Консолидация"
             
             diff_ema50 = ((close_price - ema50_val) / ema50_val) * 100
             diff_ema200 = ((close_price - ema200_val) / ema200_val) * 100
             
-            vol20 = float(latest['Vol20'])
-            vol_surge = float(latest['Volume']) / vol20 if vol20 > 0 else 0
+            # УМНА ЛОГИКА ЗА ВХОД (Smart Buy Zone)
+            # 1. Pullback (Корекция при възходящ тренд)
+            pullback_cond = is_uptrend and (abs(diff_ema50) <= 3.5 or rsi_val < 45)
+            # 2. Reversal (Потвърдено обръщане при низходящ тренд: Пробив на EMA20 + Позитивен MACD)
+            reversal_cond = is_downtrend and (close_price > ema20_val) and (macd_val > 0)
             
-            in_buy_zone = (abs(diff_ema50) <= 3.5) or (abs(diff_ema200) <= 4.0) or (float(latest['RSI']) < 42) or (vol_surge >= 1.2)
+            in_buy_zone = pullback_cond or reversal_cond
 
             summary_list.append({
                 "Име": name, "Тикер": symbol, "Цена (€)": round(close_price, 2),
                 "Промяна (%)": round(change_pct, 2), "Тренд": trend, 
-                "RSI": round(float(latest['RSI']), 1),
+                "RSI": round(rsi_val, 1),
                 "От EMA50 (%)": round(diff_ema50, 2), "От EMA200 (%)": round(diff_ema200, 2),
-                "MACD Hist": round(float(latest['MACD_Hist']), 3), "Обем (x Средния)": round(vol_surge, 2),
+                "MACD Hist": round(macd_val, 3), "Обем (x Средния)": round(vol_surge, 2),
                 "Бай Зона": in_buy_zone
             })
             charts_data[name] = df
@@ -158,33 +171,34 @@ def generate_ai_analysis(df_data, api_key):
     model = genai.GenerativeModel('gemini-3.6-flash')
 
     df_filtered = df_data[df_data["Бай Зона"] == True]
-    if len(df_filtered) < 15: df_filtered = df_data.sort_values(by="RSI").head(20)
+    if len(df_filtered) < 15: df_filtered = df_data.sort_values(by="MACD Hist", ascending=False).head(20)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Пред теб са глоба акции (търгувани в евро на Xetra / Trading 212):
+    Ти си професионален суинг търговец. Пред теб са глобални акции, преминали през строг технически филтър (търгувани в евро на Xetra / Trading 212):
     {df_filtered.to_string(index=False)}
 
     ИЗБЕРИ ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ, КАТО СПАЗВАШ СЛЕДНИТЕ ЖЕЛЕЗНИ ПРАВИЛА:
 
-    КАТЕГОРИЯ 1: 5 Акции "За бърз суинг по тренда (Trend Following Swing)"
-    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции, при които "Тренд" е "↗ Възходящ"! АБСОЛЮТНО ЗАБРАНЕНО е да включваш акции с Низходящ тренд.
+    КАТЕГОРИЯ 1: 5 Акции "За бърз суинг по тренда (Trend Following Pullback)"
+    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции с "↗ Възходящ" тренд, които правят корекция (pullback) към EMA50 или имат здравословен RSI.
 
-    КАТЕГОРИЯ 2: 5 Акции "За дългосрочно акумулиране (Mean Reversion)"
-    - Тук можеш да избереш акции в "↘ Низходящ" или "→ Консолидация". Търсим екстремна свръхпродаденост (много нисък RSI) ИЛИ огромен обем (над 1.2x).
+    КАТЕГОРИЯ 2: 5 Акции "Акумулиране при ПОТВЪРДЕНО обръщане (Confirmed Reversal)"
+    - Тук избирай акции с "↘ Низходящ" или "→ Консолидация" тренд, които обаче ВЕЧЕ дават сигнали за събуждане.
+    - Фокусирай се върху акции с позитивен MACD (MACD Hist > 0) и силен Обем, което потвърждава, че дъното вероятно е преминато и институциите купуват.
     
     За всяка акция бъди ясен с булети:
-    - Обясни защо техническият им сетъп е добър.
-    - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
+    - Обясни защо техническият им сетъп е добър (акцентирай върху потвърждението на обръщането за Категория 2).
+    - Посочи ценови нива за влизане с 2 лимитирани транша.
 
     МНОГО ВАЖНО - ОБОБЩАВАЩА ТАБЛИЦА (ТЪРГОВСКИ ПЛАН):
-    В самия край на твоя отговор, задължително генерирай една обобщаваща Markdown таблица, която да съдържа всички 10 избрани инструмента.
+    В самия край на твоя отговор, генерирай една обобщаваща Markdown таблица.
     
     Изисквания за колоните в таблицата:
-    1. **Инструмент:** Напиши Името на компанията/ETF, а под него на нов ред добави тикера с наклонен шрифт (използвай HTML тага `<br>`, например: `Apple <br> *APC.DE*`).
-    2. **Категория:** Напиши дали е Бърз суинг или Акумулиране.
-    3. **Транш 1 (Вход):** Посочи цената за първи вход и В СКОБИ добави процент от предвидения капитал (напр. `150.00 € (40%)`). Прецени процента спрямо риска и вероятността за отскок (по-рисков вход = по-малък процент).
-    4. **Транш 2 (Вход):** Посочи цената за втори вход и В СКОБИ добави останалия процент от капитала (напр. `142.00 € (60%)`). Общо двата транша трябва да правят 100%.
-    5. **Цел (Take Profit):** Посочи целевата цена за продажба и В СКОБИ добави очаквания процент печалба спрямо средната цена на влизане (напр. `165.00 € (+12%)`).
+    1. **Инструмент:** Напиши Името, а под него добави тикера с наклонен шрифт (използвай HTML тага `<br>`, например: `Apple <br> *APC.DE*`).
+    2. **Категория:** Бърз суинг ИЛИ Потвърдено обръщане.
+    3. **Транш 1 (Вход):** Цена и В СКОБИ процент от капитала спрямо риска (напр. `150.00 € (40%)`). 
+    4. **Транш 2 (Вход):** Цена и В СКОБИ останалия процент (напр. `142.00 € (60%)`). 
+    5. **Цел (Take Profit):** Целевата цена за продажба и В СКОБИ очаквания процент печалба (напр. `165.00 € (+12%)`).
     """
     return model.generate_content(prompt).text
 
@@ -193,11 +207,10 @@ st.title("⚡ Swing Screener AI")
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 if not api_key: api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-with st.spinner("Синхронизиране на пазарни данни..."):
+with st.spinner("Синхронизиране и търсене на потвърдени обръщания..."):
     df_summary, charts_data = fetch_market_data()
 
 if not df_summary.empty:
-    # 2. KPI МЕТРИКИ
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Възможности (Бай Зона)", len(df_summary[df_summary["Бай Зона"] == True]))
@@ -213,7 +226,6 @@ if not df_summary.empty:
     
     st.markdown("---")
 
-    # 3. ТАБОВЕ
     tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ И ПЛАН", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
 
     with tab1:
@@ -256,6 +268,9 @@ if not df_summary.empty:
             df_chart = charts_data[selected_name].tail(150)
             fig = go.Figure()
             fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], name='Цена'))
+            
+            # Добавена е и EMA 20 на графиката за визуален контрол на обръщането
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA20'], line=dict(color='white', width=1, dash='dot'), name='EMA 20'))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA50'], line=dict(color='orange', width=1.5), name='EMA 50'))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA200'], line=dict(color='blue', width=1.5), name='EMA 200'))
             
