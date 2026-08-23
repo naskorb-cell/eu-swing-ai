@@ -176,12 +176,42 @@ def fetch_market_data():
             #    да е поне 1.2x над 20-дневната средна.
             volume_confirms = vol_surge >= 1.2
 
+            # 6. СЕДМИЧНА ПРОВЕРКА (multi-timeframe потвърждение) - дневните
+            #    индикатори могат да изглеждат "обърнати", докато по-голямата,
+            #    седмична картина все още е в низходящ тренд (по-ниски върхове,
+            #    цена далеч под дългосрочната средна). Ресемплираме дневните
+            #    данни в седмични свещи и изискваме седмичният RSI да не е под
+            #    неутралната зона, плюс цената да не е твърде далеч под
+            #    40-седмичната средна (приблизителен седмичен еквивалент на
+            #    200-дневната).
+            weekly_close = df['Close'].resample('W').last().dropna()
+            weekly_rsi_series = compute_rsi(weekly_close, window=14)
+            weekly_rsi_val = (
+                float(weekly_rsi_series.iloc[-1])
+                if not weekly_rsi_series.empty and not pd.isna(weekly_rsi_series.iloc[-1])
+                else None
+            )
+            weekly_sma40 = weekly_close.rolling(window=40, min_periods=30).mean()
+            weekly_sma40_val = (
+                float(weekly_sma40.iloc[-1])
+                if not weekly_sma40.empty and not pd.isna(weekly_sma40.iloc[-1])
+                else None
+            )
+
+            weekly_confirms = True
+            if weekly_rsi_val is not None:
+                weekly_confirms = weekly_rsi_val > 45
+            if weekly_confirms and weekly_sma40_val is not None:
+                # Цената не трябва да е повече от 15% под дългосрочната седмична средна -
+                # иначе е все още в дълбок примарен низходящ тренд, не истинско обръщане.
+                weekly_confirms = weekly_confirms and (close_price >= weekly_sma40_val * 0.85)
+
             # УМНА ЛОГИКА ЗА ВХОД (Smart Buy Zone)
             # 1. Pullback (Корекция при възходящ тренд) - непроменено
             pullback_cond = is_uptrend and (abs(diff_ema50) <= 3.5 or rsi_val < 45)
 
-            # 2. Reversal (Потвърдено обръщане) - вече изисква ВСИЧКИ 5 условия
-            #    по-горе, не само пробив на EMA20 + положителен MACD.
+            # 2. Reversal (Потвърдено обръщане) - вече изисква ВСИЧКИ 6 условия
+            #    по-горе, включително седмичното multi-timeframe потвърждение.
             reversal_cond = (
                 is_downtrend
                 and had_extreme_oversold
@@ -189,6 +219,7 @@ def fetch_market_data():
                 and reclaimed_ema20
                 and macd_bullish_cross
                 and volume_confirms
+                and weekly_confirms
             )
             
             in_buy_zone = pullback_cond or reversal_cond
@@ -201,6 +232,7 @@ def fetch_market_data():
                 "MACD Hist": round(macd_val, 3), "Обем (x Средния)": round(vol_surge, 2),
                 "Бай Зона": in_buy_zone,
                 "Потвърдено обръщане": reversal_cond,
+                "Седмичен RSI": round(weekly_rsi_val, 1) if weekly_rsi_val is not None else None,
             })
             charts_data[name] = df
         except: continue
