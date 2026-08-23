@@ -5,7 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 import google.generativeai as genai
 
-# 1. КОНФИГУРАЦИЯ НА СТРАНИЦАТА (Скриване на менюта за App-like усещане)
+# 1. КОНФИГУРАЦИЯ НА СТРАНИЦАТА
 st.set_page_config(
     page_title="Swing Screener AI",
     page_icon="⚡",
@@ -140,6 +140,11 @@ def generate_ai_analysis(df_data, api_key):
     За всяка акция бъди ясен с булети:
     - Обясни защо техническият им сетъп е добър.
     - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
+
+    МНОГО ВАЖНО - ОБОБЩАВАЩА ТАБЛИЦА (ТЪРГОВСКИ ПЛАН):
+    В самия край на твоя отговор, задължително генерирай една обобщаваща Markdown таблица, която да съдържа всички 10 избрани инструмента. Таблицата трябва да има следните колони:
+    | Инструмент | Категория | Транш 1 (Вход) | Транш 2 (Вход) | Цел (Take Profit) |
+    Изчисли реалистична цел (Take Profit / продажба) за всяка акция на база на техническия сетъп (например очаквано връщане към предходен връх или към EMA50/200 при акумулиране).
     """
     return model.generate_content(prompt).text
 
@@ -169,13 +174,13 @@ if not df_summary.empty:
     st.markdown("---")
 
     # 3. РАЗДЕЛЯНЕ НА ТАБОВЕ
-    tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
+    tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ И ПЛАН", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
 
     with tab1:
-        if st.button("🚀 Генерирай ТОП 10 Анализ", type="primary", use_container_width=True):
+        if st.button("🚀 Генерирай ТОП 10 Анализ и Търговски План", type="primary", use_container_width=True):
             if not api_key: st.error("Въведи Gemini API ключ!")
             else:
-                with st.spinner("Gemini анализира данните..."):
+                with st.spinner("Gemini анализира данните и изготвя търговски план..."):
                     try:
                         st.markdown(generate_ai_analysis(df_summary, api_key))
                     except Exception as e: st.error(f"Грешка: {e}")
@@ -183,7 +188,6 @@ if not df_summary.empty:
     with tab2:
         display_df = df_summary.drop(columns=["Бай Зона"])
         
-        # Интерактивна колона за прогрес бар
         st.dataframe(
             display_df,
             use_container_width=True,
@@ -216,7 +220,6 @@ if not df_summary.empty:
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA50'], line=dict(color='orange', width=1.5), name='EMA 50'))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA200'], line=dict(color='blue', width=1.5), name='EMA 200'))
             
-            # Добавяме MACD Хистограма на графиката
             colors = ['green' if val >= 0 else 'red' for val in df_chart['MACD_Hist']]
             fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['MACD_Hist'], marker_color=colors, name='MACD', yaxis='y2', opacity=0.3))
             
