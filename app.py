@@ -179,8 +179,13 @@ def style_dataframe(row):
 
 if not df_summary.empty:
     display_df = df_summary.drop(columns=["Бай Зона"])
-    display_df['Обем Спрямо Среден'] = display_df['Обем Спрямо Среден'].apply(lambda x: f"{x:.2f}x")
-    st.dataframe(display_df.style.apply(style_dataframe, axis=1), use_container_width=True, hide_index=True)
+    
+    # Коригирано стилизиране и форматиране
+    styled_df = display_df.style.apply(style_dataframe, axis=1).format({
+        'Обем Спрямо Среден': '{:.2f}x'
+    })
+    
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 st.divider()
 st.subheader("🔍 Преглед на графика")
