@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Добавен CSS за зеброва шарка (Zebra striping) и Hover ефект на таблиците
+# Променен CSS за СВЕТЛА таблица с черен текст
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -25,33 +25,35 @@ hide_st_style = """
             .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #1E1E1E; border-radius: 4px 4px 0px 0px; padding: 10px; border: 1px solid #333; border-bottom: none;}
             .stTabs [aria-selected="true"] {background-color: #2E5B88; color: white;}
             
-            /* Дизайн на Markdown таблицата (Търговския план) за лесно проследяване */
+            /* Дизайн на Markdown таблицата (Търговския план) - БЯЛ ФОН */
             .stMarkdown table {
                 width: 100%;
                 border-collapse: collapse;
+                background-color: #FFFFFF !important;
             }
             .stMarkdown th {
                 background-color: #2E5B88 !important;
                 color: white !important;
                 font-size: 15px;
                 padding: 12px 8px !important;
-                border-bottom: 2px solid #444;
+                border-bottom: 2px solid #ccc;
             }
             .stMarkdown td {
                 padding: 12px 8px !important;
-                border-bottom: 1px solid #333;
+                border-bottom: 1px solid #eee;
                 font-size: 14px;
+                color: #000000 !important; /* Форсираме черен цвят на текста */
             }
-            /* Зеброва шарка: различен фон за четни и нечетни редове */
+            /* Зеброва шарка: бяло и светло сиво */
             .stMarkdown tbody tr:nth-child(even) {
-                background-color: #1A1C23; 
+                background-color: #F8F9FA !important; 
             }
             .stMarkdown tbody tr:nth-child(odd) {
-                background-color: #0E1117; 
+                background-color: #FFFFFF !important; 
             }
-            /* Ховър ефект: редът светва при посочване */
+            /* Ховър ефект: леко потъмняване при посочване */
             .stMarkdown tbody tr:hover {
-                background-color: #3A4B5C;
+                background-color: #E2E6EA !important;
                 transition: background-color 0.2s ease;
             }
             </style>
@@ -159,7 +161,7 @@ def generate_ai_analysis(df_data, api_key):
     if len(df_filtered) < 15: df_filtered = df_data.sort_values(by="RSI").head(20)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Пред теб са глобални акции (търгувани в евро на Xetra / Trading 212):
+    Ти си професионален суинг търговец. Пред теб са глоба акции (търгувани в евро на Xetra / Trading 212):
     {df_filtered.to_string(index=False)}
 
     ИЗБЕРИ ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ, КАТО СПАЗВАШ СЛЕДНИТЕ ЖЕЛЕЗНИ ПРАВИЛА:
@@ -218,7 +220,7 @@ if not df_summary.empty:
         if st.button("🚀 Генерирай ТОП 10 Анализ и Търговски План", type="primary", use_container_width=True):
             if not api_key: st.error("Въведи Gemini API ключ!")
             else:
-                with st.spinner("Gemini анализира данните и изготвя търговски план (изчисляване на риск/награда)..."):
+                with st.spinner("Gemini анализира данните и изготвя търговски план..."):
                     try:
                         st.markdown(generate_ai_analysis(df_summary, api_key), unsafe_allow_html=True)
                     except Exception as e: st.error(f"Грешка: {e}")
