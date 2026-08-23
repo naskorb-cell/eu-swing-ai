@@ -21,7 +21,7 @@ TICKERS = {
     "QDVE (iShares S&P 500 Info Tech)": "QDVE.DE",
     "2B7K (iShares Cybersecurity)": "2B7K.DE",
     "URNU (Global X Uranium)": "URNU.DE",
-    "CBRS (iShares Clean Energy)": "CBRS.DE",
+    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE", # <-- Коригирано име
     "WGLD (WisdomTree Gold)": "WGLD.DE",
     "PHAG (WisdomTree Silver)": "PHAG.DE",
     
@@ -132,8 +132,6 @@ def generate_ai_analysis(df_data, api_key):
     model = genai.GenerativeModel('gemini-3.6-flash')
 
     df_filtered = df_data[df_data["Бай Зона"] == True]
-    
-    # Гарантираме, че AI ще има поне 15 инструмента, от които да избере най-добрите 10
     if len(df_filtered) < 15: 
         df_filtered = df_data.sort_values(by="RSI (14)").head(15)
 
