@@ -21,7 +21,7 @@ TICKERS = {
     "QDVE (iShares S&P 500 Info Tech)": "QDVE.DE",
     "2B7K (iShares Cybersecurity)": "2B7K.DE",
     "URNU (Global X Uranium)": "URNU.DE",
-    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE", # <-- Коригирано име
+    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE",
     "WGLD (WisdomTree Gold)": "WGLD.DE",
     "PHAG (WisdomTree Silver)": "PHAG.DE",
     
@@ -108,17 +108,29 @@ def fetch_market_data():
             close_price = float(latest['Close'])
             change_pct = ((close_price - float(prev['Close'])) / float(prev['Close'])) * 100
             
-            diff_ema50 = ((close_price - float(latest['EMA50'])) / float(latest['EMA50'])) * 100
-            diff_ema200 = ((close_price - float(latest['EMA200'])) / float(latest['EMA200'])) * 100
+            ema50_val = float(latest['EMA50'])
+            ema200_val = float(latest['EMA200'])
+            
+            # Изчисляване на състоянието на тренда
+            if ema50_val > ema200_val and close_price > ema200_val:
+                trend = "Възходящ"
+            elif ema50_val < ema200_val:
+                trend = "Низходящ"
+            else:
+                trend = "Консолидация"
+            
+            diff_ema50 = ((close_price - ema50_val) / ema50_val) * 100
+            diff_ema200 = ((close_price - ema200_val) / ema200_val) * 100
             
             vol20 = float(latest['Vol20'])
             vol_surge = float(latest['Volume']) / vol20 if vol20 > 0 else 0
 
-            in_buy_zone = (abs(diff_ema50) <= 3.5) or (abs(diff_ema200) <= 4.0) or (float(latest['RSI']) < 42)
+            # Добавяме и обема в критерия за Buy Zone
+            in_buy_zone = (abs(diff_ema50) <= 3.5) or (abs(diff_ema200) <= 4.0) or (float(latest['RSI']) < 42) or (vol_surge >= 1.2)
 
             summary_list.append({
                 "Име": name, "Тикер": symbol, "Последна цена (€)": round(close_price, 2),
-                "Промяна (%)": round(change_pct, 2), "RSI (14)": round(float(latest['RSI']), 1),
+                "Промяна (%)": round(change_pct, 2), "Тренд": trend, "RSI (14)": round(float(latest['RSI']), 1),
                 "Отстояние EMA50 (%)": round(diff_ema50, 2), "Отстояние EMA200 (%)": round(diff_ema200, 2),
                 "MACD Хистограма": round(float(latest['MACD_Hist']), 3), "Обем Спрямо Среден": vol_surge,
                 "Бай Зона": in_buy_zone
@@ -133,19 +145,23 @@ def generate_ai_analysis(df_data, api_key):
 
     df_filtered = df_data[df_data["Бай Зона"] == True]
     if len(df_filtered) < 15: 
-        df_filtered = df_data.sort_values(by="RSI (14)").head(15)
+        df_filtered = df_data.sort_values(by="RSI (14)").head(20)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Пред теб са високоликвидни глобални акции (търгувани в евро на Xetra / Trading 212), които днес показват потенциал:
+    Ти си професионален суинг търговец. Пред теб са високоликвидни глобални акции (търгувани в евро на Xetra / Trading 212):
     {df_filtered.to_string(index=False)}
 
-    Избери ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ. Дай категорично предимство на активи с "Обем Спрямо Среден" над 1.0 и позитивен "MACD Хистограма".
-    
-    СТРИКТНО ИЗИСКВАНЕ:
-    Раздели анализа си в точно 2 категории:
-    1. 5 акции в категория: "За бърз суинг"
-    2. 5 акции в категория: "За дългосрочно акумулиране"
+    ИЗБЕРИ ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ, КАТО СПАЗВАШ СЛЕДНИТЕ ЖЕЛЕЗНИ ПРАВИЛА:
 
+    КАТЕГОРИЯ 1: 5 Акции "За бърз суинг по тренда (Trend Following Swing)"
+    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции, при които колоната "Тренд" е "Възходящ"!
+    - Обосновка: Търсим акции, които са в генерален възходящ тренд (EMA50 > EMA200), но в момента правят лека корекция (pullback) към подкрепа.
+    - АБСОЛЮТНО ЗАБРАНЕНО е да включваш акции с "Низходящ" тренд в тази категория.
+
+    КАТЕГОРИЯ 2: 5 Акции "За дългосрочно акумулиране (Mean Reversion)"
+    - Тук можеш да избереш акции в "Низходящ" или "Консолидация" тренд.
+    - Търсим екстремна свръхпродаденост (много нисък RSI) ИЛИ огромен институционален обем (Обем > 1.2x), който подсказва капитулация на продавачите и формиране на дъно.
+    
     За всяка акция бъди ясен и систематизиран с булети:
     - Обясни защо техническият им сетъп е добър (посочи цената спрямо EMA, Обема и MACD).
     - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
@@ -153,18 +169,18 @@ def generate_ai_analysis(df_data, api_key):
     return model.generate_content(prompt).text
 
 st.title("🌍 Global Swing Screener AI")
-st.caption("Автоматичен скринер за ETF-и & Глобални Акции (Включва MACD и Volume Surge)")
+st.caption("Автоматичен скринер с потвърждение на Тренда (EMA 50 & 200)")
 
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 if not api_key: api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-with st.spinner("Изчисляване на индикатори... (може да отнеме 15 сек)"):
+with st.spinner("Изчисляване на индикатори и трендове... (може да отнеме 15 сек)"):
     df_summary, charts_data = fetch_market_data()
 
 if st.button("🤖 Генерирай ТОП Суинг Анализ", type="primary"):
     if not api_key: st.error("Въведи Gemini API ключ!")
     else:
-        with st.spinner("Gemini анализира данните за Топ 10 възможности..."):
+        with st.spinner("Gemini анализира данните според строгите тренд правила..."):
             try:
                 st.subheader("🎯 ТОП 10 Суинг Възможности за Днес")
                 st.markdown(generate_ai_analysis(df_summary, api_key))
@@ -175,6 +191,11 @@ st.subheader("📊 Данни за всички активи (1D)")
 
 def style_dataframe(row):
     styles = [''] * len(row)
+    
+    # Оцветяване на новата колона "Тренд"
+    if row['Тренд'] == 'Възходящ': styles[row.index.get_loc('Тренд')] = 'color: #00ff00; font-weight: bold'
+    elif row['Тренд'] == 'Низходящ': styles[row.index.get_loc('Тренд')] = 'color: #ff4c4c; font-weight: bold'
+    
     if 0 < row['RSI (14)'] < 40: styles[row.index.get_loc('RSI (14)')] = 'background-color: #1e4620; color: white'
     if abs(row['Отстояние EMA50 (%)']) <= 3.5: styles[row.index.get_loc('Отстояние EMA50 (%)')] = 'background-color: #1e3a5f; color: white'
     if abs(row['Отстояние EMA200 (%)']) <= 4.0: styles[row.index.get_loc('Отстояние EMA200 (%)')] = 'background-color: #1e3a5f; color: white'
@@ -185,6 +206,8 @@ def style_dataframe(row):
 
 if not df_summary.empty:
     display_df = df_summary.drop(columns=["Бай Зона"])
+    
+    # Стилизиране
     styled_df = display_df.style.apply(style_dataframe, axis=1).format({
         'Обем Спрямо Среден': '{:.2f}x'
     })
