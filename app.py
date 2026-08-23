@@ -13,14 +13,47 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Добавен CSS за зеброва шарка (Zebra striping) и Hover ефект на таблиците
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
+            
+            /* Дизайн на табовете */
             .stTabs [data-baseweb="tab-list"] {gap: 10px;}
-            .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #1E1E1E; border-radius: 4px 4px 0px 0px; gap: 1px; padding-top: 10px; padding-bottom: 10px;}
+            .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #1E1E1E; border-radius: 4px 4px 0px 0px; padding: 10px; border: 1px solid #333; border-bottom: none;}
             .stTabs [aria-selected="true"] {background-color: #2E5B88; color: white;}
+            
+            /* Дизайн на Markdown таблицата (Търговския план) за лесно проследяване */
+            .stMarkdown table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .stMarkdown th {
+                background-color: #2E5B88 !important;
+                color: white !important;
+                font-size: 15px;
+                padding: 12px 8px !important;
+                border-bottom: 2px solid #444;
+            }
+            .stMarkdown td {
+                padding: 12px 8px !important;
+                border-bottom: 1px solid #333;
+                font-size: 14px;
+            }
+            /* Зеброва шарка: различен фон за четни и нечетни редове */
+            .stMarkdown tbody tr:nth-child(even) {
+                background-color: #1A1C23; 
+            }
+            .stMarkdown tbody tr:nth-child(odd) {
+                background-color: #0E1117; 
+            }
+            /* Ховър ефект: редът светва при посочване */
+            .stMarkdown tbody tr:hover {
+                background-color: #3A4B5C;
+                transition: background-color 0.2s ease;
+            }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
@@ -142,9 +175,14 @@ def generate_ai_analysis(df_data, api_key):
     - Посочи ценови нива за влизане с 2 лимитирани транша (около EMA 50 / EMA 200).
 
     МНОГО ВАЖНО - ОБОБЩАВАЩА ТАБЛИЦА (ТЪРГОВСКИ ПЛАН):
-    В самия край на твоя отговор, задължително генерирай една обобщаваща Markdown таблица, която да съдържа всички 10 избрани инструмента. Таблицата трябва да има следните колони:
-    | Инструмент | Категория | Транш 1 (Вход) | Транш 2 (Вход) | Цел (Take Profit) |
-    Изчисли реалистична цел (Take Profit / продажба) за всяка акция на база на техническия сетъп (например очаквано връщане към предходен връх или към EMA50/200 при акумулиране).
+    В самия край на твоя отговор, задължително генерирай една обобщаваща Markdown таблица, която да съдържа всички 10 избрани инструмента.
+    
+    Изисквания за колоните в таблицата:
+    1. **Инструмент:** Напиши Името на компанията/ETF, а под него на нов ред добави тикера с наклонен шрифт (използвай HTML тага `<br>`, например: `Apple <br> *APC.DE*`).
+    2. **Категория:** Напиши дали е Бърз суинг или Акумулиране.
+    3. **Транш 1 (Вход):** Посочи цената за първи вход и В СКОБИ добави процент от предвидения капитал (напр. `150.00 € (40%)`). Прецени процента спрямо риска и вероятността за отскок (по-рисков вход = по-малък процент).
+    4. **Транш 2 (Вход):** Посочи цената за втори вход и В СКОБИ добави останалия процент от капитала (напр. `142.00 € (60%)`). Общо двата транша трябва да правят 100%.
+    5. **Цел (Take Profit):** Посочи целевата цена за продажба и В СКОБИ добави очаквания процент печалба спрямо средната цена на влизане (напр. `165.00 € (+12%)`).
     """
     return model.generate_content(prompt).text
 
@@ -157,7 +195,7 @@ with st.spinner("Синхронизиране на пазарни данни..."
     df_summary, charts_data = fetch_market_data()
 
 if not df_summary.empty:
-    # 2. KPI МЕТРИКИ (Бърз поглед)
+    # 2. KPI МЕТРИКИ
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Възможности (Бай Зона)", len(df_summary[df_summary["Бай Зона"] == True]))
@@ -173,21 +211,20 @@ if not df_summary.empty:
     
     st.markdown("---")
 
-    # 3. РАЗДЕЛЯНЕ НА ТАБОВЕ
+    # 3. ТАБОВЕ
     tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ И ПЛАН", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
 
     with tab1:
         if st.button("🚀 Генерирай ТОП 10 Анализ и Търговски План", type="primary", use_container_width=True):
             if not api_key: st.error("Въведи Gemini API ключ!")
             else:
-                with st.spinner("Gemini анализира данните и изготвя търговски план..."):
+                with st.spinner("Gemini анализира данните и изготвя търговски план (изчисляване на риск/награда)..."):
                     try:
-                        st.markdown(generate_ai_analysis(df_summary, api_key))
+                        st.markdown(generate_ai_analysis(df_summary, api_key), unsafe_allow_html=True)
                     except Exception as e: st.error(f"Грешка: {e}")
 
     with tab2:
         display_df = df_summary.drop(columns=["Бай Зона"])
-        
         st.dataframe(
             display_df,
             use_container_width=True,
