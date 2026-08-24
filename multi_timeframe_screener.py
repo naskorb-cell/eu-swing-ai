@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import google.generativeai as genai
+from anthropic import Anthropic
 
 st.set_page_config(
     page_title="Multi-Timeframe Swing Screener",
@@ -168,8 +168,7 @@ def analyze_instrument(name: str, symbol: str, support_tolerance_pct: float, swi
 # --- ИНТЕРФЕЙС --------------------------------------------------------------
 
 def generate_ai_analysis(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-3.6-flash')
+    client = Anthropic(api_key=api_key)
 
     # ВАЖНО: подаваме на Gemini само реално изчислените резултати. Той не
     # преценява сам дали инструмент отговаря на условията - трите таймфрейма
@@ -215,8 +214,15 @@ def generate_ai_analysis(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key
 
     Бъди кратък, систематизиран, удобен за преглед на телефон.
     """
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in response.content if block.type == "text")
+    if not text.strip():
+        raise ValueError(f"Claude върна празен отговор (stop_reason: {response.stop_reason}). Опитай пак.")
+    return text
 
 
 st.title("🎯 Multi-Timeframe Swing Screener")
