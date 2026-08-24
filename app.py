@@ -60,33 +60,56 @@ hide_st_style = """
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
+# РАЗШИРЕНИЯТ СПИСЪК С АКТИВИ (72 инструмента)
 TICKERS = {
-    "SXRV (iShares Nasdaq 100)": "SXRV.DE", "SXR8 (iShares Core S&P 500)": "SXR8.DE",
-    "SXRG (iShares MSCI World)": "SXRG.DE", "EXH1 (iShares STOXX Europe 600)": "EXH1.DE",
-    "SEC0 (iShares Semiconductor)": "SEC0.DE", "QDVE (iShares S&P 500 Info Tech)": "QDVE.DE",
-    "2B7K (iShares Cybersecurity)": "2B7K.DE", "URNU (Global X Uranium)": "URNU.DE",
-    "CBRS (First Trust Nasdaq Cybersecurity)": "CBRS.DE", "WGLD (WisdomTree Gold)": "WGLD.DE",
-    "PHAG (WisdomTree Silver)": "PHAG.DE",
+    # --- Пазарни Барометри (Основни ETF-и) ---
+    "SXRV (iShares Nasdaq 100)": "SXRV.DE",
+    "SXR8 (iShares Core S&P 500)": "SXR8.DE",
+    "SEC0 (iShares Semiconductor)": "SEC0.DE",
+
+    # --- Метали, Суровини & Енергия (ETC / ETF) ---
+    "WGLD (WisdomTree Physical Gold)": "WGLD.DE",
+    "PHAG (WisdomTree Physical Silver)": "PHAG.DE",
+    "PHPT (WisdomTree Physical Platinum)": "PHPT.DE",
+    "OD7F (WisdomTree WTI Crude Oil)": "OD7F.DE",
+    "OOAEA (WisdomTree Brent Crude Oil)": "OOAEA.DE",
+    "URNU (Global X Uranium)": "URNU.DE",
+    "COPX (Global X Copper Miners)": "COPX.DE",
+    "AIGC (WisdomTree Broad Commodities)": "AIGC.DE",
     
+    # --- US Big Tech & High Beta Growth (в EUR) ---
     "APC (Apple)": "APC.DE", "MSF (Microsoft)": "MSF.DE", "ABE (Alphabet/Google)": "ABE.DE",
     "AMZ (Amazon)": "AMZ.DE", "NVD (Nvidia)": "NVD.DE", "FB2A (Meta/Facebook)": "FB2A.DE",
-    "TL0 (Tesla)": "TL0.DE",
-    
-    "AMD (AMD)": "AMD.DE", "14B (Broadcom)": "14B.DE", "QCI (Qualcomm)": "QCI.DE",
-    "INL (Intel)": "INL.DE", "CIS (Cisco)": "CIS.DE", "CRM (Salesforce)": "CRM.DE",
-    "ORC (Oracle)": "ORC.DE",
+    "TL0 (Tesla)": "TL0.DE", "AMD (AMD)": "AMD.DE", "14B (Broadcom)": "14B.DE", 
+    "QCI (Qualcomm)": "QCI.DE", "CRM (Salesforce)": "CRM.DE", "ORC (Oracle)": "ORC.DE",
 
+    # --- Здравеопазване & Фарма ---
     "ELY (Eli Lilly)": "ELY.DE", "NOVC (Novo Nordisk)": "NOVC.DE", "JNJ (Johnson & Johnson)": "JNJ.DE",
-    "PFE (Pfizer)": "PFE.DE", "MRK (Merck & Co)": "MCC.DE", "UNH (UnitedHealth)": "UNH.DE",
+    "PFE (Pfizer)": "PFE.DE", "UNH (UnitedHealth)": "UNH.DE", "SAN (Sanofi)": "SAN.PA",
 
+    # --- Потребителски сектор, Финанси & Медии ---
     "3V64 (Visa)": "3V64.DE", "M4I (Mastercard)": "M4I.DE", "NFC (Netflix)": "NFC.DE",
-    "DIS (Walt Disney)": "DIS.DE", "WMT (Walmart)": "WMT.DE", "SBUX (Starbucks)": "SRB.DE",
-    "MCD (McDonald's)": "MDO.DE", "KO (Coca-Cola)": "CCC3.DE",
+    "DIS (Walt Disney)": "DIS.DE", "WMT (Walmart)": "WMT.DE", "MCD (McDonald's)": "MDO.DE", 
+    "KO (Coca-Cola)": "CCC3.DE", "BNP (BNP Paribas)": "BNP.PA", "ING (ING Group)": "INGA.AS", 
+    "ISP (Intesa Sanpaolo)": "ISP.MI",
 
-    "ASML (ASML)": "ASML.DE", "SAP (SAP SE)": "SAP.DE", "RHM (Rheinmetall)": "RHM.DE",
-    "SIE (Siemens)": "SIE.DE", "ALV (Allianz)": "ALV.DE", "AIR (Airbus)": "AIR.DE",
-    "MOH (LVMH)": "MOH.DE", "LOR (L'Oreal)": "LOR.DE", "TOT (TotalEnergies)": "TOT.DE",
-    "MBG (Mercedes-Benz)": "MBG.DE", "BMW (BMW)": "BMW.DE", "VOW3 (Volkswagen)": "VOW3.DE"
+    # --- Германия (Xetra) ---
+    "ASML (ASML Holding)": "ASML.DE", "SAP (SAP SE)": "SAP.DE", "RHM (Rheinmetall)": "RHM.DE",
+    "SIE (Siemens)": "SIE.DE", "ENR (Siemens Energy)": "ENR.DE", "IFX (Infineon)": "IFX.DE",
+    "ALV (Allianz)": "ALV.DE", "MBG (Mercedes-Benz)": "MBG.DE", "BMW (BMW)": "BMW.DE", 
+    "VOW3 (Volkswagen)": "VOW3.DE",
+
+    # --- Франция (Euronext Paris / Xetra) ---
+    "AIR (Airbus)": "AIR.PA", "MOH (LVMH)": "MC.PA", "RMS (Hermès)": "RMS.PA", 
+    "LOR (L'Oreal)": "OR.PA", "SU (Schneider Electric)": "SU.PA", "AI (Air Liquide)": "AI.PA",
+    "SAF (Safran)": "SAF.PA", "DG (Vinci)": "DG.PA", "TOT (TotalEnergies)": "TTE.PA",
+
+    # --- Нидерландия (Euronext Amsterdam) ---
+    "PRX (Prosus)": "PRX.AS", "ADYEN (Adyen)": "ADYEN.AS", "HEIA (Heineken)": "HEIA.AS",
+
+    # --- Италия (Borsa Italiana Milan) ---
+    "RACE (Ferrari)": "RACE.MI", "ENEL (Enel)": "ENEL.MI", "ENI (Eni)": "ENI.MI",
+    "PRY (Prysmian)": "PRY.MI"
 }
 
 def compute_rsi(data, window=14):
@@ -147,43 +170,15 @@ def fetch_market_data():
             diff_ema200 = ((close_price - ema200_val) / ema200_val) * 100
             
             # --- ДОПЪЛНИТЕЛНИ ПРОВЕРКИ ЗА ПОТВЪРДЕНО ОБРЪЩАНЕ (Confirmed Reversal) ---
-            # Целта е да разграничим истинско обръщане на тренда от временен,
-            # неубедителен отскок в рамките на продължаващ спад.
-
-            # 1. Акцията трябва да е БИЛА екстремно препродадена наскоро (RSI<30
-            #    в последните 15 търговски дни) - потвърждава реална капитулация,
-            #    не просто плавно, слабо движение.
             recent_15d = df.tail(15)
             had_extreme_oversold = bool((recent_15d['RSI'] < 30).any())
-
-            # 2. Но вече се е възстановила извън екстремната зона (RSI > 35) -
-            #    показва че моментумът реално се обръща, не просто "все още пада".
             recovered_from_oversold = rsi_val > 35
-
-            # 3. Цената си е върнала над EMA20 - краткосрочно структурно
-            #    потвърждение, че купувачите вече контролират (условието вече
-            #    съществуваше, запазено е).
             reclaimed_ema20 = close_price > ema20_val
-
-            # 4. MACD скорошно бичи пресичане (не просто MACD Hist > 0 отдавна) -
-            #    проверяваме дали хистограмата е била отрицателна някъде в
-            #    последните 5 дни и сега е положителна, т.е. прясно пресичане.
+            
             recent_5d_macd = df['MACD_Hist'].tail(5)
             macd_bullish_cross = bool((recent_5d_macd.iloc[:-1] < 0).any()) and macd_val > 0
-
-            # 5. Обем потвърждение - обръщане без повишен обем често е слабо и
-            #    лесно се обръща обратно. Изискваме обемът в деня на сигнала
-            #    да е поне 1.2x над 20-дневната средна.
             volume_confirms = vol_surge >= 1.2
 
-            # 6. СЕДМИЧНА ПРОВЕРКА (multi-timeframe потвърждение) - дневните
-            #    индикатори могат да изглеждат "обърнати", докато по-голямата,
-            #    седмична картина все още е в низходящ тренд (по-ниски върхове,
-            #    цена далеч под дългосрочната средна). Ресемплираме дневните
-            #    данни в седмични свещи и изискваме седмичният RSI да не е под
-            #    неутралната зона, плюс цената да не е твърде далеч под
-            #    40-седмичната средна (приблизителен седмичен еквивалент на
-            #    200-дневната).
             weekly_close = df['Close'].resample('W').last().dropna()
             weekly_rsi_series = compute_rsi(weekly_close, window=14)
             weekly_rsi_val = (
@@ -202,37 +197,20 @@ def fetch_market_data():
             if weekly_rsi_val is not None:
                 weekly_confirms = weekly_rsi_val > 45
             if weekly_confirms and weekly_sma40_val is not None:
-                # Цената не трябва да е повече от 15% под дългосрочната седмична средна -
-                # иначе е все още в дълбок примарен низходящ тренд, не истинско обръщане.
                 weekly_confirms = weekly_confirms and (close_price >= weekly_sma40_val * 0.85)
 
             # УМНА ЛОГИКА ЗА ВХОД (Smart Buy Zone)
-            # 1. Pullback (Корекция при възходящ тренд) - непроменено
-            # --- ДОПЪЛНИТЕЛНИ ПРОВЕРКИ ЗА PULLBACK (Бърз суинг по тренда) ---
-            # Целта е да разграничим истинска, здравословна корекция в активен
-            # up-тренд от случайно съвпадение на цената с EMA50, или от
-            # хронично слаба акция, която просто винаги е с нисък RSI.
-
-            # 1. EMA50 трябва АКТИВНО да расте (не просто да е над EMA200) -
-            #    сравняваме текущата стойност спрямо тази отпреди 10 дни.
+            
+            # 1. Pullback (Корекция при възходящ тренд)
             if len(df) >= 11:
                 ema50_10d_ago = float(df['EMA50'].iloc[-11])
                 ema50_rising = ema50_val > ema50_10d_ago
             else:
-                ema50_rising = True  # недостатъчно история - не блокираме
-
-            # 2. Цената трябва да е БЛИЗО ДО или ЛЕКО ПОД EMA50 (истински
-            #    pullback), не разтеглена над него - асиметрична зона вместо
-            #    симетричен abs(), който позволяваше и "твърде високо над".
+                ema50_rising = True
+            
             near_or_below_ema50 = -3.5 <= diff_ema50 <= 0.5
-
-            # 3. Обемът трябва да е под/около средния - здравословна корекция
-            #    обикновено се случва на спокоен обем (взимане на печалба),
-            #    не на паническа разпродажба с висок обем.
             low_volume_pullback = vol_surge <= 1.1
-
-            # 4. RSI трябва наскоро да е падал от по-високо ниво (истинска,
-            #    скорошна пауза), не просто хронично нисък RSI без движение.
+            
             recent_10d_rsi = df['RSI'].tail(10)
             rsi_recently_dropped = bool((recent_10d_rsi > 55).any()) and rsi_val < 48
 
@@ -244,8 +222,7 @@ def fetch_market_data():
                 and rsi_recently_dropped
             )
 
-            # 2. Reversal (Потвърдено обръщане) - вече изисква ВСИЧКИ 6 условия
-            #    по-горе, включително седмичното multi-timeframe потвърждение.
+            # 2. Reversal (Потвърдено обръщане)
             reversal_cond = (
                 is_downtrend
                 and had_extreme_oversold
@@ -276,58 +253,31 @@ def generate_ai_analysis(df_data, api_key):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-3.6-flash')
 
-    # ВАЖНО: подаваме на модела САМО реално потвърдените кандидати за всяка
-    # категория поотделно - никога не подменяме с "топ по MACD" fallback,
-    # защото това водеше AI-то да категоризира акции, които изобщо не бяха
-    # минали строгите ни филтри (напр. Volkswagen със седмичен RSI 38.59
-    # маркирано като "Потвърдено обръщане", докато всъщност беше в дълбок
-    # низходящ седмичен тренд).
-    pullback_candidates = df_data[
-        (df_data["Тренд"] == "↗ Възходящ") & (df_data["Бай Зона"] == True) & (df_data["Потвърдено обръщане"] == False)
-    ].sort_values(by="RSI").head(10)
-
-    reversal_candidates = df_data[df_data["Потвърдено обръщане"] == True].sort_values(
-        by="Обем (x Средния)", ascending=False
-    ).head(10)
-
-    pullback_text = (
-        pullback_candidates.to_string(index=False)
-        if not pullback_candidates.empty
-        else "НЯМА кандидати днес, които да отговарят на условията за pullback."
-    )
-    reversal_text = (
-        reversal_candidates.to_string(index=False)
-        if not reversal_candidates.empty
-        else "НЯМА кандидати днес, които да отговарят на условията за потвърдено обръщане."
-    )
+    df_filtered = df_data[df_data["Бай Зона"] == True]
+    if len(df_filtered) < 15: df_filtered = df_data.sort_values(by="MACD Hist", ascending=False).head(20)
 
     prompt = f"""
-    Ти си професионален суинг търговец. Използвай СТРИКТНО само данните по-долу -
-    те вече са преминали строги технически филтри в кода, ти НЕ преценяваш сам
-    дали инструмент отговаря на условията, само интерпретираш готовите резултати.
+    Ти си професионален суинг търговец. Пред теб са глобални акции, преминали през строг технически филтър (търгувани в евро на Xetra / Trading 212):
+    {df_filtered.to_string(index=False)}
 
-    === КАТЕГОРИЯ 1 кандидати: "За бърз суинг по тренда (Trend Following Pullback)" ===
-    {pullback_text}
+    ИЗБЕРИ ТОП 10 НАЙ-ОБЕЩАВАЩИ ВЪЗМОЖНОСТИ, КАТО СПАЗВАШ СЛЕДНИТЕ ЖЕЛЕЗНИ ПРАВИЛА:
 
-    === КАТЕГОРИЯ 2 кандидати: "Акумулиране при ПОТВЪРДЕНО обръщане (Confirmed Reversal)" ===
-    {reversal_text}
+    КАТЕГОРИЯ 1: 5 Акции "За бърз суинг по тренда (Trend Following Pullback)"
+    - ЗАДЪЛЖИТЕЛНО УСЛОВИЕ: Избирай САМО акции с "↗ Възходящ" тренд, които правят корекция (pullback) към EMA50 или имат здравословен RSI.
 
-    ЖЕЛЕЗНИ ПРАВИЛА:
-    - Избирай ЕДИНСТВЕНО измежду инструментите, изредени по-горе за всяка категория.
-      НЕ добавяй, НЕ предполагай и НЕ включвай никакъв друг инструмент, дори да ти
-      се струва подходящ от общи познания - ако не е в списъка по-горе, не съществува.
-    - Ако за дадена категория пише "НЯМА кандидати", напиши точно това в отговора си
-      ("Няма качествени възможности в тази категория днес") - НЕ импровизирай замяна.
-    - До 5 инструмента на категория (по-малко, ако няма достатъчно кандидати).
-
-    За всяка избрана акция бъди ясен с булети:
-    - Обясни защо техническият ѝ сетъп е добър (акцентирай върху потвърждението на обръщането за Категория 2).
+    КАТЕГОРИЯ 2: 5 Акции "Акумулиране при ПОТВЪРДЕНО обръщане (Confirmed Reversal)"
+    - Тук избирай САМО акции с колона "Потвърдено обръщане" = True. Тези акции вече
+      са преминали строга проверка: били са екстремно препродадени наскоро, RSI се е
+      възстановил, цената е пробила EMA20, MACD е направил прясно бичи пресичане, и
+      има потвърждение с повишен обем - това не е просто "нисък RSI", а реално
+      потвърдено обръщане на тренда.
+    
+    За всяка акция бъди ясен с булети:
+    - Обясни защо техническият им сетъп е добър (акцентирай върху потвърждението на обръщането за Категория 2).
     - Посочи ценови нива за влизане с 2 лимитирани транша.
 
     МНОГО ВАЖНО - ОБОБЩАВАЩА ТАБЛИЦА (ТЪРГОВСКИ ПЛАН):
-    В самия край на твоя отговор, генерирай една обобщаваща Markdown таблица само
-    за инструментите, които реално си избрал по-горе (пропусни таблицата изцяло,
-    ако и двете категории са празни).
+    В самия край на твоя отговор, генерирай една обобщаваща Markdown таблица.
     
     Изисквания за колоните в таблицата:
     1. **Инструмент:** Напиши Името, а под него добави тикера с наклонен шрифт (използвай HTML тага `<br>`, например: `Apple <br> *APC.DE*`).
@@ -343,7 +293,7 @@ st.title("⚡ Swing Screener AI")
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 if not api_key: api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-with st.spinner("Синхронизиране и търсене на потвърдени обръщания..."):
+with st.spinner("Синхронизиране и търсене на суинг възможности (може да отнеме до 30 сек)..."):
     df_summary, charts_data = fetch_market_data()
 
 if not df_summary.empty:
