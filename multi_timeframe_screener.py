@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import google.generativeai as genai
 
 st.set_page_config(
     page_title="Multi-Timeframe Swing Screener",
@@ -166,6 +167,58 @@ def analyze_instrument(name: str, symbol: str, support_tolerance_pct: float, swi
 
 # --- ИНТЕРФЕЙС --------------------------------------------------------------
 
+def generate_ai_analysis(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-3.6-flash')
+
+    # ВАЖНО: подаваме на Gemini само реално изчислените резултати. Той не
+    # преценява сам дали инструмент отговаря на условията - трите таймфрейма
+    # (седмичен тренд, дневна зона, 4ч потвърждение) вече са проверени в кода.
+    ready_text = (
+        df_ready.to_string(index=False)
+        if not df_ready.empty
+        else "НЯМА инструменти с пълно потвърждение на трите таймфрейма в момента."
+    )
+    watch_text = (
+        df_watch.to_string(index=False)
+        if not df_watch.empty
+        else "НЯМА инструменти в зона на подкрепа в момента."
+    )
+
+    prompt = f"""
+    Ти си професионален суинг търговец, ползващ multi-timeframe стратегия:
+    седмичен тренд по структура (higher high + higher low) определя посоката,
+    зона на подкрепа около последния седмичен swing low е мястото за вход,
+    а 4-часова структура (started higher high + higher low вътре в зоната)
+    потвърждава момента за реално влизане.
+
+    Използвай СТРИКТНО само данните по-долу - вече са преминали трите проверки
+    в кода, ти НЕ преценяваш сам дали инструмент отговаря на условията.
+
+    === ГОТОВИ ЗА ВХОД (и трите таймфрейма потвърдени) ===
+    {ready_text}
+
+    === WATCHLIST (седмичен тренд + в зона на подкрепа, но 4ч ОЩЕ НЕ е потвърдил) ===
+    {watch_text}
+
+    ЖЕЛЕЗНИ ПРАВИЛА:
+    - Избирай ЕДИНСТВЕНО измежду инструментите по-горе. Не добавяй никой друг.
+    - Ако "ГОТОВИ ЗА ВХОД" е празно, кажи го ясно - не превръщай Watchlist
+      кандидати в препоръка за вход, те само чакат потвърждение.
+    - За Watchlist инструментите обясни какво точно очакваме да видим на 4ч
+      графиката, за да минат в "готови" (напр. свеж higher low над зоната).
+
+    За всеки инструмент от "ГОТОВИ ЗА ВХОД" дай:
+    - Кратко обяснение защо сетъпът е добър (седмична структура + защо точно тази зона).
+    - Предложение за 2 транша за вход (в рамките на зоната на подкрепа, посочена в данните).
+    - Stop и Target нивата вече са изчислени в данните - използвай ги directно, не измисляй нови.
+
+    Бъди кратък, систематизиран, удобен за преглед на телефон.
+    """
+    response = model.generate_content(prompt)
+    return response.text
+
+
 st.title("🎯 Multi-Timeframe Swing Screener")
 st.caption(
     "Седмичен тренд по структура (HH/HL) → зона на подкрепа → дневна цена в зоната "
@@ -211,6 +264,7 @@ if results:
     df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
     st.dataframe(df_ready, use_container_width=True, hide_index=True)
 else:
+    df_ready = pd.DataFrame()
     st.info("Няма инструменти с пълно потвърждение на трите таймфрейма в момента.")
 
 st.divider()
@@ -219,7 +273,26 @@ if watch_list:
     df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход", "4ч ранен up-тренд (HH+HL)"])
     st.dataframe(df_watch, use_container_width=True, hide_index=True)
 else:
+    df_watch = pd.DataFrame()
     st.info("Няма инструменти в зона на подкрепа в момента (или все още не си сканирал).")
+
+st.divider()
+st.subheader("🤖 AI Анализ")
+gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
+if not gemini_api_key:
+    gemini_api_key = st.sidebar.text_input("Gemini API Key", type="password")
+
+if st.button("Генерирай AI анализ на резултатите", type="primary"):
+    if not gemini_api_key:
+        st.error("Липсва Gemini API ключ (провери Streamlit Secrets).")
+    elif df_ready.empty and df_watch.empty:
+        st.warning("Първо натисни 'Сканирай пазара' горе, за да има какво да се анализира.")
+    else:
+        with st.spinner("Gemini анализира резултатите..."):
+            try:
+                st.markdown(generate_ai_analysis(df_ready, df_watch, gemini_api_key))
+            except Exception as e:
+                st.error(f"Грешка при AI анализа: {e}")
 
 st.divider()
 st.subheader("📈 Преглед на графика")
