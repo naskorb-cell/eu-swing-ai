@@ -1,0 +1,3508 @@
+{
+  "generated_at": "2026-08-25 19:30:23",
+  "total_evaluated": 3352,
+  "count": 500,
+  "media_trending_count": 0,
+  "instruments": [
+    {
+      "name": "3LMO (GraniteShares 3x Long Moderna)",
+      "symbol": "3LMO.MI",
+      "avg_dollar_volume": 131794.0,
+      "momentum_3m_pct": 420.23,
+      "media_trending": false
+    },
+    {
+      "name": "0QF (Moderna)",
+      "symbol": "0QF.DE",
+      "avg_dollar_volume": 4389694.0,
+      "momentum_3m_pct": 231.88,
+      "media_trending": false
+    },
+    {
+      "name": "LCOC (WisdomTree Cocoa 2x Daily Leveraged)",
+      "symbol": "LCOC.MI",
+      "avg_dollar_volume": 1422944.0,
+      "momentum_3m_pct": 92.98,
+      "media_trending": false
+    },
+    {
+      "name": "3CFL (WisdomTree Coffee 3x Daily Leveraged)",
+      "symbol": "3CFL.MI",
+      "avg_dollar_volume": 1462762.0,
+      "momentum_3m_pct": 85.67,
+      "media_trending": false
+    },
+    {
+      "name": "EJT1 (easyJet)",
+      "symbol": "EJT1.DE",
+      "avg_dollar_volume": 405858.0,
+      "momentum_3m_pct": 81.62,
+      "media_trending": false
+    },
+    {
+      "name": "LCFE (WisdomTree Coffee 2x Daily Leveraged)",
+      "symbol": "LCFE.MI",
+      "avg_dollar_volume": 250413.0,
+      "momentum_3m_pct": 64.26,
+      "media_trending": false
+    },
+    {
+      "name": "AAKG (ARK Genomic Revolution (Acc))",
+      "symbol": "AAKG.DE",
+      "avg_dollar_volume": 273751.0,
+      "momentum_3m_pct": 58.94,
+      "media_trending": false
+    },
+    {
+      "name": "12DA (Dell Technologies)",
+      "symbol": "12DA.DE",
+      "avg_dollar_volume": 978298.0,
+      "momentum_3m_pct": 49.43,
+      "media_trending": false
+    },
+    {
+      "name": "ADI1 (Adecco)",
+      "symbol": "ADI1.DE",
+      "avg_dollar_volume": 79545.0,
+      "momentum_3m_pct": 48.59,
+      "media_trending": false
+    },
+    {
+      "name": "COCO (WisdomTree Cocoa)",
+      "symbol": "COCO.MI",
+      "avg_dollar_volume": 590005.0,
+      "momentum_3m_pct": 46.2,
+      "media_trending": false
+    },
+    {
+      "name": "SND3 (Leverage Shares 3x Long SanDisk SNDK (Acc))",
+      "symbol": "SND3.AS",
+      "avg_dollar_volume": 749335.0,
+      "momentum_3m_pct": 44.53,
+      "media_trending": false
+    },
+    {
+      "name": "DP4B (AP Moller - Maersk (Class B))",
+      "symbol": "DP4B.DE",
+      "avg_dollar_volume": 78660.0,
+      "momentum_3m_pct": 44.32,
+      "media_trending": false
+    },
+    {
+      "name": "ALCBI (Crypto Blockchain Industries)",
+      "symbol": "ALCBI.PA",
+      "avg_dollar_volume": 133392.0,
+      "momentum_3m_pct": 44.19,
+      "media_trending": false
+    },
+    {
+      "name": "GNOM (Global X Genomics & Biotechnology (Acc))",
+      "symbol": "GNOM.MI",
+      "avg_dollar_volume": 89701.0,
+      "momentum_3m_pct": 43.39,
+      "media_trending": false
+    },
+    {
+      "name": "3P7 (Pandora)",
+      "symbol": "3P7.DE",
+      "avg_dollar_volume": 64957.0,
+      "momentum_3m_pct": 42.42,
+      "media_trending": false
+    },
+    {
+      "name": "EDEN (Edenred)",
+      "symbol": "EDEN.PA",
+      "avg_dollar_volume": 14009450.0,
+      "momentum_3m_pct": 42.21,
+      "media_trending": false
+    },
+    {
+      "name": "6Z1 (Airbnb)",
+      "symbol": "6Z1.DE",
+      "avg_dollar_volume": 125631.0,
+      "momentum_3m_pct": 41.98,
+      "media_trending": false
+    },
+    {
+      "name": "2HP (Hewlett Packard Enterprise)",
+      "symbol": "2HP.DE",
+      "avg_dollar_volume": 320350.0,
+      "momentum_3m_pct": 41.25,
+      "media_trending": false
+    },
+    {
+      "name": "2PP (PayPal)",
+      "symbol": "2PP.DE",
+      "avg_dollar_volume": 1149698.0,
+      "momentum_3m_pct": 39.13,
+      "media_trending": false
+    },
+    {
+      "name": "3SUL (WisdomTree Sugar 3x Leveraged)",
+      "symbol": "3SUL.MI",
+      "avg_dollar_volume": 521787.0,
+      "momentum_3m_pct": 38.23,
+      "media_trending": false
+    },
+    {
+      "name": "TN8 (Thermo Fisher Scientific)",
+      "symbol": "TN8.DE",
+      "avg_dollar_volume": 151615.0,
+      "momentum_3m_pct": 38.03,
+      "media_trending": false
+    },
+    {
+      "name": "CURE (Vaneck Genomics And Healthcare Innovators (Acc))",
+      "symbol": "CURE.DE",
+      "avg_dollar_volume": 77397.0,
+      "momentum_3m_pct": 37.47,
+      "media_trending": false
+    },
+    {
+      "name": "XGEN (Xtrackers MSCI Genomic Healthcare Innovation (Acc))",
+      "symbol": "XGEN.DE",
+      "avg_dollar_volume": 83138.0,
+      "momentum_3m_pct": 35.49,
+      "media_trending": false
+    },
+    {
+      "name": "WRNA (Wisdomtree Biorevolution (Acc))",
+      "symbol": "WRNA.DE",
+      "avg_dollar_volume": 65637.0,
+      "momentum_3m_pct": 35.03,
+      "media_trending": false
+    },
+    {
+      "name": "COFF (WisdomTree Coffee)",
+      "symbol": "COFF.MI",
+      "avg_dollar_volume": 239129.0,
+      "momentum_3m_pct": 33.94,
+      "media_trending": false
+    },
+    {
+      "name": "AMG (Amgen)",
+      "symbol": "AMG.DE",
+      "avg_dollar_volume": 218976.0,
+      "momentum_3m_pct": 32.42,
+      "media_trending": false
+    },
+    {
+      "name": "WCLD (WisdomTree Cloud Computing (Acc))",
+      "symbol": "WCLD.MI",
+      "avg_dollar_volume": 717708.0,
+      "momentum_3m_pct": 32.41,
+      "media_trending": false
+    },
+    {
+      "name": "ABL (Abbott Laboratories)",
+      "symbol": "ABL.DE",
+      "avg_dollar_volume": 87827.0,
+      "momentum_3m_pct": 32.4,
+      "media_trending": false
+    },
+    {
+      "name": "WTEJ (WisdomTree Cloud Computing (Acc))",
+      "symbol": "WTEJ.DE",
+      "avg_dollar_volume": 1383514.0,
+      "momentum_3m_pct": 31.23,
+      "media_trending": false
+    },
+    {
+      "name": "PCE1 (Booking)",
+      "symbol": "PCE1.DE",
+      "avg_dollar_volume": 228407.0,
+      "momentum_3m_pct": 29.56,
+      "media_trending": false
+    },
+    {
+      "name": "PUB (Publicis Groupe)",
+      "symbol": "PUB.PA",
+      "avg_dollar_volume": 61128043.0,
+      "momentum_3m_pct": 28.71,
+      "media_trending": false
+    },
+    {
+      "name": "LSUG (WisdomTree Sugar 2x Daily Leveraged)",
+      "symbol": "LSUG.MI",
+      "avg_dollar_volume": 45196.0,
+      "momentum_3m_pct": 28.51,
+      "media_trending": false
+    },
+    {
+      "name": "BAYN (Bayer)",
+      "symbol": "BAYN.DE",
+      "avg_dollar_volume": 99220016.0,
+      "momentum_3m_pct": 28.25,
+      "media_trending": false
+    },
+    {
+      "name": "DSFIR (DSM-Firmenich)",
+      "symbol": "DSFIR.AS",
+      "avg_dollar_volume": 67873137.0,
+      "momentum_3m_pct": 28.04,
+      "media_trending": false
+    },
+    {
+      "name": "SIKA (Sika)",
+      "symbol": "SIKA.DE",
+      "avg_dollar_volume": 271517.0,
+      "momentum_3m_pct": 26.6,
+      "media_trending": false
+    },
+    {
+      "name": "6MK (Merck & Co)",
+      "symbol": "6MK.DE",
+      "avg_dollar_volume": 275130.0,
+      "momentum_3m_pct": 25.92,
+      "media_trending": false
+    },
+    {
+      "name": "XMLH (L&G Healthcare Technology & Innovation (Acc))",
+      "symbol": "XMLH.DE",
+      "avg_dollar_volume": 71719.0,
+      "momentum_3m_pct": 25.85,
+      "media_trending": false
+    },
+    {
+      "name": "4AB (AbbVie)",
+      "symbol": "4AB.DE",
+      "avg_dollar_volume": 121499.0,
+      "momentum_3m_pct": 25.2,
+      "media_trending": false
+    },
+    {
+      "name": "XLME (21Shares Stellar)",
+      "symbol": "XLME.DE",
+      "avg_dollar_volume": 60954.0,
+      "momentum_3m_pct": 25.11,
+      "media_trending": false
+    },
+    {
+      "name": "SBIO (Invesco NASDAQ Biotech (Acc))",
+      "symbol": "SBIO.MI",
+      "avg_dollar_volume": 320219.0,
+      "momentum_3m_pct": 24.53,
+      "media_trending": false
+    },
+    {
+      "name": "PTX (Palantir)",
+      "symbol": "PTX.DE",
+      "avg_dollar_volume": 6053463.0,
+      "momentum_3m_pct": 24.45,
+      "media_trending": false
+    },
+    {
+      "name": "DAP (Danaher)",
+      "symbol": "DAP.DE",
+      "avg_dollar_volume": 93228.0,
+      "momentum_3m_pct": 24.21,
+      "media_trending": false
+    },
+    {
+      "name": "AOF (Atoss Software)",
+      "symbol": "AOF.DE",
+      "avg_dollar_volume": 1787471.0,
+      "momentum_3m_pct": 24.02,
+      "media_trending": false
+    },
+    {
+      "name": "2B70 (iShares Nasdaq US Biotechnology (Acc))",
+      "symbol": "2B70.DE",
+      "avg_dollar_volume": 1692767.0,
+      "momentum_3m_pct": 23.7,
+      "media_trending": false
+    },
+    {
+      "name": "SW (Sodexo)",
+      "symbol": "SW.PA",
+      "avg_dollar_volume": 12436375.0,
+      "momentum_3m_pct": 22.9,
+      "media_trending": false
+    },
+    {
+      "name": "RRU (Rolls-Royce)",
+      "symbol": "RRU.DE",
+      "avg_dollar_volume": 2169817.0,
+      "momentum_3m_pct": 22.9,
+      "media_trending": false
+    },
+    {
+      "name": "HEAL (iShares Healthcare Innovation (Acc))",
+      "symbol": "HEAL.MI",
+      "avg_dollar_volume": 668882.0,
+      "momentum_3m_pct": 22.53,
+      "media_trending": false
+    },
+    {
+      "name": "FPMB (Freeport-McMoRan)",
+      "symbol": "FPMB.DE",
+      "avg_dollar_volume": 464018.0,
+      "momentum_3m_pct": 22.18,
+      "media_trending": false
+    },
+    {
+      "name": "DCO (Deere & Co)",
+      "symbol": "DCO.DE",
+      "avg_dollar_volume": 60220.0,
+      "momentum_3m_pct": 22.13,
+      "media_trending": false
+    },
+    {
+      "name": "SII (Wheaton Precious Metals)",
+      "symbol": "SII.DE",
+      "avg_dollar_volume": 220918.0,
+      "momentum_3m_pct": 21.72,
+      "media_trending": false
+    },
+    {
+      "name": "G1A (GEA Group)",
+      "symbol": "G1A.DE",
+      "avg_dollar_volume": 19841165.0,
+      "momentum_3m_pct": 21.44,
+      "media_trending": false
+    },
+    {
+      "name": "LIQD (CoinShares Hyperliquid Staking (Acc))",
+      "symbol": "LIQD.DE",
+      "avg_dollar_volume": 149398.0,
+      "momentum_3m_pct": 21.24,
+      "media_trending": false
+    },
+    {
+      "name": "QIA (QIAGEN)",
+      "symbol": "QIA.DE",
+      "avg_dollar_volume": 24077248.0,
+      "momentum_3m_pct": 21.23,
+      "media_trending": false
+    },
+    {
+      "name": "SQ3 (Block)",
+      "symbol": "SQ3.DE",
+      "avg_dollar_volume": 86967.0,
+      "momentum_3m_pct": 21.01,
+      "media_trending": false
+    },
+    {
+      "name": "4S0 (ServiceNow)",
+      "symbol": "4S0.DE",
+      "avg_dollar_volume": 2564790.0,
+      "momentum_3m_pct": 20.77,
+      "media_trending": false
+    },
+    {
+      "name": "7HP (HP)",
+      "symbol": "7HP.DE",
+      "avg_dollar_volume": 67636.0,
+      "momentum_3m_pct": 20.73,
+      "media_trending": false
+    },
+    {
+      "name": "5EUL (WisdomTree EURO STOXX 50 5x Leveraged (Acc))",
+      "symbol": "5EUL.MI",
+      "avg_dollar_volume": 75884.0,
+      "momentum_3m_pct": 20.54,
+      "media_trending": false
+    },
+    {
+      "name": "AFX (Carl Zeiss Meditec)",
+      "symbol": "AFX.DE",
+      "avg_dollar_volume": 9795432.0,
+      "momentum_3m_pct": 20.45,
+      "media_trending": false
+    },
+    {
+      "name": "TKA (thyssenkrupp)",
+      "symbol": "TKA.DE",
+      "avg_dollar_volume": 26781296.0,
+      "momentum_3m_pct": 20.38,
+      "media_trending": false
+    },
+    {
+      "name": "AUCO (L&G Gold Mining (Acc))",
+      "symbol": "AUCO.AS",
+      "avg_dollar_volume": 550866.0,
+      "momentum_3m_pct": 20.11,
+      "media_trending": false
+    },
+    {
+      "name": "5ITL (WisdomTree FTSE MIB 5x Leveraged (Acc))",
+      "symbol": "5ITL.MI",
+      "avg_dollar_volume": 124108.0,
+      "momentum_3m_pct": 20.08,
+      "media_trending": false
+    },
+    {
+      "name": "SAP (SAP)",
+      "symbol": "SAP.DE",
+      "avg_dollar_volume": 449992231.0,
+      "momentum_3m_pct": 20.05,
+      "media_trending": false
+    },
+    {
+      "name": "CD91 (Amundi Gold Miners (Dist))",
+      "symbol": "CD91.DE",
+      "avg_dollar_volume": 1611971.0,
+      "momentum_3m_pct": 20.0,
+      "media_trending": false
+    },
+    {
+      "name": "9MW (Marvell Technology)",
+      "symbol": "9MW.DE",
+      "avg_dollar_volume": 3718889.0,
+      "momentum_3m_pct": 19.53,
+      "media_trending": false
+    },
+    {
+      "name": "GRM (General Mills)",
+      "symbol": "GRM.DE",
+      "avg_dollar_volume": 112307.0,
+      "momentum_3m_pct": 19.42,
+      "media_trending": false
+    },
+    {
+      "name": "FRE (Fresenius)",
+      "symbol": "FRE.DE",
+      "avg_dollar_volume": 36281816.0,
+      "momentum_3m_pct": 19.26,
+      "media_trending": false
+    },
+    {
+      "name": "NCB (Bank of America)",
+      "symbol": "NCB.DE",
+      "avg_dollar_volume": 113151.0,
+      "momentum_3m_pct": 19.16,
+      "media_trending": false
+    },
+    {
+      "name": "UBUD (UBS Solactive Global Pure Gold Miners (Dist))",
+      "symbol": "UBUD.DE",
+      "avg_dollar_volume": 1186223.0,
+      "momentum_3m_pct": 19.15,
+      "media_trending": false
+    },
+    {
+      "name": "IES (Intesa Sanpaolo)",
+      "symbol": "IES.DE",
+      "avg_dollar_volume": 195180.0,
+      "momentum_3m_pct": 19.07,
+      "media_trending": false
+    },
+    {
+      "name": "ABN (ABN AMRO Bank)",
+      "symbol": "ABN.AS",
+      "avg_dollar_volume": 67311279.0,
+      "momentum_3m_pct": 18.98,
+      "media_trending": false
+    },
+    {
+      "name": "M4I (Mastercard)",
+      "symbol": "M4I.DE",
+      "avg_dollar_volume": 302056.0,
+      "momentum_3m_pct": 18.63,
+      "media_trending": false
+    },
+    {
+      "name": "MTE (Micron Technology)",
+      "symbol": "MTE.DE",
+      "avg_dollar_volume": 18602104.0,
+      "momentum_3m_pct": 18.59,
+      "media_trending": false
+    },
+    {
+      "name": "5UR (RTX)",
+      "symbol": "5UR.DE",
+      "avg_dollar_volume": 113581.0,
+      "momentum_3m_pct": 18.56,
+      "media_trending": false
+    },
+    {
+      "name": "INH (Indus)",
+      "symbol": "INH.DE",
+      "avg_dollar_volume": 1550253.0,
+      "momentum_3m_pct": 18.47,
+      "media_trending": false
+    },
+    {
+      "name": "NMM (Newmont)",
+      "symbol": "NMM.DE",
+      "avg_dollar_volume": 914762.0,
+      "momentum_3m_pct": 18.46,
+      "media_trending": false
+    },
+    {
+      "name": "MMM (3M)",
+      "symbol": "MMM.DE",
+      "avg_dollar_volume": 81270.0,
+      "momentum_3m_pct": 18.36,
+      "media_trending": false
+    },
+    {
+      "name": "IS0E (iShares Gold Producers (Acc))",
+      "symbol": "IS0E.DE",
+      "avg_dollar_volume": 4245112.0,
+      "momentum_3m_pct": 18.22,
+      "media_trending": false
+    },
+    {
+      "name": "SKYE (First Trust Cloud Computing (Acc))",
+      "symbol": "SKYE.AS",
+      "avg_dollar_volume": 67249.0,
+      "momentum_3m_pct": 18.01,
+      "media_trending": false
+    },
+    {
+      "name": "NOV (Novo Nordisk)",
+      "symbol": "NOV.DE",
+      "avg_dollar_volume": 7682585.0,
+      "momentum_3m_pct": 18.0,
+      "media_trending": false
+    },
+    {
+      "name": "JNJ (Johnson & Johnson)",
+      "symbol": "JNJ.DE",
+      "avg_dollar_volume": 576366.0,
+      "momentum_3m_pct": 17.98,
+      "media_trending": false
+    },
+    {
+      "name": "CVC (CVC Capital Partners)",
+      "symbol": "CVC.AS",
+      "avg_dollar_volume": 12902487.0,
+      "momentum_3m_pct": 17.94,
+      "media_trending": false
+    },
+    {
+      "name": "GDX (VanEck Gold Miners (Acc))",
+      "symbol": "GDX.MI",
+      "avg_dollar_volume": 2738511.0,
+      "momentum_3m_pct": 17.94,
+      "media_trending": false
+    },
+    {
+      "name": "2M6 (Medtronic)",
+      "symbol": "2M6.DE",
+      "avg_dollar_volume": 114295.0,
+      "momentum_3m_pct": 17.89,
+      "media_trending": false
+    },
+    {
+      "name": "AIR (Airbus)",
+      "symbol": "AIR.PA",
+      "avg_dollar_volume": 171190627.0,
+      "momentum_3m_pct": 17.38,
+      "media_trending": false
+    },
+    {
+      "name": "AIR (Airbus)",
+      "symbol": "AIR.DE",
+      "avg_dollar_volume": 38984999.0,
+      "momentum_3m_pct": 17.32,
+      "media_trending": false
+    },
+    {
+      "name": "KFTK (Invesco KBW NASDAQ Fintech (Acc))",
+      "symbol": "KFTK.DE",
+      "avg_dollar_volume": 770177.0,
+      "momentum_3m_pct": 17.09,
+      "media_trending": false
+    },
+    {
+      "name": "IUHE (iShares S&P 500 Health Care Sector (Dist))",
+      "symbol": "IUHE.AS",
+      "avg_dollar_volume": 73425.0,
+      "momentum_3m_pct": 17.03,
+      "media_trending": false
+    },
+    {
+      "name": "ZPDH (SPDR S&P U.S. Health Care Select Sector (Acc))",
+      "symbol": "ZPDH.DE",
+      "avg_dollar_volume": 585055.0,
+      "momentum_3m_pct": 16.99,
+      "media_trending": false
+    },
+    {
+      "name": "2FE (Ferrari)",
+      "symbol": "2FE.DE",
+      "avg_dollar_volume": 974963.0,
+      "momentum_3m_pct": 16.94,
+      "media_trending": false
+    },
+    {
+      "name": "QDVG (iShares S&P 500 Health Care Sector (Acc))",
+      "symbol": "QDVG.DE",
+      "avg_dollar_volume": 1456425.0,
+      "momentum_3m_pct": 16.89,
+      "media_trending": false
+    },
+    {
+      "name": "VETH (VanEck Ethereum)",
+      "symbol": "VETH.DE",
+      "avg_dollar_volume": 1167027.0,
+      "momentum_3m_pct": 16.42,
+      "media_trending": false
+    },
+    {
+      "name": "GRE (Amundi MSCI Greece (Dist))",
+      "symbol": "GRE.PA",
+      "avg_dollar_volume": 365498.0,
+      "momentum_3m_pct": 16.35,
+      "media_trending": false
+    },
+    {
+      "name": "3SIS (WisdomTree Silver 3x Short)",
+      "symbol": "3SIS.MI",
+      "avg_dollar_volume": 829510.0,
+      "momentum_3m_pct": 16.33,
+      "media_trending": false
+    },
+    {
+      "name": "XUHC (Xtrackers MSCI USA Health Care (Dist))",
+      "symbol": "XUHC.DE",
+      "avg_dollar_volume": 409933.0,
+      "momentum_3m_pct": 16.24,
+      "media_trending": false
+    },
+    {
+      "name": "G2XJ (VanEck Junior Gold Miners (Acc))",
+      "symbol": "G2XJ.DE",
+      "avg_dollar_volume": 3101781.0,
+      "momentum_3m_pct": 16.13,
+      "media_trending": false
+    },
+    {
+      "name": "ETLI (L&G Pharma Breakthrough (Acc))",
+      "symbol": "ETLI.DE",
+      "avg_dollar_volume": 54019.0,
+      "momentum_3m_pct": 16.1,
+      "media_trending": false
+    },
+    {
+      "name": "WCBR (WisdomTree Cybersecurity (Acc))",
+      "symbol": "WCBR.MI",
+      "avg_dollar_volume": 534256.0,
+      "momentum_3m_pct": 16.03,
+      "media_trending": false
+    },
+    {
+      "name": "XBAS (Xtrackers MSCI Singapore (Acc))",
+      "symbol": "XBAS.DE",
+      "avg_dollar_volume": 1469229.0,
+      "momentum_3m_pct": 16.02,
+      "media_trending": false
+    },
+    {
+      "name": "EVK (Evonik Industries)",
+      "symbol": "EVK.DE",
+      "avg_dollar_volume": 19676143.0,
+      "momentum_3m_pct": 15.96,
+      "media_trending": false
+    },
+    {
+      "name": "EXX1 (iShares EURO STOXX Banks 30-15 DE (Dist))",
+      "symbol": "EXX1.DE",
+      "avg_dollar_volume": 5395986.0,
+      "momentum_3m_pct": 15.77,
+      "media_trending": false
+    },
+    {
+      "name": "ZETH (Bitwise Physical Ethereum ETP)",
+      "symbol": "ZETH.DE",
+      "avg_dollar_volume": 158348.0,
+      "momentum_3m_pct": 15.77,
+      "media_trending": false
+    },
+    {
+      "name": "BNKE (Amundi Euro Stoxx Banks (Acc))",
+      "symbol": "BNKE.PA",
+      "avg_dollar_volume": 3960650.0,
+      "momentum_3m_pct": 15.74,
+      "media_trending": false
+    },
+    {
+      "name": "GSM (UBS Solactive US Listed Gold & Silver Miners (Acc))",
+      "symbol": "GSM.MI",
+      "avg_dollar_volume": 209704.0,
+      "momentum_3m_pct": 15.73,
+      "media_trending": false
+    },
+    {
+      "name": "BRM (Bristol-Myers Squibb)",
+      "symbol": "BRM.DE",
+      "avg_dollar_volume": 150510.0,
+      "momentum_3m_pct": 15.66,
+      "media_trending": false
+    },
+    {
+      "name": "CCEP (Coca-Cola Europacific Partners)",
+      "symbol": "CCEP.AS",
+      "avg_dollar_volume": 894875.0,
+      "momentum_3m_pct": 15.58,
+      "media_trending": false
+    },
+    {
+      "name": "MSF (Microsoft)",
+      "symbol": "MSF.DE",
+      "avg_dollar_volume": 17525061.0,
+      "momentum_3m_pct": 15.53,
+      "media_trending": false
+    },
+    {
+      "name": "EXA1 (iShares EURO STOXX Banks 30-15 DE (Acc))",
+      "symbol": "EXA1.AS",
+      "avg_dollar_volume": 1615382.0,
+      "momentum_3m_pct": 15.51,
+      "media_trending": false
+    },
+    {
+      "name": "SY1 (Symrise)",
+      "symbol": "SY1.DE",
+      "avg_dollar_volume": 26791162.0,
+      "momentum_3m_pct": 15.38,
+      "media_trending": false
+    },
+    {
+      "name": "3V64 (Visa)",
+      "symbol": "3V64.DE",
+      "avg_dollar_volume": 762620.0,
+      "momentum_3m_pct": 15.37,
+      "media_trending": false
+    },
+    {
+      "name": "TMV (TeamViewer)",
+      "symbol": "TMV.DE",
+      "avg_dollar_volume": 4650209.0,
+      "momentum_3m_pct": 15.34,
+      "media_trending": false
+    },
+    {
+      "name": "C9F (Chipotle Mexican Grill)",
+      "symbol": "C9F.DE",
+      "avg_dollar_volume": 50770.0,
+      "momentum_3m_pct": 15.33,
+      "media_trending": false
+    },
+    {
+      "name": "SAF (Safran)",
+      "symbol": "SAF.PA",
+      "avg_dollar_volume": 147569722.0,
+      "momentum_3m_pct": 15.31,
+      "media_trending": false
+    },
+    {
+      "name": "S7XE (EURO STOXX Optimised Banks (Acc))",
+      "symbol": "S7XE.DE",
+      "avg_dollar_volume": 324759.0,
+      "momentum_3m_pct": 15.25,
+      "media_trending": false
+    },
+    {
+      "name": "ALV (Allianz)",
+      "symbol": "ALV.DE",
+      "avg_dollar_volume": 218890497.0,
+      "momentum_3m_pct": 15.09,
+      "media_trending": false
+    },
+    {
+      "name": "SUGA (WisdomTree Sugar)",
+      "symbol": "SUGA.MI",
+      "avg_dollar_volume": 266308.0,
+      "momentum_3m_pct": 14.7,
+      "media_trending": false
+    },
+    {
+      "name": "ML (Cie Generale des Etablissements Michelin)",
+      "symbol": "ML.PA",
+      "avg_dollar_volume": 48782477.0,
+      "momentum_3m_pct": 14.67,
+      "media_trending": false
+    },
+    {
+      "name": "CMC (JPMorgan Chase & Co)",
+      "symbol": "CMC.DE",
+      "avg_dollar_volume": 290424.0,
+      "momentum_3m_pct": 14.64,
+      "media_trending": false
+    },
+    {
+      "name": "ARXK (ARK Innovation (Acc))",
+      "symbol": "ARXK.DE",
+      "avg_dollar_volume": 243646.0,
+      "momentum_3m_pct": 14.64,
+      "media_trending": false
+    },
+    {
+      "name": "BSOL (Bitwise Solana Staking (Acc))",
+      "symbol": "BSOL.DE",
+      "avg_dollar_volume": 52490.0,
+      "momentum_3m_pct": 14.56,
+      "media_trending": false
+    },
+    {
+      "name": "UNA (Unilever)",
+      "symbol": "UNA.AS",
+      "avg_dollar_volume": 57009762.0,
+      "momentum_3m_pct": 14.48,
+      "media_trending": false
+    },
+    {
+      "name": "VS0L (VanEck Solana)",
+      "symbol": "VS0L.DE",
+      "avg_dollar_volume": 398277.0,
+      "momentum_3m_pct": 14.32,
+      "media_trending": false
+    },
+    {
+      "name": "G24 (Scout24)",
+      "symbol": "G24.DE",
+      "avg_dollar_volume": 28665217.0,
+      "momentum_3m_pct": 14.1,
+      "media_trending": false
+    },
+    {
+      "name": "FOO (Salesforce)",
+      "symbol": "FOO.DE",
+      "avg_dollar_volume": 1646133.0,
+      "momentum_3m_pct": 13.92,
+      "media_trending": false
+    },
+    {
+      "name": "EXV1 (iShares STOXX Europe 600 Banks DE (Dist))",
+      "symbol": "EXV1.DE",
+      "avg_dollar_volume": 4836007.0,
+      "momentum_3m_pct": 13.91,
+      "media_trending": false
+    },
+    {
+      "name": "HEN3 (Henkel (Preferred))",
+      "symbol": "HEN3.DE",
+      "avg_dollar_volume": 28629591.0,
+      "momentum_3m_pct": 13.72,
+      "media_trending": false
+    },
+    {
+      "name": "LBNK (Amundi Stoxx Europe 600 Banks (Acc))",
+      "symbol": "LBNK.DE",
+      "avg_dollar_volume": 970339.0,
+      "momentum_3m_pct": 13.71,
+      "media_trending": false
+    },
+    {
+      "name": "3ITL (WisdomTree FTSE MIB 3x Daily Leveraged)",
+      "symbol": "3ITL.MI",
+      "avg_dollar_volume": 2613838.0,
+      "momentum_3m_pct": 13.68,
+      "media_trending": false
+    },
+    {
+      "name": "ENX (Euronext)",
+      "symbol": "ENX.PA",
+      "avg_dollar_volume": 24364377.0,
+      "momentum_3m_pct": 13.62,
+      "media_trending": false
+    },
+    {
+      "name": "IUKP (iShares UK Property (Dist))",
+      "symbol": "IUKP.MI",
+      "avg_dollar_volume": 50653.0,
+      "momentum_3m_pct": 13.6,
+      "media_trending": false
+    },
+    {
+      "name": "MTX (MTU Aero Engines)",
+      "symbol": "MTX.DE",
+      "avg_dollar_volume": 45756553.0,
+      "momentum_3m_pct": 13.59,
+      "media_trending": false
+    },
+    {
+      "name": "BUG (Global X Cybersecurity (Acc))",
+      "symbol": "BUG.MI",
+      "avg_dollar_volume": 64909.0,
+      "momentum_3m_pct": 13.59,
+      "media_trending": false
+    },
+    {
+      "name": "WHEA (State Street SPDR MSCI World Health Care (Acc))",
+      "symbol": "WHEA.AS",
+      "avg_dollar_volume": 254919.0,
+      "momentum_3m_pct": 13.34,
+      "media_trending": false
+    },
+    {
+      "name": "BCY (Barclays)",
+      "symbol": "BCY.DE",
+      "avg_dollar_volume": 502384.0,
+      "momentum_3m_pct": 13.24,
+      "media_trending": false
+    },
+    {
+      "name": "INDA (Amundi Stoxx Europe 600 Banks (Dist))",
+      "symbol": "INDA.DE",
+      "avg_dollar_volume": 326824.0,
+      "momentum_3m_pct": 13.2,
+      "media_trending": false
+    },
+    {
+      "name": "ITU (Intuit)",
+      "symbol": "ITU.DE",
+      "avg_dollar_volume": 508788.0,
+      "momentum_3m_pct": 13.19,
+      "media_trending": false
+    },
+    {
+      "name": "ESOL (Bitwise Physical Solana)",
+      "symbol": "ESOL.DE",
+      "avg_dollar_volume": 56662.0,
+      "momentum_3m_pct": 13.15,
+      "media_trending": false
+    },
+    {
+      "name": "IPS (Ipsos)",
+      "symbol": "IPS.PA",
+      "avg_dollar_volume": 4814443.0,
+      "momentum_3m_pct": 13.13,
+      "media_trending": false
+    },
+    {
+      "name": "HEN (Henkel)",
+      "symbol": "HEN.DE",
+      "avg_dollar_volume": 5658482.0,
+      "momentum_3m_pct": 13.1,
+      "media_trending": false
+    },
+    {
+      "name": "DHL (DHL Group)",
+      "symbol": "DHL.DE",
+      "avg_dollar_volume": 80751248.0,
+      "momentum_3m_pct": 13.09,
+      "media_trending": false
+    },
+    {
+      "name": "SHL (Siemens Healthineers)",
+      "symbol": "SHL.DE",
+      "avg_dollar_volume": 35792159.0,
+      "momentum_3m_pct": 13.04,
+      "media_trending": false
+    },
+    {
+      "name": "XDWH (Xtrackers MSCI World Health Care (Acc))",
+      "symbol": "XDWH.DE",
+      "avg_dollar_volume": 3037365.0,
+      "momentum_3m_pct": 12.99,
+      "media_trending": false
+    },
+    {
+      "name": "BNP (BNP Paribas)",
+      "symbol": "BNP.PA",
+      "avg_dollar_volume": 161119339.0,
+      "momentum_3m_pct": 12.88,
+      "media_trending": false
+    },
+    {
+      "name": "TLX (Talanx)",
+      "symbol": "TLX.DE",
+      "avg_dollar_volume": 16498893.0,
+      "momentum_3m_pct": 12.8,
+      "media_trending": false
+    },
+    {
+      "name": "VYUS (WisdomTree US Value (Acc))",
+      "symbol": "VYUS.DE",
+      "avg_dollar_volume": 123133.0,
+      "momentum_3m_pct": 12.61,
+      "media_trending": false
+    },
+    {
+      "name": "YCP (ConocoPhillips)",
+      "symbol": "YCP.DE",
+      "avg_dollar_volume": 52477.0,
+      "momentum_3m_pct": 12.58,
+      "media_trending": false
+    },
+    {
+      "name": "WKL (Wolters Kluwer)",
+      "symbol": "WKL.AS",
+      "avg_dollar_volume": 82897448.0,
+      "momentum_3m_pct": 12.57,
+      "media_trending": false
+    },
+    {
+      "name": "CCC3 (Coca-Cola)",
+      "symbol": "CCC3.DE",
+      "avg_dollar_volume": 770044.0,
+      "momentum_3m_pct": 12.57,
+      "media_trending": false
+    },
+    {
+      "name": "MOAT (VanEck Morningstar US ESG Wide Moat (Acc))",
+      "symbol": "MOAT.MI",
+      "avg_dollar_volume": 367527.0,
+      "momentum_3m_pct": 12.55,
+      "media_trending": false
+    },
+    {
+      "name": "KMY (Kimberly-Clark)",
+      "symbol": "KMY.DE",
+      "avg_dollar_volume": 108151.0,
+      "momentum_3m_pct": 12.51,
+      "media_trending": false
+    },
+    {
+      "name": "8TRA (Traton)",
+      "symbol": "8TRA.DE",
+      "avg_dollar_volume": 4881596.0,
+      "momentum_3m_pct": 12.49,
+      "media_trending": false
+    },
+    {
+      "name": "SR9 (Swiss Re)",
+      "symbol": "SR9.DE",
+      "avg_dollar_volume": 111310.0,
+      "momentum_3m_pct": 12.41,
+      "media_trending": false
+    },
+    {
+      "name": "LYPE (Amundi MSCI World Health Care (Acc))",
+      "symbol": "LYPE.DE",
+      "avg_dollar_volume": 300301.0,
+      "momentum_3m_pct": 12.39,
+      "media_trending": false
+    },
+    {
+      "name": "DIM (Sartorius Stedim Biotech)",
+      "symbol": "DIM.PA",
+      "avg_dollar_volume": 13184091.0,
+      "momentum_3m_pct": 12.25,
+      "media_trending": false
+    },
+    {
+      "name": "ASWD (Sprott Pure Play Copper Miners (Acc))",
+      "symbol": "ASWD.DE",
+      "avg_dollar_volume": 144049.0,
+      "momentum_3m_pct": 12.25,
+      "media_trending": false
+    },
+    {
+      "name": "DTG (Daimler Truck)",
+      "symbol": "DTG.DE",
+      "avg_dollar_volume": 50465701.0,
+      "momentum_3m_pct": 12.12,
+      "media_trending": false
+    },
+    {
+      "name": "0UB (UBS Group)",
+      "symbol": "0UB.DE",
+      "avg_dollar_volume": 413403.0,
+      "momentum_3m_pct": 12.11,
+      "media_trending": false
+    },
+    {
+      "name": "CBUF (iShares MSCI World Health Care Sector Advanced (Dist))",
+      "symbol": "CBUF.DE",
+      "avg_dollar_volume": 339890.0,
+      "momentum_3m_pct": 12.08,
+      "media_trending": false
+    },
+    {
+      "name": "WELG (Amundi S&P World Health Care Screened (Dist))",
+      "symbol": "WELG.DE",
+      "avg_dollar_volume": 263571.0,
+      "momentum_3m_pct": 11.98,
+      "media_trending": false
+    },
+    {
+      "name": "WELS (Amundi S&P World Health Care Screened (Acc))",
+      "symbol": "WELS.DE",
+      "avg_dollar_volume": 185367.0,
+      "momentum_3m_pct": 11.96,
+      "media_trending": false
+    },
+    {
+      "name": "CEBS (iShares Copper Miners (Acc))",
+      "symbol": "CEBS.DE",
+      "avg_dollar_volume": 753520.0,
+      "momentum_3m_pct": 11.55,
+      "media_trending": false
+    },
+    {
+      "name": "STZ (SPDR MSCI Europe Financials (Acc))",
+      "symbol": "STZ.PA",
+      "avg_dollar_volume": 267530.0,
+      "momentum_3m_pct": 11.48,
+      "media_trending": false
+    },
+    {
+      "name": "WDNR (Amundi Global Bioenergy (Acc))",
+      "symbol": "WDNR.DE",
+      "avg_dollar_volume": 229953.0,
+      "momentum_3m_pct": 11.48,
+      "media_trending": false
+    },
+    {
+      "name": "ESIF (iShares MSCI Europe Financials Sector (Acc))",
+      "symbol": "ESIF.DE",
+      "avg_dollar_volume": 739046.0,
+      "momentum_3m_pct": 11.43,
+      "media_trending": false
+    },
+    {
+      "name": "XUFN (Xtrackers MSCI USA Financials (Dist))",
+      "symbol": "XUFN.DE",
+      "avg_dollar_volume": 306406.0,
+      "momentum_3m_pct": 11.43,
+      "media_trending": false
+    },
+    {
+      "name": "QDVH (iShares S&P 500 Financials Sector USD (Acc))",
+      "symbol": "QDVH.DE",
+      "avg_dollar_volume": 1001052.0,
+      "momentum_3m_pct": 11.32,
+      "media_trending": false
+    },
+    {
+      "name": "ZPDF (SPDR S&P U.S. Financials Select Sector (Acc))",
+      "symbol": "ZPDF.DE",
+      "avg_dollar_volume": 417328.0,
+      "momentum_3m_pct": 11.18,
+      "media_trending": false
+    },
+    {
+      "name": "LLD (Lloyds Banking Group)",
+      "symbol": "LLD.DE",
+      "avg_dollar_volume": 233456.0,
+      "momentum_3m_pct": 11.05,
+      "media_trending": false
+    },
+    {
+      "name": "PFE (Pfizer)",
+      "symbol": "PFE.DE",
+      "avg_dollar_volume": 821379.0,
+      "momentum_3m_pct": 10.96,
+      "media_trending": false
+    },
+    {
+      "name": "XESP (Xtrackers Spain (Acc))",
+      "symbol": "XESP.DE",
+      "avg_dollar_volume": 564997.0,
+      "momentum_3m_pct": 10.96,
+      "media_trending": false
+    },
+    {
+      "name": "WELK (Amundi S&P World Financials Screened (Acc))",
+      "symbol": "WELK.DE",
+      "avg_dollar_volume": 386925.0,
+      "momentum_3m_pct": 10.95,
+      "media_trending": false
+    },
+    {
+      "name": "WELY (Amundi S&P World Financials Screened (Dist))",
+      "symbol": "WELY.DE",
+      "avg_dollar_volume": 54908.0,
+      "momentum_3m_pct": 10.87,
+      "media_trending": false
+    },
+    {
+      "name": "XESD (Xtrackers Spain (Dist))",
+      "symbol": "XESD.DE",
+      "avg_dollar_volume": 268500.0,
+      "momentum_3m_pct": 10.82,
+      "media_trending": false
+    },
+    {
+      "name": "DGTL (iShares Digitalisation (Acc))",
+      "symbol": "DGTL.MI",
+      "avg_dollar_volume": 153946.0,
+      "momentum_3m_pct": 10.82,
+      "media_trending": false
+    },
+    {
+      "name": "AGED (iShares Ageing Population (Acc))",
+      "symbol": "AGED.MI",
+      "avg_dollar_volume": 301065.0,
+      "momentum_3m_pct": 10.79,
+      "media_trending": false
+    },
+    {
+      "name": "AF (Air France)",
+      "symbol": "AF.PA",
+      "avg_dollar_volume": 12569499.0,
+      "momentum_3m_pct": 10.74,
+      "media_trending": false
+    },
+    {
+      "name": "VYGL (WisdomTree Global Value (Acc))",
+      "symbol": "VYGL.DE",
+      "avg_dollar_volume": 81567.0,
+      "momentum_3m_pct": 10.69,
+      "media_trending": false
+    },
+    {
+      "name": "FR (Valeo)",
+      "symbol": "FR.PA",
+      "avg_dollar_volume": 9964035.0,
+      "momentum_3m_pct": 10.64,
+      "media_trending": false
+    },
+    {
+      "name": "LGQM (Amundi Pan Africa (Acc))",
+      "symbol": "LGQM.DE",
+      "avg_dollar_volume": 133959.0,
+      "momentum_3m_pct": 10.58,
+      "media_trending": false
+    },
+    {
+      "name": "XS7R (Xtrackers MSCI Europe Financials (Acc))",
+      "symbol": "XS7R.DE",
+      "avg_dollar_volume": 364780.0,
+      "momentum_3m_pct": 10.53,
+      "media_trending": false
+    },
+    {
+      "name": "4COP (Global X Copper Miners (Acc))",
+      "symbol": "4COP.DE",
+      "avg_dollar_volume": 2682709.0,
+      "momentum_3m_pct": 10.49,
+      "media_trending": false
+    },
+    {
+      "name": "LEER (Amundi MSCI Eastern Europe Ex Russia (Acc))",
+      "symbol": "LEER.DE",
+      "avg_dollar_volume": 1436794.0,
+      "momentum_3m_pct": 10.45,
+      "media_trending": false
+    },
+    {
+      "name": "BEI (Beiersdorf)",
+      "symbol": "BEI.DE",
+      "avg_dollar_volume": 30018820.0,
+      "momentum_3m_pct": 10.42,
+      "media_trending": false
+    },
+    {
+      "name": "GIS (Gilead Sciences)",
+      "symbol": "GIS.DE",
+      "avg_dollar_volume": 114963.0,
+      "momentum_3m_pct": 10.38,
+      "media_trending": false
+    },
+    {
+      "name": "XDWF (Xtrackers MSCI World Financials (Acc))",
+      "symbol": "XDWF.DE",
+      "avg_dollar_volume": 874528.0,
+      "momentum_3m_pct": 10.33,
+      "media_trending": false
+    },
+    {
+      "name": "CEME (iShares IV Public Limited Company - iShares MSCI Japan SRI USD (Acc))",
+      "symbol": "CEME.DE",
+      "avg_dollar_volume": 98131.0,
+      "momentum_3m_pct": 10.31,
+      "media_trending": false
+    },
+    {
+      "name": "ISPY (L&G Cyber Security (Acc))",
+      "symbol": "ISPY.MI",
+      "avg_dollar_volume": 1052174.0,
+      "momentum_3m_pct": 10.15,
+      "media_trending": false
+    },
+    {
+      "name": "SHELL (Shell)",
+      "symbol": "SHELL.AS",
+      "avg_dollar_volume": 177842407.0,
+      "momentum_3m_pct": 10.14,
+      "media_trending": false
+    },
+    {
+      "name": "IBCJ (iShares MSCI Poland (Acc))",
+      "symbol": "IBCJ.DE",
+      "avg_dollar_volume": 2283828.0,
+      "momentum_3m_pct": 10.12,
+      "media_trending": false
+    },
+    {
+      "name": "IVCS (Invesco Cybersecurity (Acc))",
+      "symbol": "IVCS.DE",
+      "avg_dollar_volume": 91194.0,
+      "momentum_3m_pct": 10.06,
+      "media_trending": false
+    },
+    {
+      "name": "CS1 (Amundi IBEX 35 (Acc))",
+      "symbol": "CS1.PA",
+      "avg_dollar_volume": 750943.0,
+      "momentum_3m_pct": 9.97,
+      "media_trending": false
+    },
+    {
+      "name": "SILV (Global X Silver Miners (Acc))",
+      "symbol": "SILV.MI",
+      "avg_dollar_volume": 764241.0,
+      "momentum_3m_pct": 9.92,
+      "media_trending": false
+    },
+    {
+      "name": "ESP0 (VanEck Video Gaming and eSports (Acc))",
+      "symbol": "ESP0.DE",
+      "avg_dollar_volume": 710422.0,
+      "momentum_3m_pct": 9.85,
+      "media_trending": false
+    },
+    {
+      "name": "ADB (Adobe)",
+      "symbol": "ADB.DE",
+      "avg_dollar_volume": 1531754.0,
+      "momentum_3m_pct": 9.84,
+      "media_trending": false
+    },
+    {
+      "name": "ESPO (VanEck Video Gaming and eSports (Acc))",
+      "symbol": "ESPO.MI",
+      "avg_dollar_volume": 477348.0,
+      "momentum_3m_pct": 9.79,
+      "media_trending": false
+    },
+    {
+      "name": "SXR6 (iShares MSCI Japan SRI USD (Acc))",
+      "symbol": "SXR6.DE",
+      "avg_dollar_volume": 650628.0,
+      "momentum_3m_pct": 9.75,
+      "media_trending": false
+    },
+    {
+      "name": "LYPD (Amundi MSCI World Financials (Acc))",
+      "symbol": "LYPD.DE",
+      "avg_dollar_volume": 134955.0,
+      "momentum_3m_pct": 9.75,
+      "media_trending": false
+    },
+    {
+      "name": "GDIG (VanEck S&P Global Mining (Acc))",
+      "symbol": "GDIG.MI",
+      "avg_dollar_volume": 342171.0,
+      "momentum_3m_pct": 9.71,
+      "media_trending": false
+    },
+    {
+      "name": "XB4A (Xtrackers ATX (Acc))",
+      "symbol": "XB4A.DE",
+      "avg_dollar_volume": 631283.0,
+      "momentum_3m_pct": 9.67,
+      "media_trending": false
+    },
+    {
+      "name": "36B4 (iShares MSCI Japan SRI USD (Dist))",
+      "symbol": "36B4.DE",
+      "avg_dollar_volume": 91093.0,
+      "momentum_3m_pct": 9.58,
+      "media_trending": false
+    },
+    {
+      "name": "IUSB (iShares Global Timber & Forestry (Dist))",
+      "symbol": "IUSB.DE",
+      "avg_dollar_volume": 64083.0,
+      "momentum_3m_pct": 9.46,
+      "media_trending": false
+    },
+    {
+      "name": "SXRPEX (iShares STOXX Europe 600 Retail DE (Dist))",
+      "symbol": "SXRPEX.DE",
+      "avg_dollar_volume": 80533.0,
+      "momentum_3m_pct": 9.4,
+      "media_trending": false
+    },
+    {
+      "name": "AIAA (iShares AI Adopters & Applications (Acc))",
+      "symbol": "AIAA.DE",
+      "avg_dollar_volume": 135654.0,
+      "momentum_3m_pct": 9.31,
+      "media_trending": false
+    },
+    {
+      "name": "ADYEN (Adyen)",
+      "symbol": "ADYEN.AS",
+      "avg_dollar_volume": 150779764.0,
+      "momentum_3m_pct": 9.25,
+      "media_trending": false
+    },
+    {
+      "name": "GUI (Diageo)",
+      "symbol": "GUI.DE",
+      "avg_dollar_volume": 1544211.0,
+      "momentum_3m_pct": 9.19,
+      "media_trending": false
+    },
+    {
+      "name": "VODI (Vodafone)",
+      "symbol": "VODI.DE",
+      "avg_dollar_volume": 1192432.0,
+      "momentum_3m_pct": 9.16,
+      "media_trending": false
+    },
+    {
+      "name": "GET (Getlink)",
+      "symbol": "GET.PA",
+      "avg_dollar_volume": 11045072.0,
+      "momentum_3m_pct": 8.97,
+      "media_trending": false
+    },
+    {
+      "name": "FTGI (First Trust US Equity Income (Acc))",
+      "symbol": "FTGI.DE",
+      "avg_dollar_volume": 44165.0,
+      "momentum_3m_pct": 8.96,
+      "media_trending": false
+    },
+    {
+      "name": "CBRS (First Trust Nasdaq Cybersecurity (Acc))",
+      "symbol": "CBRS.DE",
+      "avg_dollar_volume": 710967.0,
+      "momentum_3m_pct": 8.9,
+      "media_trending": false
+    },
+    {
+      "name": "REN (RELX)",
+      "symbol": "REN.AS",
+      "avg_dollar_volume": 35437201.0,
+      "momentum_3m_pct": 8.88,
+      "media_trending": false
+    },
+    {
+      "name": "XUEN (Xtrackers MSCI USA Energy (Dist))",
+      "symbol": "XUEN.DE",
+      "avg_dollar_volume": 188376.0,
+      "momentum_3m_pct": 8.51,
+      "media_trending": false
+    },
+    {
+      "name": "CAP (Capgemini)",
+      "symbol": "CAP.PA",
+      "avg_dollar_volume": 59156941.0,
+      "momentum_3m_pct": 8.32,
+      "media_trending": false
+    },
+    {
+      "name": "DEFS (Amundi Stoxx Europe Defense (Acc))",
+      "symbol": "DEFS.PA",
+      "avg_dollar_volume": 664795.0,
+      "momentum_3m_pct": 8.31,
+      "media_trending": false
+    },
+    {
+      "name": "FGBL (First Trust Global Equity Income (Acc))",
+      "symbol": "FGBL.PA",
+      "avg_dollar_volume": 57342.0,
+      "momentum_3m_pct": 8.3,
+      "media_trending": false
+    },
+    {
+      "name": "NGL0 (Anglo American)",
+      "symbol": "NGL0.DE",
+      "avg_dollar_volume": 393404.0,
+      "momentum_3m_pct": 8.29,
+      "media_trending": false
+    },
+    {
+      "name": "COTN (WisdomTree Cotton)",
+      "symbol": "COTN.MI",
+      "avg_dollar_volume": 67276.0,
+      "momentum_3m_pct": 8.29,
+      "media_trending": false
+    },
+    {
+      "name": "XMCX (Xtrackers FTSE 250 (Dist))",
+      "symbol": "XMCX.DE",
+      "avg_dollar_volume": 70936.0,
+      "momentum_3m_pct": 8.24,
+      "media_trending": false
+    },
+    {
+      "name": "U5MD (iShares US Medical Devices (Acc))",
+      "symbol": "U5MD.DE",
+      "avg_dollar_volume": 466482.0,
+      "momentum_3m_pct": 8.21,
+      "media_trending": false
+    },
+    {
+      "name": "CHV (Chevron)",
+      "symbol": "CHV.DE",
+      "avg_dollar_volume": 458801.0,
+      "momentum_3m_pct": 8.17,
+      "media_trending": false
+    },
+    {
+      "name": "EGV1 (Amundi Stoxx Europe 600 Insurance (Dist))",
+      "symbol": "EGV1.DE",
+      "avg_dollar_volume": 57332.0,
+      "momentum_3m_pct": 8.15,
+      "media_trending": false
+    },
+    {
+      "name": "CTP2 (Comcast)",
+      "symbol": "CTP2.DE",
+      "avg_dollar_volume": 101954.0,
+      "momentum_3m_pct": 8.14,
+      "media_trending": false
+    },
+    {
+      "name": "IUS2 (iShares S&P US Banks (Acc))",
+      "symbol": "IUS2.DE",
+      "avg_dollar_volume": 398742.0,
+      "momentum_3m_pct": 8.1,
+      "media_trending": false
+    },
+    {
+      "name": "SGO (Cie de Saint-Gobain)",
+      "symbol": "SGO.PA",
+      "avg_dollar_volume": 76499546.0,
+      "momentum_3m_pct": 8.07,
+      "media_trending": false
+    },
+    {
+      "name": "UU2 (BlackRock)",
+      "symbol": "UU2.DE",
+      "avg_dollar_volume": 105604.0,
+      "momentum_3m_pct": 8.07,
+      "media_trending": false
+    },
+    {
+      "name": "ZPD6 (SPDR S&P US Dividend Aristocrats Screened (Dist))",
+      "symbol": "ZPD6.DE",
+      "avg_dollar_volume": 86224.0,
+      "momentum_3m_pct": 8.03,
+      "media_trending": false
+    },
+    {
+      "name": "QDVF (iShares S&P 500 Energy Sector (Acc))",
+      "symbol": "QDVF.DE",
+      "avg_dollar_volume": 1153141.0,
+      "momentum_3m_pct": 8.02,
+      "media_trending": false
+    },
+    {
+      "name": "LIRU (Amundi Stoxx Europe 600 Insurance (Acc))",
+      "symbol": "LIRU.DE",
+      "avg_dollar_volume": 120231.0,
+      "momentum_3m_pct": 8.02,
+      "media_trending": false
+    },
+    {
+      "name": "JSRI (BNP Paribas Easy MSCI Japan SRI PAB (Dist))",
+      "symbol": "JSRI.DE",
+      "avg_dollar_volume": 90271.0,
+      "momentum_3m_pct": 8.02,
+      "media_trending": false
+    },
+    {
+      "name": "CS (AXA)",
+      "symbol": "CS.PA",
+      "avg_dollar_volume": 96983307.0,
+      "momentum_3m_pct": 7.93,
+      "media_trending": false
+    },
+    {
+      "name": "ZAL (Zalando)",
+      "symbol": "ZAL.DE",
+      "avg_dollar_volume": 41990619.0,
+      "momentum_3m_pct": 7.92,
+      "media_trending": false
+    },
+    {
+      "name": "UIMT (UBS MSCI Pacific Socially Responsible (Dist))",
+      "symbol": "UIMT.DE",
+      "avg_dollar_volume": 812939.0,
+      "momentum_3m_pct": 7.92,
+      "media_trending": false
+    },
+    {
+      "name": "WELE (Amundi ETF ICAV-AMUNDI S&P 500 Equal Weight ESG (Acc))",
+      "symbol": "WELE.DE",
+      "avg_dollar_volume": 1897804.0,
+      "momentum_3m_pct": 7.89,
+      "media_trending": false
+    },
+    {
+      "name": "SXIPEX (iShares STOXX Europe 600 Insurance (Dist))",
+      "symbol": "SXIPEX.DE",
+      "avg_dollar_volume": 1401695.0,
+      "momentum_3m_pct": 7.88,
+      "media_trending": false
+    },
+    {
+      "name": "GXRP (Bitwise Physical XRP)",
+      "symbol": "GXRP.DE",
+      "avg_dollar_volume": 109077.0,
+      "momentum_3m_pct": 7.87,
+      "media_trending": false
+    },
+    {
+      "name": "C051 (Amundi Euro Stoxx Select Dividend 30 (Dist))",
+      "symbol": "C051.DE",
+      "avg_dollar_volume": 107397.0,
+      "momentum_3m_pct": 7.84,
+      "media_trending": false
+    },
+    {
+      "name": "EDEF (BNP Paribas Easy Bloomberg Europe Defense (Dist))",
+      "symbol": "EDEF.DE",
+      "avg_dollar_volume": 102283.0,
+      "momentum_3m_pct": 7.84,
+      "media_trending": false
+    },
+    {
+      "name": "BJL8 (BNP Paribas Easy Bloomberg Europe Defense (Acc))",
+      "symbol": "BJL8.DE",
+      "avg_dollar_volume": 482569.0,
+      "momentum_3m_pct": 7.79,
+      "media_trending": false
+    },
+    {
+      "name": "ZPDE (State Street SPDR S&P U.S. Energy Select Sector (Acc))",
+      "symbol": "ZPDE.DE",
+      "avg_dollar_volume": 629427.0,
+      "momentum_3m_pct": 7.76,
+      "media_trending": false
+    },
+    {
+      "name": "WDP (Walt Disney)",
+      "symbol": "WDP.DE",
+      "avg_dollar_volume": 238967.0,
+      "momentum_3m_pct": 7.74,
+      "media_trending": false
+    },
+    {
+      "name": "HO (Thales)",
+      "symbol": "HO.PA",
+      "avg_dollar_volume": 56000063.0,
+      "momentum_3m_pct": 7.71,
+      "media_trending": false
+    },
+    {
+      "name": "AP2 (Applied Materials)",
+      "symbol": "AP2.DE",
+      "avg_dollar_volume": 1730905.0,
+      "momentum_3m_pct": 7.71,
+      "media_trending": false
+    },
+    {
+      "name": "JPVA (JPMorgan US Value Equity Active (Acc))",
+      "symbol": "JPVA.DE",
+      "avg_dollar_volume": 623506.0,
+      "momentum_3m_pct": 7.66,
+      "media_trending": false
+    },
+    {
+      "name": "VMID (Vanguard FTSE 250 (Dist))",
+      "symbol": "VMID.DE",
+      "avg_dollar_volume": 118896.0,
+      "momentum_3m_pct": 7.66,
+      "media_trending": false
+    },
+    {
+      "name": "KHNZ (Kraft Heinz)",
+      "symbol": "KHNZ.DE",
+      "avg_dollar_volume": 298373.0,
+      "momentum_3m_pct": 7.65,
+      "media_trending": false
+    },
+    {
+      "name": "MWOQ (Amundi ETF ICAV-AMUNDI S&P 500 Equal Weight ESG (Acc))",
+      "symbol": "MWOQ.DE",
+      "avg_dollar_volume": 98006.0,
+      "momentum_3m_pct": 7.64,
+      "media_trending": false
+    },
+    {
+      "name": "MT (ArcelorMittal)",
+      "symbol": "MT.AS",
+      "avg_dollar_volume": 95802927.0,
+      "momentum_3m_pct": 7.63,
+      "media_trending": false
+    },
+    {
+      "name": "BSP (BAE Systems)",
+      "symbol": "BSP.DE",
+      "avg_dollar_volume": 1700636.0,
+      "momentum_3m_pct": 7.63,
+      "media_trending": false
+    },
+    {
+      "name": "U1FB (UBS MSCI Japan Socially Responsible (Acc))",
+      "symbol": "U1FB.DE",
+      "avg_dollar_volume": 47681.0,
+      "momentum_3m_pct": 7.62,
+      "media_trending": false
+    },
+    {
+      "name": "USRI (Amundi MSCI USA SRI Climate Paris Aligned UCITS ETF Acc EUR HEDGED)",
+      "symbol": "USRI.PA",
+      "avg_dollar_volume": 353573.0,
+      "momentum_3m_pct": 7.6,
+      "media_trending": false
+    },
+    {
+      "name": "JPNE (Amundi MSCI Japan SRI Climate Paris Aligned ETF (Dist))",
+      "symbol": "JPNE.DE",
+      "avg_dollar_volume": 271060.0,
+      "momentum_3m_pct": 7.6,
+      "media_trending": false
+    },
+    {
+      "name": "JARH (Amundi MSCI Japan SRI Climate Paris Aligned ETF (Acc))",
+      "symbol": "JARH.DE",
+      "avg_dollar_volume": 348347.0,
+      "momentum_3m_pct": 7.55,
+      "media_trending": false
+    },
+    {
+      "name": "KNG (First Trust Vest S&P 500 Dividend Aristocrats Target Income (Dist))",
+      "symbol": "KNG.DE",
+      "avg_dollar_volume": 98189.0,
+      "momentum_3m_pct": 7.55,
+      "media_trending": false
+    },
+    {
+      "name": "XMKA (Xtrackers MSCI Africa Top 50 Swap (Acc))",
+      "symbol": "XMKA.DE",
+      "avg_dollar_volume": 109628.0,
+      "momentum_3m_pct": 7.49,
+      "media_trending": false
+    },
+    {
+      "name": "LGGA (L&G APAC ex-Japan Quality Dividends Equal Weight (Dist))",
+      "symbol": "LGGA.DE",
+      "avg_dollar_volume": 97278.0,
+      "momentum_3m_pct": 7.39,
+      "media_trending": false
+    },
+    {
+      "name": "XDEF (Xtrackers Europe Defence Technologies (Acc))",
+      "symbol": "XDEF.DE",
+      "avg_dollar_volume": 164001.0,
+      "momentum_3m_pct": 7.37,
+      "media_trending": false
+    },
+    {
+      "name": "USUP (UBS MSCI Pacific Socially Responsible (Acc))",
+      "symbol": "USUP.DE",
+      "avg_dollar_volume": 178561.0,
+      "momentum_3m_pct": 7.34,
+      "media_trending": false
+    },
+    {
+      "name": "XZEW (Xtrackers S&P 500 Equal Weight Scored & Screened (Acc))",
+      "symbol": "XZEW.DE",
+      "avg_dollar_volume": 1353741.0,
+      "momentum_3m_pct": 7.3,
+      "media_trending": false
+    },
+    {
+      "name": "EVSD (Global X European SuperDividend (Dist))",
+      "symbol": "EVSD.DE",
+      "avg_dollar_volume": 202619.0,
+      "momentum_3m_pct": 7.28,
+      "media_trending": false
+    },
+    {
+      "name": "B500 (Amundi S&P 500 Buyback (Acc))",
+      "symbol": "B500.DE",
+      "avg_dollar_volume": 77388.0,
+      "momentum_3m_pct": 7.28,
+      "media_trending": false
+    },
+    {
+      "name": "FME (Fresenius Medical Care)",
+      "symbol": "FME.DE",
+      "avg_dollar_volume": 34709952.0,
+      "momentum_3m_pct": 7.23,
+      "media_trending": false
+    },
+    {
+      "name": "XASX (Xtrackers MSCI UK ESG (Dist))",
+      "symbol": "XASX.DE",
+      "avg_dollar_volume": 477594.0,
+      "momentum_3m_pct": 7.23,
+      "media_trending": false
+    },
+    {
+      "name": "LCOR (WisdomTree Corn 2x Leveraged)",
+      "symbol": "LCOR.MI",
+      "avg_dollar_volume": 70100.0,
+      "momentum_3m_pct": 7.23,
+      "media_trending": false
+    },
+    {
+      "name": "AIGAP (WisdomTree Agriculture)",
+      "symbol": "AIGAP.PA",
+      "avg_dollar_volume": 44868.0,
+      "momentum_3m_pct": 7.21,
+      "media_trending": false
+    },
+    {
+      "name": "MRK (Merck)",
+      "symbol": "MRK.DE",
+      "avg_dollar_volume": 34076604.0,
+      "momentum_3m_pct": 7.19,
+      "media_trending": false
+    },
+    {
+      "name": "XEWE (Xtrackers S&P 500 Equal Weight Scored & Screened (Acc))",
+      "symbol": "XEWE.DE",
+      "avg_dollar_volume": 159017.0,
+      "momentum_3m_pct": 7.19,
+      "media_trending": false
+    },
+    {
+      "name": "HDI (Home Depot)",
+      "symbol": "HDI.DE",
+      "avg_dollar_volume": 82888.0,
+      "momentum_3m_pct": 7.18,
+      "media_trending": false
+    },
+    {
+      "name": "SLYG (Shelly Group)",
+      "symbol": "SLYG.DE",
+      "avg_dollar_volume": 485307.0,
+      "momentum_3m_pct": 7.17,
+      "media_trending": false
+    },
+    {
+      "name": "BBCK (Invesco Global Buyback Achievers (Dist))",
+      "symbol": "BBCK.DE",
+      "avg_dollar_volume": 217146.0,
+      "momentum_3m_pct": 7.17,
+      "media_trending": false
+    },
+    {
+      "name": "OPEN (iShares Inclusion and Diversity (Acc))",
+      "symbol": "OPEN.DE",
+      "avg_dollar_volume": 50578.0,
+      "momentum_3m_pct": 7.14,
+      "media_trending": false
+    },
+    {
+      "name": "AW1T (UBS MSCI EMU Value (Acc))",
+      "symbol": "AW1T.DE",
+      "avg_dollar_volume": 192937.0,
+      "momentum_3m_pct": 7.1,
+      "media_trending": false
+    },
+    {
+      "name": "FLPE (Northern Trust Listed Private Equity (Acc))",
+      "symbol": "FLPE.AS",
+      "avg_dollar_volume": 59502.0,
+      "momentum_3m_pct": 7.06,
+      "media_trending": false
+    },
+    {
+      "name": "IDVY (iShares Euro Dividend (Dist))",
+      "symbol": "IDVY.AS",
+      "avg_dollar_volume": 476309.0,
+      "momentum_3m_pct": 7.0,
+      "media_trending": false
+    },
+    {
+      "name": "THEON (Theon International)",
+      "symbol": "THEON.AS",
+      "avg_dollar_volume": 3671721.0,
+      "momentum_3m_pct": 6.97,
+      "media_trending": false
+    },
+    {
+      "name": "CEML (iShares MSCI Europe Quality Dividend Advanced (Acc))",
+      "symbol": "CEML.DE",
+      "avg_dollar_volume": 57757.0,
+      "momentum_3m_pct": 6.97,
+      "media_trending": false
+    },
+    {
+      "name": "IGSG (iShares Dow Jones Global Leaders Screened (Acc))",
+      "symbol": "IGSG.AS",
+      "avg_dollar_volume": 65969.0,
+      "momentum_3m_pct": 6.96,
+      "media_trending": false
+    },
+    {
+      "name": "SXMPEX (iShares STOXX Europe 600 Media DE (Dist))",
+      "symbol": "SXMPEX.DE",
+      "avg_dollar_volume": 61391.0,
+      "momentum_3m_pct": 6.95,
+      "media_trending": false
+    },
+    {
+      "name": "BOSS (HUGO BOSS)",
+      "symbol": "BOSS.DE",
+      "avg_dollar_volume": 11075264.0,
+      "momentum_3m_pct": 6.89,
+      "media_trending": false
+    },
+    {
+      "name": "QDVX (iShares MSCI Europe Quality Dividend Advanced (Dist))",
+      "symbol": "QDVX.DE",
+      "avg_dollar_volume": 633001.0,
+      "momentum_3m_pct": 6.88,
+      "media_trending": false
+    },
+    {
+      "name": "JARI (Amundi MSCI Japan SRI Climate Paris Aligned (Acc))",
+      "symbol": "JARI.DE",
+      "avg_dollar_volume": 298247.0,
+      "momentum_3m_pct": 6.87,
+      "media_trending": false
+    },
+    {
+      "name": "HBC1 (HSBC)",
+      "symbol": "HBC1.DE",
+      "avg_dollar_volume": 3240391.0,
+      "momentum_3m_pct": 6.84,
+      "media_trending": false
+    },
+    {
+      "name": "SU (Schneider Electric)",
+      "symbol": "SU.PA",
+      "avg_dollar_volume": 232789629.0,
+      "momentum_3m_pct": 6.83,
+      "media_trending": false
+    },
+    {
+      "name": "EUDIV (Amundi S&P Eurozone Dividend Aristocrat Screened (Dist))",
+      "symbol": "EUDIV.PA",
+      "avg_dollar_volume": 80046.0,
+      "momentum_3m_pct": 6.77,
+      "media_trending": false
+    },
+    {
+      "name": "XDEW (Xtrackers S&P 500 Equal Weight (Acc))",
+      "symbol": "XDEW.DE",
+      "avg_dollar_volume": 4091081.0,
+      "momentum_3m_pct": 6.76,
+      "media_trending": false
+    },
+    {
+      "name": "SXRD (iShares MSCI UK Small Cap (Acc))",
+      "symbol": "SXRD.DE",
+      "avg_dollar_volume": 67887.0,
+      "momentum_3m_pct": 6.76,
+      "media_trending": false
+    },
+    {
+      "name": "EWSP (iShares S&P 500 Equal Weight (Acc))",
+      "symbol": "EWSP.MI",
+      "avg_dollar_volume": 1739193.0,
+      "momentum_3m_pct": 6.75,
+      "media_trending": false
+    },
+    {
+      "name": "UBUM (UBS S&P Dividend Aristocrats ESG Elite (Dist))",
+      "symbol": "UBUM.DE",
+      "avg_dollar_volume": 133308.0,
+      "momentum_3m_pct": 6.75,
+      "media_trending": false
+    },
+    {
+      "name": "BAT3 (L&G UK Quality Dividends Equal Weight (Dist))",
+      "symbol": "BAT3.DE",
+      "avg_dollar_volume": 70705.0,
+      "momentum_3m_pct": 6.74,
+      "media_trending": false
+    },
+    {
+      "name": "WMMS (Amundi MSCI World IMI Value Advanced (Acc))",
+      "symbol": "WMMS.DE",
+      "avg_dollar_volume": 76747.0,
+      "momentum_3m_pct": 6.72,
+      "media_trending": false
+    },
+    {
+      "name": "XEQW (Xtrackers S&P 500 Equal Weight Swap (Acc))",
+      "symbol": "XEQW.DE",
+      "avg_dollar_volume": 271157.0,
+      "momentum_3m_pct": 6.7,
+      "media_trending": false
+    },
+    {
+      "name": "RHO (Roche)",
+      "symbol": "RHO.DE",
+      "avg_dollar_volume": 131601.0,
+      "momentum_3m_pct": 6.68,
+      "media_trending": false
+    },
+    {
+      "name": "CBK (Commerzbank)",
+      "symbol": "CBK.DE",
+      "avg_dollar_volume": 87445215.0,
+      "momentum_3m_pct": 6.67,
+      "media_trending": false
+    },
+    {
+      "name": "XDED (Xtrackers S&P 500 Equal Weight (Dist))",
+      "symbol": "XDED.DE",
+      "avg_dollar_volume": 159443.0,
+      "momentum_3m_pct": 6.67,
+      "media_trending": false
+    },
+    {
+      "name": "ZPRV (State Street SPDR MSCI USA Small Cap Value Weighted (Acc))",
+      "symbol": "ZPRV.DE",
+      "avg_dollar_volume": 1413673.0,
+      "momentum_3m_pct": 6.65,
+      "media_trending": false
+    },
+    {
+      "name": "SP2Q (Invesco S&P 500 Equal Weight (Acc))",
+      "symbol": "SP2Q.DE",
+      "avg_dollar_volume": 171613.0,
+      "momentum_3m_pct": 6.65,
+      "media_trending": false
+    },
+    {
+      "name": "SP2D (Invesco S&P 500 Equal Weight (Dist))",
+      "symbol": "SP2D.DE",
+      "avg_dollar_volume": 87128.0,
+      "momentum_3m_pct": 6.65,
+      "media_trending": false
+    },
+    {
+      "name": "FRCJ (UBS MSCI Japan Socially Responsible (Dist))",
+      "symbol": "FRCJ.DE",
+      "avg_dollar_volume": 71944.0,
+      "momentum_3m_pct": 6.64,
+      "media_trending": false
+    },
+    {
+      "name": "LGWS (Amundi MSCI EMU Value Factor (Dist))",
+      "symbol": "LGWS.DE",
+      "avg_dollar_volume": 117427.0,
+      "momentum_3m_pct": 6.63,
+      "media_trending": false
+    },
+    {
+      "name": "XGSD (Xtrackers Stoxx Global Select Dividend 100 Swap (Dist))",
+      "symbol": "XGSD.DE",
+      "avg_dollar_volume": 907574.0,
+      "momentum_3m_pct": 6.61,
+      "media_trending": false
+    },
+    {
+      "name": "ZPRA (SPDR S&P Pan Asia Dividend Aristocrats (Dist))",
+      "symbol": "ZPRA.DE",
+      "avg_dollar_volume": 88341.0,
+      "momentum_3m_pct": 6.61,
+      "media_trending": false
+    },
+    {
+      "name": "RI (Pernod Ricard)",
+      "symbol": "RI.PA",
+      "avg_dollar_volume": 39796568.0,
+      "momentum_3m_pct": 6.58,
+      "media_trending": false
+    },
+    {
+      "name": "SXFPEX (iShares STOXX Europe 600 Financial Services DE (Dist))",
+      "symbol": "SXFPEX.DE",
+      "avg_dollar_volume": 128946.0,
+      "momentum_3m_pct": 6.58,
+      "media_trending": false
+    },
+    {
+      "name": "ZPRU (State Street SPDR MSCI USA Value (Acc))",
+      "symbol": "ZPRU.DE",
+      "avg_dollar_volume": 132303.0,
+      "momentum_3m_pct": 6.57,
+      "media_trending": false
+    },
+    {
+      "name": "EFRW (iShares S&P 500 Equal Weight (Acc))",
+      "symbol": "EFRW.DE",
+      "avg_dollar_volume": 600248.0,
+      "momentum_3m_pct": 6.56,
+      "media_trending": false
+    },
+    {
+      "name": "W450 (HSBC MSCI PACIFIC EX JAPAN (Acc))",
+      "symbol": "W450.DE",
+      "avg_dollar_volume": 119584.0,
+      "momentum_3m_pct": 6.54,
+      "media_trending": false
+    },
+    {
+      "name": "PAC (BNP PARIBAS EASY MSCI Pacific ex Japan Min TE C (Acc))",
+      "symbol": "PAC.DE",
+      "avg_dollar_volume": 203806.0,
+      "momentum_3m_pct": 6.53,
+      "media_trending": false
+    },
+    {
+      "name": "XDEE (Xtrackers S&P 500 Equal Weight (Acc))",
+      "symbol": "XDEE.DE",
+      "avg_dollar_volume": 1240703.0,
+      "momentum_3m_pct": 6.52,
+      "media_trending": false
+    },
+    {
+      "name": "LGQK (Amundi MSCI Pacific Ex Japan (Dist))",
+      "symbol": "LGQK.DE",
+      "avg_dollar_volume": 77746.0,
+      "momentum_3m_pct": 6.5,
+      "media_trending": false
+    },
+    {
+      "name": "ISPA (iShares STOXX Global Select Dividend 100 DE (Dist))",
+      "symbol": "ISPA.DE",
+      "avg_dollar_volume": 7298828.0,
+      "momentum_3m_pct": 6.49,
+      "media_trending": false
+    },
+    {
+      "name": "AW1C (UBS S&P 500 ESG Elite (Acc))",
+      "symbol": "AW1C.DE",
+      "avg_dollar_volume": 299182.0,
+      "momentum_3m_pct": 6.47,
+      "media_trending": false
+    },
+    {
+      "name": "CBUI (iShares MSCI World Value Factor Advanced (Acc))",
+      "symbol": "CBUI.DE",
+      "avg_dollar_volume": 814378.0,
+      "momentum_3m_pct": 6.44,
+      "media_trending": false
+    },
+    {
+      "name": "EVD (CTS Eventim)",
+      "symbol": "EVD.DE",
+      "avg_dollar_volume": 12421504.0,
+      "momentum_3m_pct": 6.43,
+      "media_trending": false
+    },
+    {
+      "name": "SXR1 (iShares Core MSCI Pacific ex-Japan (Acc))",
+      "symbol": "SXR1.DE",
+      "avg_dollar_volume": 973308.0,
+      "momentum_3m_pct": 6.43,
+      "media_trending": false
+    },
+    {
+      "name": "BNR (Brenntag)",
+      "symbol": "BNR.DE",
+      "avg_dollar_volume": 16311256.0,
+      "momentum_3m_pct": 6.41,
+      "media_trending": false
+    },
+    {
+      "name": "IPRV (iShares Listed Private Equity (Dist))",
+      "symbol": "IPRV.AS",
+      "avg_dollar_volume": 259278.0,
+      "momentum_3m_pct": 6.39,
+      "media_trending": false
+    },
+    {
+      "name": "EQSP (Amundi S&P 500 Equal Weight (Acc))",
+      "symbol": "EQSP.DE",
+      "avg_dollar_volume": 134788.0,
+      "momentum_3m_pct": 6.37,
+      "media_trending": false
+    },
+    {
+      "name": "WELI (Amundi S&P World Materials Screened (Acc))",
+      "symbol": "WELI.DE",
+      "avg_dollar_volume": 569677.0,
+      "momentum_3m_pct": 6.34,
+      "media_trending": false
+    },
+    {
+      "name": "GTIS (Xtrackers World Small Cap Green Tech Innovators (Acc))",
+      "symbol": "GTIS.DE",
+      "avg_dollar_volume": 100362.0,
+      "momentum_3m_pct": 6.34,
+      "media_trending": false
+    },
+    {
+      "name": "BVI (Bureau Veritas)",
+      "symbol": "BVI.PA",
+      "avg_dollar_volume": 27208488.0,
+      "momentum_3m_pct": 6.31,
+      "media_trending": false
+    },
+    {
+      "name": "AEC1 (American Express)",
+      "symbol": "AEC1.DE",
+      "avg_dollar_volume": 48544.0,
+      "momentum_3m_pct": 6.31,
+      "media_trending": false
+    },
+    {
+      "name": "SPYW (SPDR S&P Euro Dividend Aristocrats (Dist))",
+      "symbol": "SPYW.DE",
+      "avg_dollar_volume": 693574.0,
+      "momentum_3m_pct": 6.3,
+      "media_trending": false
+    },
+    {
+      "name": "HDLV (Invesco S&P 500 High Dividend Low Volatility (Dist))",
+      "symbol": "HDLV.PA",
+      "avg_dollar_volume": 156961.0,
+      "momentum_3m_pct": 6.29,
+      "media_trending": false
+    },
+    {
+      "name": "CBUW (iShares Listed Private Equity (Acc))",
+      "symbol": "CBUW.DE",
+      "avg_dollar_volume": 83363.0,
+      "momentum_3m_pct": 6.19,
+      "media_trending": false
+    },
+    {
+      "name": "UIMZ (UBS Factor MSCI EMU Prime Value Screened (Dist))",
+      "symbol": "UIMZ.DE",
+      "avg_dollar_volume": 75168.0,
+      "momentum_3m_pct": 6.16,
+      "media_trending": false
+    },
+    {
+      "name": "CV9 (Amundi MSCI Europe Value Factor (Acc))",
+      "symbol": "CV9.PA",
+      "avg_dollar_volume": 301852.0,
+      "momentum_3m_pct": 6.14,
+      "media_trending": false
+    },
+    {
+      "name": "WNRG (State Street SPDR MSCI World Energy (Acc))",
+      "symbol": "WNRG.AS",
+      "avg_dollar_volume": 161109.0,
+      "momentum_3m_pct": 6.13,
+      "media_trending": false
+    },
+    {
+      "name": "UIM9 (UBS MSCI Canada (Dist))",
+      "symbol": "UIM9.AS",
+      "avg_dollar_volume": 139836.0,
+      "momentum_3m_pct": 6.13,
+      "media_trending": false
+    },
+    {
+      "name": "04Q (Nordea Bank)",
+      "symbol": "04Q.DE",
+      "avg_dollar_volume": 73853.0,
+      "momentum_3m_pct": 6.12,
+      "media_trending": false
+    },
+    {
+      "name": "WENE (iShares MSCI World Energy Sector Advanced (Dist))",
+      "symbol": "WENE.MI",
+      "avg_dollar_volume": 60379.0,
+      "momentum_3m_pct": 6.1,
+      "media_trending": false
+    },
+    {
+      "name": "HCAN (HSBC MSCI Canada (Dist))",
+      "symbol": "HCAN.PA",
+      "avg_dollar_volume": 65121.0,
+      "momentum_3m_pct": 6.08,
+      "media_trending": false
+    },
+    {
+      "name": "SXR2 (iShares MSCI Canada (Acc))",
+      "symbol": "SXR2.DE",
+      "avg_dollar_volume": 678378.0,
+      "momentum_3m_pct": 6.07,
+      "media_trending": false
+    },
+    {
+      "name": "JGPI (JPMorgan Global Equity Premium Income Active (Dist))",
+      "symbol": "JGPI.DE",
+      "avg_dollar_volume": 2119344.0,
+      "momentum_3m_pct": 6.06,
+      "media_trending": false
+    },
+    {
+      "name": "MVEW (iShares Edge MSCI World Minimum Volatility Advanced (Acc))",
+      "symbol": "MVEW.DE",
+      "avg_dollar_volume": 89915.0,
+      "momentum_3m_pct": 6.04,
+      "media_trending": false
+    },
+    {
+      "name": "BN (Danone)",
+      "symbol": "BN.PA",
+      "avg_dollar_volume": 79208271.0,
+      "momentum_3m_pct": 6.03,
+      "media_trending": false
+    },
+    {
+      "name": "UIMS (UBS MSCI World Small Cap Socially Responsible (Acc))",
+      "symbol": "UIMS.DE",
+      "avg_dollar_volume": 496065.0,
+      "momentum_3m_pct": 6.01,
+      "media_trending": false
+    },
+    {
+      "name": "OP8E (Ossiam Bloomberg Canada Pab (Acc))",
+      "symbol": "OP8E.DE",
+      "avg_dollar_volume": 80229.0,
+      "momentum_3m_pct": 6.01,
+      "media_trending": false
+    },
+    {
+      "name": "WELV (Amundi S&P World Materials Screened (Dist))",
+      "symbol": "WELV.DE",
+      "avg_dollar_volume": 199929.0,
+      "momentum_3m_pct": 6.0,
+      "media_trending": false
+    },
+    {
+      "name": "ZPAB (Amundi S&P Eurozone Climate Paris Aligned (Acc))",
+      "symbol": "ZPAB.DE",
+      "avg_dollar_volume": 157130.0,
+      "momentum_3m_pct": 5.99,
+      "media_trending": false
+    },
+    {
+      "name": "BCFD (UBS MSCI Canada Universal (Acc))",
+      "symbol": "BCFD.DE",
+      "avg_dollar_volume": 45908.0,
+      "momentum_3m_pct": 5.99,
+      "media_trending": false
+    },
+    {
+      "name": "TDT (VanEck AEX (Dist))",
+      "symbol": "TDT.AS",
+      "avg_dollar_volume": 999120.0,
+      "momentum_3m_pct": 5.97,
+      "media_trending": false
+    },
+    {
+      "name": "AW1B (UBS S&P 500 ESG Elite (Acc))",
+      "symbol": "AW1B.DE",
+      "avg_dollar_volume": 300723.0,
+      "momentum_3m_pct": 5.96,
+      "media_trending": false
+    },
+    {
+      "name": "BAC (Verizon Communications)",
+      "symbol": "BAC.DE",
+      "avg_dollar_volume": 188956.0,
+      "momentum_3m_pct": 5.94,
+      "media_trending": false
+    },
+    {
+      "name": "EMUS (BNP Paribas Easy MSCI EMU SRI PAB (Acc))",
+      "symbol": "EMUS.DE",
+      "avg_dollar_volume": 60403.0,
+      "momentum_3m_pct": 5.94,
+      "media_trending": false
+    },
+    {
+      "name": "USDE (SPDR S&P US Dividend Aristocrats (Dist))",
+      "symbol": "USDE.MI",
+      "avg_dollar_volume": 140827.0,
+      "momentum_3m_pct": 5.91,
+      "media_trending": false
+    },
+    {
+      "name": "VWSB (Vestas Wind Systems)",
+      "symbol": "VWSB.DE",
+      "avg_dollar_volume": 941799.0,
+      "momentum_3m_pct": 5.88,
+      "media_trending": false
+    },
+    {
+      "name": "NN (NN Group)",
+      "symbol": "NN.AS",
+      "avg_dollar_volume": 42998195.0,
+      "momentum_3m_pct": 5.87,
+      "media_trending": false
+    },
+    {
+      "name": "LTUR (Amundi MSCI Turkey (Acc))",
+      "symbol": "LTUR.DE",
+      "avg_dollar_volume": 83902.0,
+      "momentum_3m_pct": 5.85,
+      "media_trending": false
+    },
+    {
+      "name": "8RMY (Future of European Defence Screened UCITS ETF (Acc))",
+      "symbol": "8RMY.DE",
+      "avg_dollar_volume": 366811.0,
+      "momentum_3m_pct": 5.81,
+      "media_trending": false
+    },
+    {
+      "name": "IAEX (iShares AEX (Dist))",
+      "symbol": "IAEX.AS",
+      "avg_dollar_volume": 1153487.0,
+      "momentum_3m_pct": 5.8,
+      "media_trending": false
+    },
+    {
+      "name": "SLVM (Sprott Silver Miners and Physical Silver (Acc))",
+      "symbol": "SLVM.DE",
+      "avg_dollar_volume": 168574.0,
+      "momentum_3m_pct": 5.8,
+      "media_trending": false
+    },
+    {
+      "name": "XZEU (Xtrackers MSCI Europe ESG (Acc))",
+      "symbol": "XZEU.DE",
+      "avg_dollar_volume": 653635.0,
+      "momentum_3m_pct": 5.78,
+      "media_trending": false
+    },
+    {
+      "name": "2U3 (Alcon)",
+      "symbol": "2U3.DE",
+      "avg_dollar_volume": 247273.0,
+      "momentum_3m_pct": 5.78,
+      "media_trending": false
+    },
+    {
+      "name": "DJMC (iShares EURO STOXX Mid (Dist))",
+      "symbol": "DJMC.AS",
+      "avg_dollar_volume": 82099.0,
+      "momentum_3m_pct": 5.78,
+      "media_trending": false
+    },
+    {
+      "name": "QDVI (iShares Edge MSCI USA Value Factor (Acc))",
+      "symbol": "QDVI.DE",
+      "avg_dollar_volume": 2329161.0,
+      "momentum_3m_pct": 5.77,
+      "media_trending": false
+    },
+    {
+      "name": "FVD (First Trust Value Line Dividend Index (Acc))",
+      "symbol": "FVD.DE",
+      "avg_dollar_volume": 43005.0,
+      "momentum_3m_pct": 5.77,
+      "media_trending": false
+    },
+    {
+      "name": "XDWM (Xtrackers MSCI World Materials (Acc))",
+      "symbol": "XDWM.DE",
+      "avg_dollar_volume": 626726.0,
+      "momentum_3m_pct": 5.76,
+      "media_trending": false
+    },
+    {
+      "name": "LVDX (Amundi LevDax Daily 2x Leveraged (Dist))",
+      "symbol": "LVDX.DE",
+      "avg_dollar_volume": 86336.0,
+      "momentum_3m_pct": 5.76,
+      "media_trending": false
+    },
+    {
+      "name": "H41G (HSBC MSCI World Small Cap Screened (Acc))",
+      "symbol": "H41G.DE",
+      "avg_dollar_volume": 46253.0,
+      "momentum_3m_pct": 5.76,
+      "media_trending": false
+    },
+    {
+      "name": "LYY8 (Amundi LevDax Daily 2x leveraged (Acc))",
+      "symbol": "LYY8.DE",
+      "avg_dollar_volume": 1372321.0,
+      "momentum_3m_pct": 5.74,
+      "media_trending": false
+    },
+    {
+      "name": "MWON (Amundi S&P SmallCap 600 Screened (Dist))",
+      "symbol": "MWON.DE",
+      "avg_dollar_volume": 205785.0,
+      "momentum_3m_pct": 5.74,
+      "media_trending": false
+    },
+    {
+      "name": "V50A (Amundi Core EURO STOXX 50 (Acc))",
+      "symbol": "V50A.DE",
+      "avg_dollar_volume": 1094166.0,
+      "momentum_3m_pct": 5.73,
+      "media_trending": false
+    },
+    {
+      "name": "V50D (Amundi Euro Stoxx 50 DR (Dist))",
+      "symbol": "V50D.DE",
+      "avg_dollar_volume": 522484.0,
+      "momentum_3m_pct": 5.72,
+      "media_trending": false
+    },
+    {
+      "name": "EMQQ (EMQQ Emerging Markets Internet (Acc))",
+      "symbol": "EMQQ.MI",
+      "avg_dollar_volume": 81123.0,
+      "momentum_3m_pct": 5.72,
+      "media_trending": false
+    },
+    {
+      "name": "DEGT (Dimensional Global Targeted Value (Acc))",
+      "symbol": "DEGT.DE",
+      "avg_dollar_volume": 286112.0,
+      "momentum_3m_pct": 5.71,
+      "media_trending": false
+    },
+    {
+      "name": "QDVW (iShares MSCI World Quality Dividend Advanced (Dist))",
+      "symbol": "QDVW.DE",
+      "avg_dollar_volume": 1134370.0,
+      "momentum_3m_pct": 5.7,
+      "media_trending": false
+    },
+    {
+      "name": "IAEA (iShares AEX (Acc))",
+      "symbol": "IAEA.AS",
+      "avg_dollar_volume": 374380.0,
+      "momentum_3m_pct": 5.7,
+      "media_trending": false
+    },
+    {
+      "name": "TDVX (VanEck Morningstar Developed Markets ex-US Dividend Leaders (Acc))",
+      "symbol": "TDVX.DE",
+      "avg_dollar_volume": 112442.0,
+      "momentum_3m_pct": 5.7,
+      "media_trending": false
+    },
+    {
+      "name": "EXXW (iShares Dow Jones Asia Pacific Select Dividend 50 DE (Dist))",
+      "symbol": "EXXW.DE",
+      "avg_dollar_volume": 1203275.0,
+      "momentum_3m_pct": 5.69,
+      "media_trending": false
+    },
+    {
+      "name": "2B7B (iShares S&P 500 Materials Sector (Acc))",
+      "symbol": "2B7B.DE",
+      "avg_dollar_volume": 159648.0,
+      "momentum_3m_pct": 5.68,
+      "media_trending": false
+    },
+    {
+      "name": "ETLK (L&G Asia Pacific ex Japan Equity (Acc))",
+      "symbol": "ETLK.DE",
+      "avg_dollar_volume": 463228.0,
+      "momentum_3m_pct": 5.67,
+      "media_trending": false
+    },
+    {
+      "name": "SRIEC (BNP Paribas Easy MSCI Europe SRI PAB (Acc))",
+      "symbol": "SRIEC.PA",
+      "avg_dollar_volume": 73758.0,
+      "momentum_3m_pct": 5.67,
+      "media_trending": false
+    },
+    {
+      "name": "CSY9 (UBS Factor MSCI World Selection Minimum Volatility (Acc))",
+      "symbol": "CSY9.DE",
+      "avg_dollar_volume": 60896.0,
+      "momentum_3m_pct": 5.67,
+      "media_trending": false
+    },
+    {
+      "name": "ETBB (BNP Paribas Easy EURO STOXX 50 (Dist))",
+      "symbol": "ETBB.DE",
+      "avg_dollar_volume": 359293.0,
+      "momentum_3m_pct": 5.66,
+      "media_trending": false
+    },
+    {
+      "name": "TDIV (VanEck Morningstar Developed Markets Dividend Leaders (Dist))",
+      "symbol": "TDIV.AS",
+      "avg_dollar_volume": 2552542.0,
+      "momentum_3m_pct": 5.65,
+      "media_trending": false
+    },
+    {
+      "name": "IBC4 (iShares MSCI South Africa (Acc))",
+      "symbol": "IBC4.DE",
+      "avg_dollar_volume": 271715.0,
+      "momentum_3m_pct": 5.65,
+      "media_trending": false
+    },
+    {
+      "name": "ETDD (BNP Paribas Easy EURO STOXX 50 (Acc))",
+      "symbol": "ETDD.DE",
+      "avg_dollar_volume": 388885.0,
+      "momentum_3m_pct": 5.64,
+      "media_trending": false
+    },
+    {
+      "name": "EXW1 (iShares Core EURO STOXX 50 DE (Dist))",
+      "symbol": "EXW1.DE",
+      "avg_dollar_volume": 24907460.0,
+      "momentum_3m_pct": 5.63,
+      "media_trending": false
+    },
+    {
+      "name": "XESC (Xtrackers Euro Stoxx 50 (Acc))",
+      "symbol": "XESC.DE",
+      "avg_dollar_volume": 5613346.0,
+      "momentum_3m_pct": 5.63,
+      "media_trending": false
+    },
+    {
+      "name": "XDW0 (Xtrackers MSCI World Energy (Acc))",
+      "symbol": "XDW0.DE",
+      "avg_dollar_volume": 2104265.0,
+      "momentum_3m_pct": 5.62,
+      "media_trending": false
+    },
+    {
+      "name": "ZPDM (SPDR S&P U.S. Materials Select Sector (Acc))",
+      "symbol": "ZPDM.DE",
+      "avg_dollar_volume": 118517.0,
+      "momentum_3m_pct": 5.61,
+      "media_trending": false
+    },
+    {
+      "name": "XESX (Xtrackers Euro Stoxx 50 (Dist))",
+      "symbol": "XESX.DE",
+      "avg_dollar_volume": 3926272.0,
+      "momentum_3m_pct": 5.6,
+      "media_trending": false
+    },
+    {
+      "name": "EUN2 (iShares Core EURO STOXX 50 EUR (Dist))",
+      "symbol": "EUN2.DE",
+      "avg_dollar_volume": 1700500.0,
+      "momentum_3m_pct": 5.59,
+      "media_trending": false
+    },
+    {
+      "name": "DWD (Morgan Stanley)",
+      "symbol": "DWD.DE",
+      "avg_dollar_volume": 71216.0,
+      "momentum_3m_pct": 5.58,
+      "media_trending": false
+    },
+    {
+      "name": "EUDF (WisdomTree Europe Defence (Acc))",
+      "symbol": "EUDF.DE",
+      "avg_dollar_volume": 11339723.0,
+      "momentum_3m_pct": 5.57,
+      "media_trending": false
+    },
+    {
+      "name": "LYSX (Amundi EURO STOXX 50 II (Acc))",
+      "symbol": "LYSX.DE",
+      "avg_dollar_volume": 1372520.0,
+      "momentum_3m_pct": 5.57,
+      "media_trending": false
+    },
+    {
+      "name": "DBPE (Xtrackers LevDAX 2x Daily Swap (Acc))",
+      "symbol": "DBPE.DE",
+      "avg_dollar_volume": 612628.0,
+      "momentum_3m_pct": 5.57,
+      "media_trending": false
+    },
+    {
+      "name": "SC0D (Invesco EURO STOXX 50 (Acc))",
+      "symbol": "SC0D.DE",
+      "avg_dollar_volume": 452108.0,
+      "momentum_3m_pct": 5.57,
+      "media_trending": false
+    },
+    {
+      "name": "H4ZA (HSBC EURO STOXX 50 (Dist))",
+      "symbol": "H4ZA.DE",
+      "avg_dollar_volume": 1278330.0,
+      "momentum_3m_pct": 5.56,
+      "media_trending": false
+    },
+    {
+      "name": "MIB (Amundi FTSE MIB Dist (Dist))",
+      "symbol": "MIB.PA",
+      "avg_dollar_volume": 333611.0,
+      "momentum_3m_pct": 5.55,
+      "media_trending": false
+    },
+    {
+      "name": "SXRY (iShares FTSE MIB EUR (Acc))",
+      "symbol": "SXRY.DE",
+      "avg_dollar_volume": 474488.0,
+      "momentum_3m_pct": 5.54,
+      "media_trending": false
+    },
+    {
+      "name": "7DZ (ExxonMobil)",
+      "symbol": "7DZ.DE",
+      "avg_dollar_volume": 468805.0,
+      "momentum_3m_pct": 5.52,
+      "media_trending": false
+    },
+    {
+      "name": "WS5X (WisdomTree EURO STOXX 50)",
+      "symbol": "WS5X.MI",
+      "avg_dollar_volume": 693964.0,
+      "momentum_3m_pct": 5.51,
+      "media_trending": false
+    },
+    {
+      "name": "ZPRG (SPDR S&P Global Dividend Aristocrats (Dist))",
+      "symbol": "ZPRG.DE",
+      "avg_dollar_volume": 1402629.0,
+      "momentum_3m_pct": 5.5,
+      "media_trending": false
+    },
+    {
+      "name": "WMAT (SPDR MSCI World Materials (Acc))",
+      "symbol": "WMAT.AS",
+      "avg_dollar_volume": 114975.0,
+      "momentum_3m_pct": 5.5,
+      "media_trending": false
+    },
+    {
+      "name": "SXNPEX (iShares STOXX Europe 600 Industrial Goods & Services (Dist))",
+      "symbol": "SXNPEX.DE",
+      "avg_dollar_volume": 884944.0,
+      "momentum_3m_pct": 5.49,
+      "media_trending": false
+    },
+    {
+      "name": "5MVW (iShares MSCI World Energy Sector (Dist))",
+      "symbol": "5MVW.DE",
+      "avg_dollar_volume": 530208.0,
+      "momentum_3m_pct": 5.49,
+      "media_trending": false
+    },
+    {
+      "name": "LYPU (Amundi Australia S&P/ASX 200 (Dist))",
+      "symbol": "LYPU.DE",
+      "avg_dollar_volume": 71488.0,
+      "momentum_3m_pct": 5.49,
+      "media_trending": false
+    },
+    {
+      "name": "LOM (Lockheed Martin)",
+      "symbol": "LOM.DE",
+      "avg_dollar_volume": 228174.0,
+      "momentum_3m_pct": 5.45,
+      "media_trending": false
+    },
+    {
+      "name": "UBU5 (UBS MSCI USA Value (Dist))",
+      "symbol": "UBU5.DE",
+      "avg_dollar_volume": 858823.0,
+      "momentum_3m_pct": 5.44,
+      "media_trending": false
+    },
+    {
+      "name": "UPAB (United Parcel Service)",
+      "symbol": "UPAB.DE",
+      "avg_dollar_volume": 117670.0,
+      "momentum_3m_pct": 5.43,
+      "media_trending": false
+    },
+    {
+      "name": "EC (Totalenergies EP Gabon)",
+      "symbol": "EC.PA",
+      "avg_dollar_volume": 136689.0,
+      "momentum_3m_pct": 5.41,
+      "media_trending": false
+    },
+    {
+      "name": "JGPD (JPMorgan Global Equity Premium Income Active (Dist))",
+      "symbol": "JGPD.DE",
+      "avg_dollar_volume": 250452.0,
+      "momentum_3m_pct": 5.4,
+      "media_trending": false
+    },
+    {
+      "name": "SMLK (Invesco S&P SmallCap 600 (Acc))",
+      "symbol": "SMLK.DE",
+      "avg_dollar_volume": 269062.0,
+      "momentum_3m_pct": 5.39,
+      "media_trending": false
+    },
+    {
+      "name": "MVEA (iShares Edge MSCI USA Minimum Volatility Advanced (Acc))",
+      "symbol": "MVEA.DE",
+      "avg_dollar_volume": 45015.0,
+      "momentum_3m_pct": 5.38,
+      "media_trending": false
+    },
+    {
+      "name": "EXO (EXOR)",
+      "symbol": "EXO.AS",
+      "avg_dollar_volume": 9511157.0,
+      "momentum_3m_pct": 5.37,
+      "media_trending": false
+    },
+    {
+      "name": "IMIB (iShares FTSE MIB EUR (Dist))",
+      "symbol": "IMIB.MI",
+      "avg_dollar_volume": 194105.0,
+      "momentum_3m_pct": 5.37,
+      "media_trending": false
+    },
+    {
+      "name": "SAUS (iShares MSCI Australia (Acc))",
+      "symbol": "SAUS.MI",
+      "avg_dollar_volume": 1147362.0,
+      "momentum_3m_pct": 5.35,
+      "media_trending": false
+    },
+    {
+      "name": "EXSH (iShares STOXX Europe Select Dividend 30 DE (Dist))",
+      "symbol": "EXSH.DE",
+      "avg_dollar_volume": 1518195.0,
+      "momentum_3m_pct": 5.34,
+      "media_trending": false
+    },
+    {
+      "name": "XNJP (Xtrackers Japan Net Zero Pathway Paris Aligned (Acc))",
+      "symbol": "XNJP.DE",
+      "avg_dollar_volume": 96170.0,
+      "momentum_3m_pct": 5.33,
+      "media_trending": false
+    },
+    {
+      "name": "ESIE (iShares MSCI Europe Energy Sector (Acc))",
+      "symbol": "ESIE.DE",
+      "avg_dollar_volume": 337768.0,
+      "momentum_3m_pct": 5.31,
+      "media_trending": false
+    },
+    {
+      "name": "FMNB (Leonardo)",
+      "symbol": "FMNB.DE",
+      "avg_dollar_volume": 328068.0,
+      "momentum_3m_pct": 5.31,
+      "media_trending": false
+    },
+    {
+      "name": "WMIB (WisdomTree FTSE MIB)",
+      "symbol": "WMIB.MI",
+      "avg_dollar_volume": 759998.0,
+      "momentum_3m_pct": 5.25,
+      "media_trending": false
+    },
+    {
+      "name": "SPYV (SPDR S&P Emerging Markets Dividend Aristocrats (Dist))",
+      "symbol": "SPYV.DE",
+      "avg_dollar_volume": 54977.0,
+      "momentum_3m_pct": 5.25,
+      "media_trending": false
+    },
+    {
+      "name": "SPYD (SPDR S&P US Dividend Aristocrats (Dist))",
+      "symbol": "SPYD.DE",
+      "avg_dollar_volume": 2010371.0,
+      "momentum_3m_pct": 5.24,
+      "media_trending": false
+    },
+    {
+      "name": "XDND (Xtrackers MSCI North America High Dividend Yield (Acc))",
+      "symbol": "XDND.DE",
+      "avg_dollar_volume": 749153.0,
+      "momentum_3m_pct": 5.24,
+      "media_trending": false
+    },
+    {
+      "name": "JPGL (JPMorgan Global Equity Multi-Factor (Acc))",
+      "symbol": "JPGL.MI",
+      "avg_dollar_volume": 108289.0,
+      "momentum_3m_pct": 5.24,
+      "media_trending": false
+    },
+    {
+      "name": "IUS3 (iShares S&P Small Cap 600 (Dist))",
+      "symbol": "IUS3.DE",
+      "avg_dollar_volume": 510703.0,
+      "momentum_3m_pct": 5.23,
+      "media_trending": false
+    },
+    {
+      "name": "FEUI (Fidelity Europe Quality Income (Dist))",
+      "symbol": "FEUI.DE",
+      "avg_dollar_volume": 49180.0,
+      "momentum_3m_pct": 5.23,
+      "media_trending": false
+    },
+    {
+      "name": "IQQX (iShares Asia Pacific Dividend (Dist))",
+      "symbol": "IQQX.DE",
+      "avg_dollar_volume": 605447.0,
+      "momentum_3m_pct": 5.22,
+      "media_trending": false
+    },
+    {
+      "name": "EXX5 (iShares Dow Jones U.S. Select Dividend DE (Dist))",
+      "symbol": "EXX5.DE",
+      "avg_dollar_volume": 493165.0,
+      "momentum_3m_pct": 5.22,
+      "media_trending": false
+    },
+    {
+      "name": "DFSV (SPDR S&P Europe Defense Vision (Acc))",
+      "symbol": "DFSV.DE",
+      "avg_dollar_volume": 127685.0,
+      "momentum_3m_pct": 5.22,
+      "media_trending": false
+    },
+    {
+      "name": "FEUQ (Fidelity Europe Quality Income (Acc))",
+      "symbol": "FEUQ.DE",
+      "avg_dollar_volume": 101945.0,
+      "momentum_3m_pct": 5.2,
+      "media_trending": false
+    },
+    {
+      "name": "UBI (Ubisoft Entertainment)",
+      "symbol": "UBI.PA",
+      "avg_dollar_volume": 3474888.0,
+      "momentum_3m_pct": 5.19,
+      "media_trending": false
+    },
+    {
+      "name": "DFNC (iShares Europe Defence (Acc))",
+      "symbol": "DFNC.DE",
+      "avg_dollar_volume": 625258.0,
+      "momentum_3m_pct": 5.19,
+      "media_trending": false
+    },
+    {
+      "name": "UBUT (UBS Factor MSCI USA Quality Screened (Dist))",
+      "symbol": "UBUT.AS",
+      "avg_dollar_volume": 323056.0,
+      "momentum_3m_pct": 5.19,
+      "media_trending": false
+    },
+    {
+      "name": "SELD (Amundi STOXX Europe Select Dividend 30 (Dist))",
+      "symbol": "SELD.DE",
+      "avg_dollar_volume": 384195.0,
+      "momentum_3m_pct": 5.18,
+      "media_trending": false
+    },
+    {
+      "name": "LDGA (L&G Global Quality Dividends (Acc))",
+      "symbol": "LDGA.DE",
+      "avg_dollar_volume": 250381.0,
+      "momentum_3m_pct": 5.16,
+      "media_trending": false
+    },
+    {
+      "name": "VHYL (Vanguard FTSE All-World High Dividend Yield (Dist))",
+      "symbol": "VHYL.AS",
+      "avg_dollar_volume": 1725939.0,
+      "momentum_3m_pct": 5.13,
+      "media_trending": false
+    },
+    {
+      "name": "SRT3 (Sartorius (Preferred))",
+      "symbol": "SRT3.DE",
+      "avg_dollar_volume": 17848445.0,
+      "momentum_3m_pct": 5.12,
+      "media_trending": false
+    },
+    {
+      "name": "EUPB (iShares MSCI Europe Paris-Aligned Climate (Acc))",
+      "symbol": "EUPB.AS",
+      "avg_dollar_volume": 47170.0,
+      "momentum_3m_pct": 5.12,
+      "media_trending": false
+    },
+    {
+      "name": "18MM (Amundi MSCI Pacific Ex Japan SRI Climate Paris Aligned ETF (Acc))",
+      "symbol": "18MM.DE",
+      "avg_dollar_volume": 123196.0,
+      "momentum_3m_pct": 5.09,
+      "media_trending": false
+    },
+    {
+      "name": "CHSE (UBS EURO STOXX 50 ESG (Acc))",
+      "symbol": "CHSE.DE",
+      "avg_dollar_volume": 298538.0,
+      "momentum_3m_pct": 5.08,
+      "media_trending": false
+    },
+    {
+      "name": "EMWE (BNP Paribas Easy MSCI World SRI PAB (Acc))",
+      "symbol": "EMWE.PA",
+      "avg_dollar_volume": 143616.0,
+      "momentum_3m_pct": 5.08,
+      "media_trending": false
+    },
+    {
+      "name": "VGWE (Vanguard FTSE All-World High Dividend Yield (Acc))",
+      "symbol": "VGWE.DE",
+      "avg_dollar_volume": 2459247.0,
+      "momentum_3m_pct": 5.06,
+      "media_trending": false
+    },
+    {
+      "name": "ASML (ASML)",
+      "symbol": "ASML.AS",
+      "avg_dollar_volume": 821980125.0,
+      "momentum_3m_pct": 5.05,
+      "media_trending": false
+    },
+    {
+      "name": "SPYN (SPDR MSCI Europe Energy (Acc))",
+      "symbol": "SPYN.DE",
+      "avg_dollar_volume": 382282.0,
+      "momentum_3m_pct": 5.05,
+      "media_trending": false
+    },
+    {
+      "name": "OCI (OCI)",
+      "symbol": "OCI.AS",
+      "avg_dollar_volume": 937047.0,
+      "momentum_3m_pct": 5.04,
+      "media_trending": false
+    },
+    {
+      "name": "DEL2 (L&G DAX 2x Long (Acc))",
+      "symbol": "DEL2.DE",
+      "avg_dollar_volume": 325327.0,
+      "momentum_3m_pct": 5.04,
+      "media_trending": false
+    },
+    {
+      "name": "MWEQ (Invesco MSCI World Equal Weight (Acc))",
+      "symbol": "MWEQ.DE",
+      "avg_dollar_volume": 1573909.0,
+      "momentum_3m_pct": 5.03,
+      "media_trending": false
+    },
+    {
+      "name": "WELA (Amundi MSCI ACWI SRI Climate Paris Aligned DR (Acc))",
+      "symbol": "WELA.DE",
+      "avg_dollar_volume": 307793.0,
+      "momentum_3m_pct": 5.03,
+      "media_trending": false
+    },
+    {
+      "name": "FLXX (Franklin Global Quality Dividend (Dist))",
+      "symbol": "FLXX.DE",
+      "avg_dollar_volume": 114483.0,
+      "momentum_3m_pct": 5.02,
+      "media_trending": false
+    },
+    {
+      "name": "WTEQ (WisdomTree Global Quality Dividend Growth (Dist))",
+      "symbol": "WTEQ.DE",
+      "avg_dollar_volume": 81826.0,
+      "momentum_3m_pct": 5.02,
+      "media_trending": false
+    },
+    {
+      "name": "MWSH (Amundi MSCI World SRI Climate Paris Aligned (Acc))",
+      "symbol": "MWSH.DE",
+      "avg_dollar_volume": 75149.0,
+      "momentum_3m_pct": 5.02,
+      "media_trending": false
+    },
+    {
+      "name": "HSWD (HSBC Developed World Screened Equity (Acc))",
+      "symbol": "HSWD.MI",
+      "avg_dollar_volume": 58837.0,
+      "momentum_3m_pct": 5.02,
+      "media_trending": false
+    },
+    {
+      "name": "TEP (Teleperformance)",
+      "symbol": "TEP.PA",
+      "avg_dollar_volume": 23318103.0,
+      "momentum_3m_pct": 5.0,
+      "media_trending": false
+    },
+    {
+      "name": "XWEV (Xtrackers MSCI World Value ESG (Acc))",
+      "symbol": "XWEV.DE",
+      "avg_dollar_volume": 304726.0,
+      "momentum_3m_pct": 4.97,
+      "media_trending": false
+    },
+    {
+      "name": "IBCZ (iShares STOXX World Equity Multifactor (Acc))",
+      "symbol": "IBCZ.DE",
+      "avg_dollar_volume": 253430.0,
+      "momentum_3m_pct": 4.97,
+      "media_trending": false
+    },
+    {
+      "name": "WGES (Amundi MSCI World SRI Climate Paris Aligned (Dist))",
+      "symbol": "WGES.DE",
+      "avg_dollar_volume": 93624.0,
+      "momentum_3m_pct": 4.97,
+      "media_trending": false
+    },
+    {
+      "name": "APXJ (Amundi MSCI Pacific Ex Japan SRI Climate Paris Aligned ETF (Dist))",
+      "symbol": "APXJ.DE",
+      "avg_dollar_volume": 147202.0,
+      "momentum_3m_pct": 4.96,
+      "media_trending": false
+    },
+    {
+      "name": "WSRI (Amundi MSCI World SRI Climate Paris Aligned (Acc))",
+      "symbol": "WSRI.MI",
+      "avg_dollar_volume": 520677.0,
+      "momentum_3m_pct": 4.95,
+      "media_trending": false
+    },
+    {
+      "name": "LCEU (BNP Paribas Easy Low Carbon 100 Europe PAB (Acc))",
+      "symbol": "LCEU.DE",
+      "avg_dollar_volume": 75783.0,
+      "momentum_3m_pct": 4.95,
+      "media_trending": false
+    },
+    {
+      "name": "D5BH (Xtrackers MSCI Canada Screened (Acc))",
+      "symbol": "D5BH.DE",
+      "avg_dollar_volume": 847040.0,
+      "momentum_3m_pct": 4.91,
+      "media_trending": false
+    },
+    {
+      "name": "CORN (WisdomTree Corn)",
+      "symbol": "CORN.MI",
+      "avg_dollar_volume": 110379.0,
+      "momentum_3m_pct": 4.91,
+      "media_trending": false
+    },
+    {
+      "name": "UET5 (UBS EURO STOXX 50 ESG (Dist))",
+      "symbol": "UET5.DE",
+      "avg_dollar_volume": 2611920.0,
+      "momentum_3m_pct": 4.89,
+      "media_trending": false
+    },
+    {
+      "name": "SCR (SCOR)",
+      "symbol": "SCR.PA",
+      "avg_dollar_volume": 12445574.0,
+      "momentum_3m_pct": 4.86,
+      "media_trending": false
+    },
+    {
+      "name": "UIQK (UBS CMCI Composite SF (Acc))",
+      "symbol": "UIQK.DE",
+      "avg_dollar_volume": 168857.0,
+      "momentum_3m_pct": 4.84,
+      "media_trending": false
+    },
+    {
+      "name": "6PSA (Invesco RAFI US Fundamental Value (Dist))",
+      "symbol": "6PSA.DE",
+      "avg_dollar_volume": 72724.0,
+      "momentum_3m_pct": 4.84,
+      "media_trending": false
+    },
+    {
+      "name": "SXDPEX (iShares STOXX Europe 600 Health Care DE (Dist))",
+      "symbol": "SXDPEX.DE",
+      "avg_dollar_volume": 874245.0,
+      "momentum_3m_pct": 4.83,
+      "media_trending": false
+    },
+    {
+      "name": "URW (Unibail-Rodamco-Westfield)",
+      "symbol": "URW.PA",
+      "avg_dollar_volume": 20872330.0,
+      "momentum_3m_pct": 4.8,
+      "media_trending": false
+    },
+    {
+      "name": "LDGL (L&G Global Quality Dividends (Dist))",
+      "symbol": "LDGL.DE",
+      "avg_dollar_volume": 1458236.0,
+      "momentum_3m_pct": 4.79,
+      "media_trending": false
+    },
+    {
+      "name": "ZPDX (SPDR STOXX Europe 600 SRI (Acc))",
+      "symbol": "ZPDX.DE",
+      "avg_dollar_volume": 496733.0,
+      "momentum_3m_pct": 4.78,
+      "media_trending": false
+    },
+    {
+      "name": "SPYF (SPDR FTSE UK All Share (Acc))",
+      "symbol": "SPYF.DE",
+      "avg_dollar_volume": 303100.0,
+      "momentum_3m_pct": 4.78,
+      "media_trending": false
+    },
+    {
+      "name": "4UBH (UBS MSCI World Socially Responsible (Acc))",
+      "symbol": "4UBH.DE",
+      "avg_dollar_volume": 290379.0,
+      "momentum_3m_pct": 4.78,
+      "media_trending": false
+    },
+    {
+      "name": "IS3T (iShares MSCI World Mid-Cap Equal Weight (Acc))",
+      "symbol": "IS3T.DE",
+      "avg_dollar_volume": 174101.0,
+      "momentum_3m_pct": 4.77,
+      "media_trending": false
+    },
+    {
+      "name": "JRED (JPMorgan Europe Research Enhanced Index Equity Active (Dist))",
+      "symbol": "JRED.DE",
+      "avg_dollar_volume": 87874.0,
+      "momentum_3m_pct": 4.77,
+      "media_trending": false
+    },
+    {
+      "name": "IS07 (iShares STOXX World Equity Multifactor (Acc))",
+      "symbol": "IS07.DE",
+      "avg_dollar_volume": 58539.0,
+      "momentum_3m_pct": 4.77,
+      "media_trending": false
+    },
+    {
+      "name": "QDVC (iShares MSCI USA Mid-Cap Equal Weight (Acc))",
+      "symbol": "QDVC.DE",
+      "avg_dollar_volume": 151195.0,
+      "momentum_3m_pct": 4.76,
+      "media_trending": false
+    },
+    {
+      "name": "4UB9 (UBS MSCI World Socially Responsible (Dist))",
+      "symbol": "4UB9.DE",
+      "avg_dollar_volume": 76356.0,
+      "momentum_3m_pct": 4.76,
+      "media_trending": false
+    },
+    {
+      "name": "LVLD (Invesco Global Active Defensive ESG Equity (Dist))",
+      "symbol": "LVLD.DE",
+      "avg_dollar_volume": 60974.0,
+      "momentum_3m_pct": 4.76,
+      "media_trending": false
+    },
+    {
+      "name": "JREZ (JPMorgan Eurozone Research Enhanced Index Equity Active (Acc))",
+      "symbol": "JREZ.DE",
+      "avg_dollar_volume": 104647.0,
+      "momentum_3m_pct": 4.74,
+      "media_trending": false
+    },
+    {
+      "name": "ICFP (Invesco MSCI Europe Catholic Principles (Dist))",
+      "symbol": "ICFP.DE",
+      "avg_dollar_volume": 100587.0,
+      "momentum_3m_pct": 4.74,
+      "media_trending": false
+    },
+    {
+      "name": "DJAM (Amundi Dow Jones Industrial Average (Dist))",
+      "symbol": "DJAM.DE",
+      "avg_dollar_volume": 87180.0,
+      "momentum_3m_pct": 4.74,
+      "media_trending": false
+    },
+    {
+      "name": "4UB1 (UBS MSCI World Socially Responsible (Acc))",
+      "symbol": "4UB1.DE",
+      "avg_dollar_volume": 66829.0,
+      "momentum_3m_pct": 4.73,
+      "media_trending": false
+    },
+    {
+      "name": "IUKD (iShares UK Dividend (Dist))",
+      "symbol": "IUKD.MI",
+      "avg_dollar_volume": 68875.0,
+      "momentum_3m_pct": 4.72,
+      "media_trending": false
+    },
+    {
+      "name": "XDJU (Xtrackers DJE US Equity Research (Acc))",
+      "symbol": "XDJU.DE",
+      "avg_dollar_volume": 103321.0,
+      "momentum_3m_pct": 4.7,
+      "media_trending": false
+    },
+    {
+      "name": "FGEU (Fidelity Global Quality Income (Dist))",
+      "symbol": "FGEU.DE",
+      "avg_dollar_volume": 49132.0,
+      "momentum_3m_pct": 4.7,
+      "media_trending": false
+    },
+    {
+      "name": "QUS5 (SPDR S&P 500 Quality Aristocrats (Acc))",
+      "symbol": "QUS5.DE",
+      "avg_dollar_volume": 129089.0,
+      "momentum_3m_pct": 4.68,
+      "media_trending": false
+    },
+    {
+      "name": "FEUR (Fidelity Europe Equity Research Enhanced (Acc))",
+      "symbol": "FEUR.DE",
+      "avg_dollar_volume": 114671.0,
+      "momentum_3m_pct": 4.68,
+      "media_trending": false
+    },
+    {
+      "name": "SXRW (iShares Core FTSE 100 GBP (Acc))",
+      "symbol": "SXRW.DE",
+      "avg_dollar_volume": 979319.0,
+      "momentum_3m_pct": 4.67,
+      "media_trending": false
+    },
+    {
+      "name": "UIMF (UBS Core MSCI Europe (Acc))",
+      "symbol": "UIMF.DE",
+      "avg_dollar_volume": 60461.0,
+      "momentum_3m_pct": 4.67,
+      "media_trending": false
+    },
+    {
+      "name": "DXJF (WisdomTree Japan Equity (Acc))",
+      "symbol": "DXJF.MI",
+      "avg_dollar_volume": 168333.0,
+      "momentum_3m_pct": 4.66,
+      "media_trending": false
+    },
+    {
+      "name": "SEAC (UBS MSCI World Socially Responsible (Acc))",
+      "symbol": "SEAC.DE",
+      "avg_dollar_volume": 644246.0,
+      "momentum_3m_pct": 4.63,
+      "media_trending": false
+    },
+    {
+      "name": "UIMM (UBS MSCI World Socially Responsible (Dist))",
+      "symbol": "UIMM.DE",
+      "avg_dollar_volume": 1257405.0,
+      "momentum_3m_pct": 4.62,
+      "media_trending": false
+    },
+    {
+      "name": "VUKE (Vanguard FTSE 100 (Dist))",
+      "symbol": "VUKE.DE",
+      "avg_dollar_volume": 788942.0,
+      "momentum_3m_pct": 4.62,
+      "media_trending": false
+    },
+    {
+      "name": "AHYI (Amundi PEA Dow Jones Industrial Average (Dist))",
+      "symbol": "AHYI.DE",
+      "avg_dollar_volume": 415463.0,
+      "momentum_3m_pct": 4.62,
+      "media_trending": false
+    },
+    {
+      "name": "XWEQ (Xtrackers MSCI World Quality ESG (Acc))",
+      "symbol": "XWEQ.DE",
+      "avg_dollar_volume": 88998.0,
+      "momentum_3m_pct": 4.62,
+      "media_trending": false
+    },
+    {
+      "name": "V3DA (Vanguard ESG Developed Europe All Cap (Acc))",
+      "symbol": "V3DA.DE",
+      "avg_dollar_volume": 57194.0,
+      "momentum_3m_pct": 4.62,
+      "media_trending": false
+    },
+    {
+      "name": "EJAH (BNP Paribas Easy MSCI Japan Min TE/ETF (Acc))",
+      "symbol": "EJAH.DE",
+      "avg_dollar_volume": 103913.0,
+      "momentum_3m_pct": 4.6,
+      "media_trending": false
+    },
+    {
+      "name": "LCUK (Amundi UK Equity All Cap (Dist))",
+      "symbol": "LCUK.DE",
+      "avg_dollar_volume": 156407.0,
+      "momentum_3m_pct": 4.59,
+      "media_trending": false
+    },
+    {
+      "name": "SX4PEX (iShares STOXX Europe 600 Chemicals DE (Dist))",
+      "symbol": "SX4PEX.DE",
+      "avg_dollar_volume": 241734.0,
+      "momentum_3m_pct": 4.57,
+      "media_trending": false
+    },
+    {
+      "name": "SXR0 (iShares Edge MSCI World Minimum Volatility (Acc))",
+      "symbol": "SXR0.DE",
+      "avg_dollar_volume": 189924.0,
+      "momentum_3m_pct": 4.57,
+      "media_trending": false
+    },
+    {
+      "name": "UBUS (UBS Factor MSCI USA Prime Value Screened (Dist))",
+      "symbol": "UBUS.DE",
+      "avg_dollar_volume": 76360.0,
+      "momentum_3m_pct": 4.57,
+      "media_trending": false
+    },
+    {
+      "name": "BATF (L&G Asia Pacific Ex Japan ESG Paris Aligned (Acc))",
+      "symbol": "BATF.DE",
+      "avg_dollar_volume": 196550.0,
+      "momentum_3m_pct": 4.56,
+      "media_trending": false
+    },
+    {
+      "name": "ZPRW (SPDR MSCI Europe Value (Acc))",
+      "symbol": "ZPRW.DE",
+      "avg_dollar_volume": 181943.0,
+      "momentum_3m_pct": 4.56,
+      "media_trending": false
+    },
+    {
+      "name": "D100 (Amundi FTSE 100 (Dist))",
+      "symbol": "D100.DE",
+      "avg_dollar_volume": 148774.0,
+      "momentum_3m_pct": 4.56,
+      "media_trending": false
+    },
+    {
+      "name": "XUKX (Xtrackers FTSE 100 Income (Dist))",
+      "symbol": "XUKX.DE",
+      "avg_dollar_volume": 93442.0,
+      "momentum_3m_pct": 4.56,
+      "media_trending": false
+    },
+    {
+      "name": "ESAG (BNP Paribas Easy MSCI USA SMALL CAP Min TE (Acc))",
+      "symbol": "ESAG.DE",
+      "avg_dollar_volume": 46407.0,
+      "momentum_3m_pct": 4.55,
+      "media_trending": false
+    },
+    {
+      "name": "SXRU (iShares Dow Jones Industrial Average (Acc))",
+      "symbol": "SXRU.DE",
+      "avg_dollar_volume": 882429.0,
+      "momentum_3m_pct": 4.54,
+      "media_trending": false
+    },
+    {
+      "name": "XDEB (Xtrackers MSCI World Minimum Volatility (Acc))",
+      "symbol": "XDEB.DE",
+      "avg_dollar_volume": 799726.0,
+      "momentum_3m_pct": 4.53,
+      "media_trending": false
+    },
+    {
+      "name": "WMFS (Amundi MSCI World Small Cap ESG Broad Transition (Acc))",
+      "symbol": "WMFS.DE",
+      "avg_dollar_volume": 108757.0,
+      "momentum_3m_pct": 4.53,
+      "media_trending": false
+    },
+    {
+      "name": "TTPX (Amundi Japan Topix (Acc))",
+      "symbol": "TTPX.DE",
+      "avg_dollar_volume": 612225.0,
+      "momentum_3m_pct": 4.49,
+      "media_trending": false
+    },
+    {
+      "name": "QDEV (SPDR S&P Developed Quality Aristocrats (Acc))",
+      "symbol": "QDEV.DE",
+      "avg_dollar_volume": 52863.0,
+      "momentum_3m_pct": 4.48,
+      "media_trending": false
+    }
+  ]
+}
