@@ -13,45 +13,75 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- Списък с инструменти (същият, който вече ползваме) ------------------
-TICKERS = {
-    "SXRV (iShares Nasdaq 100)": "SXRV.DE", "SXR8 (iShares Core S&P 500)": "SXR8.DE",
-    "SEC0 (iShares Semiconductor)": "SEC0.DE",
-    "WGLD (WisdomTree Physical Gold)": "WGLD.DE", "PHAG (WisdomTree Physical Silver)": "PHAG.DE",
-    "URNU (Global X Uranium)": "URNU.DE", "COPX (Global X Copper Miners)": "COPX.DE",
-    "APC (Apple)": "APC.DE", "MSF (Microsoft)": "MSF.DE", "ABE (Alphabet/Google)": "ABE.DE",
-    "AMZ (Amazon)": "AMZ.DE", "NVD (Nvidia)": "NVD.DE", "FB2A (Meta/Facebook)": "FB2A.DE",
-    "TL0 (Tesla)": "TL0.DE", "AMD (AMD)": "AMD.DE", "14B (Broadcom)": "14B.DE",
-    "QCI (Qualcomm)": "QCI.DE", "CRM (Salesforce)": "CRM.DE", "ORC (Oracle)": "ORC.DE",
-    "ELY (Eli Lilly)": "ELY.DE", "NOVC (Novo Nordisk)": "NOVC.DE", "JNJ (Johnson & Johnson)": "JNJ.DE",
-    "PFE (Pfizer)": "PFE.DE", "UNH (UnitedHealth)": "UNH.DE", "SAN (Sanofi)": "SAN.PA",
-    "3V64 (Visa)": "3V64.DE", "M4I (Mastercard)": "M4I.DE", "NFC (Netflix)": "NFC.DE",
-    "DIS (Walt Disney)": "DIS.DE", "WMT (Walmart)": "WMT.DE", "MCD (McDonald's)": "MDO.DE",
-    "KO (Coca-Cola)": "CCC3.DE", "BNP (BNP Paribas)": "BNP.PA", "ING (ING Group)": "INGA.AS",
+import json
+from pathlib import Path
+
+INSTRUMENTS_FILE = "eu_instruments.json"
+
+# Карта: подниз в реалното име на борсата (от Trading 212 /equity/metadata/exchanges) -> Yahoo суфикс.
+EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
+    ("XETRA", ".DE"),
+    ("FRANKFURT", ".DE"),
+    ("DEUTSCHE", ".DE"),
+    ("GETTEX", ".MU"),
+    ("PARIS", ".PA"),
+    ("AMSTERDAM", ".AS"),
+    ("MILAN", ".MI"),
+    ("BORSA ITALIANA", ".MI"),
+]
+
+
+def exchange_to_yahoo_suffix(exchange_name: str):
+    name_upper = (exchange_name or "").upper()
+    for keyword, suffix in EXCHANGE_NAME_TO_YAHOO_SUFFIX:
+        if keyword in name_upper:
+            return suffix
+    return None
+
+
+# Резервен малък списък, ако все още няма eu_instruments.json (напр. преди
+# първото пускане на GitHub Actions workflow-а)
+FALLBACK_TICKERS = {
+    "SXR8 (iShares Core S&P 500)": "SXR8.DE",
+    "EXH1 (iShares STOXX Europe 600)": "EXH1.DE",
+    "SAP (SAP SE)": "SAP.DE",
+    "ASML (ASML Holding)": "ASML.AS",
+    "AIR (Airbus)": "AIR.PA",
     "ISP (Intesa Sanpaolo)": "ISP.MI",
-    "ASML (ASML Holding)": "ASML.DE", "SAP (SAP SE)": "SAP.DE", "RHM (Rheinmetall)": "RHM.DE",
-    "SIE (Siemens)": "SIE.DE", "ENR (Siemens Energy)": "ENR.DE", "IFX (Infineon)": "IFX.DE",
-    "ALV (Allianz)": "ALV.DE", "MBG (Mercedes-Benz)": "MBG.DE", "BMW (BMW)": "BMW.DE",
-    "VOW3 (Volkswagen)": "VOW3.DE",
-    "AIR (Airbus)": "AIR.PA", "MOH (LVMH)": "MC.PA", "RMS (Hermès)": "RMS.PA",
-    "LOR (L'Oreal)": "OR.PA", "SU (Schneider Electric)": "SU.PA", "AI (Air Liquide)": "AI.PA",
-    "SAF (Safran)": "SAF.PA", "DG (Vinci)": "DG.PA", "TOT (TotalEnergies)": "TTE.PA",
-    "PRX (Prosus)": "PRX.AS", "ADYEN (Adyen)": "ADYEN.AS", "HEIA (Heineken)": "HEIA.AS",
-    "RACE (Ferrari)": "RACE.MI", "ENEL (Enel)": "ENEL.MI", "ENI (Eni)": "ENI.MI",
-    "PRY (Prysmian)": "PRY.MI",
 }
 
-# Защитен филтър: пазим само борси в евро - Германия, Франция, Италия, Нидерландия.
-# Дори ако някой добави тикер от друга борса по-нататък в TICKERS по-горе,
-# той автоматично отпада тук, вместо да влезе тихо в анализа.
-ALLOWED_EXCHANGE_SUFFIXES = {
-    ".DE": "Германия (Xetra)",
-    ".PA": "Франция (Euronext Paris)",
-    ".MI": "Италия (Borsa Italiana)",
-    ".AS": "Нидерландия (Euronext Amsterdam)",
-}
-_dropped = {name: sym for name, sym in TICKERS.items() if not sym.endswith(tuple(ALLOWED_EXCHANGE_SUFFIXES))}
-TICKERS = {name: sym for name, sym in TICKERS.items() if sym.endswith(tuple(ALLOWED_EXCHANGE_SUFFIXES))}
+
+@st.cache_data(ttl=6 * 3600)
+def load_universe(max_instruments: int = 300):
+    """Зарежда реалния универс от eu_instruments.json (генериран от
+    fetch_eu_instruments.py + Trading 212 API), с фалбек ако файлът липсва."""
+    path = Path(INSTRUMENTS_FILE)
+    if not path.exists():
+        st.warning(
+            f"Не намерих {INSTRUMENTS_FILE} — ползвам малък резервен списък. "
+            "Пусни GitHub Actions workflow-а 'Fetch EU Instruments', за да генерираш пълния файл."
+        )
+        return FALLBACK_TICKERS
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    instruments = data.get("instruments", [])
+
+    mapped = {}
+    unmapped_count = 0
+    for inst in instruments:
+        suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
+        if suffix is None:
+            unmapped_count += 1
+            continue
+        yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
+        label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+        mapped[label] = yahoo_ticker
+        if len(mapped) >= max_instruments:
+            break
+
+    if unmapped_count:
+        st.caption(f"⚠️ {unmapped_count} инструмента нямаха разпознато име на борса и бяха пропуснати.")
+    return mapped
 
 
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -230,17 +260,18 @@ st.caption(
     "Седмичен тренд по структура (HH/HL) → зона на подкрепа → дневна цена в зоната "
     "→ 4ч потвърждение на нов up-тренд вътре в зоната."
 )
-st.caption(f"Универс: {len(TICKERS)} инструмента (Германия, Франция, Италия, Нидерландия - в евро)")
-if _dropped:
-    st.caption(f"⚠️ Премахнати извън дозволените борси: {', '.join(_dropped.keys())}")
 
 with st.sidebar:
     st.subheader("Настройки")
+    max_instr = st.slider("Максимален брой инструменти за сканиране", 20, 500, 300, step=20)
     support_tolerance_pct = st.slider("Толеранс на зоната на подкрепа (%)", 1.0, 8.0, 3.0, step=0.5)
     swing_order_weekly = st.slider(
         "Чувствителност на седмичните swing точки", 1, 4, 2,
         help="По-високо число = по-малко, но по-значими swing точки (по-дълъг lag за потвърждение).",
     )
+
+TICKERS = load_universe(max_instruments=max_instr)
+st.caption(f"Универс: {len(TICKERS)} инструмента (Германия, Франция, Италия, Нидерландия - в евро)")
 
 if st.button("🔍 Сканирай пазара", type="primary"):
     results = []
