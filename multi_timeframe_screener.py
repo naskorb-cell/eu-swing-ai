@@ -405,32 +405,49 @@ def structure_trend(df: pd.DataFrame):
 
 
 @st.cache_data(ttl=3600)
-def analyze_instrument_mtf(name: str, symbol: str, support_tolerance_pct: float, swing_order_weekly: int):
-    daily = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
-    if daily.empty or len(daily) < 150:
+def analyze_instrument_mtf(name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int):
+    daily_df = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
+    if daily_df.empty or len(daily_df) < 150:
         return None
-    daily = flatten_columns(daily)
+    daily_df = flatten_columns(daily_df)
 
+    # --- 1. Седмичен тренд (твърд филтър) ---
     weekly = (
-        daily.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
+        daily_df.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
     )
     if len(weekly) < 20:
         return None
     weekly = find_swing_points(weekly, order=swing_order_weekly)
-    weekly_uptrend, resistance_level, support_level = structure_trend(weekly)
-
-    if not weekly_uptrend or support_level is None:
+    weekly_uptrend, weekly_resistance, weekly_support = structure_trend(weekly)
+    if not weekly_uptrend or weekly_support is None or weekly_resistance is None:
         return None
 
-    tolerance = support_level * (support_tolerance_pct / 100)
-    support_zone_low = support_level - tolerance
-    support_zone_high = support_level + tolerance
-
-    current_price = float(daily["Close"].iloc[-1])
-    in_support_zone = support_zone_low <= current_price <= support_zone_high
-    if not in_support_zone:
+    weekly_range = weekly_resistance - weekly_support
+    if weekly_range <= 0:
         return None
 
+    # --- 2. Цената в долната половина на седмичния диапазон (твърд филтър) ---
+    current_price = float(daily_df["Close"].iloc[-1])
+    weekly_lower_half_top = weekly_support + weekly_range / 2
+    in_weekly_lower_half = weekly_support <= current_price <= weekly_lower_half_top
+    if not in_weekly_lower_half:
+        return None
+
+    # --- 3. Дневен тренд по структура (твърд филтър) ---
+    daily_swings = find_swing_points(daily_df, order=swing_order_daily)
+    daily_uptrend, daily_resistance, daily_support = structure_trend(daily_swings)
+    if not daily_uptrend or daily_support is None or daily_resistance is None:
+        return None
+
+    daily_range = daily_resistance - daily_support
+    if daily_range <= 0:
+        return None
+
+    # --- 4. Цената в долната третина на ДНЕВНИЯ диапазон ---
+    daily_lower_third_top = daily_support + daily_range / 3
+    in_daily_lower_third = daily_support <= current_price <= daily_lower_third_top
+
+    # --- 5. 4-часова структура: потвърждава ли up-тренд? ---
     h4_uptrend = False
     try:
         intraday = yf.download(symbol, period="60d", interval="60m", progress=False, auto_adjust=True)
@@ -445,19 +462,26 @@ def analyze_instrument_mtf(name: str, symbol: str, support_tolerance_pct: float,
     except Exception:
         pass
 
-    risk = current_price - support_zone_low
-    reward = resistance_level - current_price
-    rr_ratio = (reward / risk) if risk > 0 else None
+    # "Готов за вход" изисква и двете: цената в прецизната зона (долна третина
+    # от дневния диапазон) И 4ч структура да потвърждава начеващ up-тренд.
+    ready = in_daily_lower_third and h4_uptrend
+
+    risk = current_price - daily_support
+    reward_daily = daily_resistance - current_price
+    reward_weekly = weekly_resistance - current_price
+    rr_daily = (reward_daily / risk) if risk > 0 else None
+    rr_weekly = (reward_weekly / risk) if risk > 0 else None
 
     return {
         "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
-        "Седм. подкрепа (зона)": f"{support_zone_low:.2f}–{support_zone_high:.2f}",
-        "Седм. съпротива (Target)": round(resistance_level, 2),
-        "Risk (до дъното на зоната)": round(risk, 2),
-        "Reward (до Target)": round(reward, 2),
-        "Risk/Reward": round(rr_ratio, 2) if rr_ratio else None,
-        "4ч ранен up-тренд (HH+HL)": h4_uptrend,
-        "Готов за вход": h4_uptrend,
+        "Седм. подкрепа": round(weekly_support, 2), "Седм. съпротива": round(weekly_resistance, 2),
+        "Дневна подкрепа": round(daily_support, 2), "Дневна съпротива": round(daily_resistance, 2),
+        "В долна 1/3 (дневно)": in_daily_lower_third,
+        "4ч up-тренд": h4_uptrend,
+        "Risk (до дневна подкрепа)": round(risk, 2),
+        "R/R (до дневна съпротива)": round(rr_daily, 2) if rr_daily else None,
+        "R/R (до седмична съпротива)": round(rr_weekly, 2) if rr_weekly else None,
+        "Готов за вход": ready,
     }
 
 
@@ -474,17 +498,19 @@ def generate_ai_analysis_mtf(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api
     )
 
     prompt = f"""
-    Ти си професионален суинг търговец, ползващ multi-timeframe стратегия:
-    седмичен тренд по структура определя посоката, зона на подкрепа около
-    последния седмичен swing low е мястото за вход, 4-часова структура
-    потвърждава момента за реално влизане.
+    Ти си професионален суинг търговец, ползващ каскадна multi-timeframe стратегия:
+    1) седмичен тренд по структура (HH+HL) трябва да е възходящ, и цената да е
+       в долната половина на седмичния диапазон подкрепа-съпротива;
+    2) дневен тренд по структура ТРЯБВА също да е възходящ;
+    3) цената трябва да е в долната третина на ДНЕВНИЯ диапазон подкрепа-съпротива;
+    4) 4-часова структура потвърждава начеващ up-тренд точно в тази прецизна зона.
 
     Използвай СТРИКТНО само данните по-долу.
 
     === ГОТОВИ ЗА ВХОД ===
     {ready_text}
 
-    === WATCHLIST (в зона, 4ч ОЩЕ НЕ е потвърдил) ===
+    === WATCHLIST (седмичен+дневен тренд ОК, но точката за вход на 4ч ОЩЕ НЕ е потвърдена) ===
     {watch_text}
 
     ЖЕЛЕЗНИ ПРАВИЛА:
@@ -507,8 +533,8 @@ def generate_ai_analysis_mtf(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api
 
 def render_mtf_strategy():
     max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 300, step=20, key="mtf_max")
-    support_tolerance_pct = st.sidebar.slider("Толеранс на зоната на подкрепа (%)", 1.0, 8.0, 3.0, step=0.5)
     swing_order_weekly = st.sidebar.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
+    swing_order_daily = st.sidebar.slider("Чувствителност на дневните swing точки", 2, 6, 3)
 
     tickers = load_universe(max_instruments=max_instr)
     st.caption(f"Универс: {len(tickers)} инструмента")
@@ -519,7 +545,7 @@ def render_mtf_strategy():
         items = list(tickers.items())
         for idx, (name, symbol) in enumerate(items):
             progress.progress((idx + 1) / len(items), text=f"Анализирам {name}...")
-            res = analyze_instrument_mtf(name, symbol, support_tolerance_pct, swing_order_weekly)
+            res = analyze_instrument_mtf(name, symbol, swing_order_weekly, swing_order_daily)
             if res is not None:
                 (results if res["Готов за вход"] else watch_list).append(res)
         progress.empty()
@@ -541,7 +567,7 @@ def render_mtf_strategy():
     st.divider()
     st.subheader("👀 Watchlist")
     if watch_list:
-        df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход", "4ч ранен up-тренд (HH+HL)"])
+        df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход", "4ч up-тренд"])
         st.dataframe(df_watch, use_container_width=True, hide_index=True)
     else:
         df_watch = pd.DataFrame()
@@ -577,16 +603,26 @@ def render_mtf_strategy():
                 daily.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
             )
             weekly = find_swing_points(weekly, order=swing_order_weekly)
-            _, resistance_level, support_level = structure_trend(weekly)
+            _, weekly_resistance, weekly_support = structure_trend(weekly)
+
+            daily_swings = find_swing_points(daily, order=swing_order_daily)
+            _, daily_resistance, daily_support = structure_trend(daily_swings)
 
             fig = go.Figure()
             fig.add_trace(go.Candlestick(x=daily.index, open=daily["Open"], high=daily["High"], low=daily["Low"], close=daily["Close"], name="Дневна цена"))
-            if support_level:
-                tolerance = support_level * (support_tolerance_pct / 100)
-                fig.add_hrect(y0=support_level - tolerance, y1=support_level + tolerance, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Седмична зона на подкрепа")
-            if resistance_level:
-                fig.add_hline(y=resistance_level, line_dash="dot", line_color="red", annotation_text="Седмична съпротива (Target)")
-            fig.update_layout(height=550, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
+
+            if weekly_support and weekly_resistance:
+                weekly_mid = weekly_support + (weekly_resistance - weekly_support) / 2
+                fig.add_hrect(y0=weekly_support, y1=weekly_mid, fillcolor="green", opacity=0.12, line_width=0, annotation_text="Седм. долна половина")
+                fig.add_hline(y=weekly_resistance, line_dash="dot", line_color="red", annotation_text="Седм. съпротива")
+                fig.add_hline(y=weekly_support, line_dash="dot", line_color="green", annotation_text="Седм. подкрепа")
+
+            if daily_support and daily_resistance:
+                daily_lower_third = daily_support + (daily_resistance - daily_support) / 3
+                fig.add_hrect(y0=daily_support, y1=daily_lower_third, fillcolor="cyan", opacity=0.18, line_width=0, annotation_text="Дневна долна 1/3")
+                fig.add_hline(y=daily_resistance, line_dash="dash", line_color="orange", annotation_text="Дневна съпротива")
+
+            fig.update_layout(height=600, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
             st.plotly_chart(fig, use_container_width=True)
 
 
