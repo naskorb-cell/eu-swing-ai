@@ -298,10 +298,26 @@ def generate_ai_analysis_daily(df_data: pd.DataFrame, api_key: str) -> str:
     return text
 
 
+def render_universe_search(tickers: dict, key: str):
+    """Малка помощна секция: търсене по име в целия зареден универс,
+    за да провериш дали конкретен инструмент (напр. злато/сребро) е наличен."""
+    with st.expander("🔎 Търси в универса (провери дали инструмент е наличен)"):
+        query = st.text_input("Име съдържа:", key=f"{key}_search").strip().lower()
+        if query:
+            matches = {name: sym for name, sym in tickers.items() if query in name.lower()}
+            if matches:
+                st.write(f"Намерени {len(matches)}:")
+                for name, sym in matches.items():
+                    st.write(f"- {name} → `{sym}`")
+            else:
+                st.info("Няма съвпадение в текущо заредения универс.")
+
+
 def render_daily_strategy():
     max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 150, step=20, key="daily_max")
     tickers = load_universe(max_instruments=max_instr)
     st.caption(f"Универс: {len(tickers)} инструмента")
+    render_universe_search(tickers, key="daily")
 
     with st.spinner("Синхронизиране и търсене на суинг възможности..."):
         df_summary, charts_data = fetch_market_data_daily(tickers)
@@ -538,6 +554,7 @@ def render_mtf_strategy():
 
     tickers = load_universe(max_instruments=max_instr)
     st.caption(f"Универс: {len(tickers)} инструмента")
+    render_universe_search(tickers, key="mtf")
 
     if st.button("🔍 Сканирай пазара", type="primary"):
         results, watch_list = [], []
