@@ -170,7 +170,7 @@ def analyze_instrument(name: str, symbol: str, support_tolerance_pct: float, swi
 def generate_ai_analysis(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
     client = Anthropic(api_key=api_key)
 
-    # ВАЖНО: подаваме на Gemini само реално изчислените резултати. Той не
+    # ВАЖНО: подаваме на Claude само реално изчислените резултати. Той не
     # преценява сам дали инструмент отговаря на условията - трите таймфрейма
     # (седмичен тренд, дневна зона, 4ч потвърждение) вече са проверени в кода.
     ready_text = (
@@ -284,19 +284,19 @@ else:
 
 st.divider()
 st.subheader("🤖 AI Анализ")
-gemini_api_key = st.secrets.get("GEMINI_API_KEY", None)
-if not gemini_api_key:
-    gemini_api_key = st.sidebar.text_input("Gemini API Key", type="password")
+anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+if not anthropic_api_key:
+    anthropic_api_key = st.sidebar.text_input("Anthropic API Key", type="password")
 
 if st.button("Генерирай AI анализ на резултатите", type="primary"):
-    if not gemini_api_key:
-        st.error("Липсва Gemini API ключ (провери Streamlit Secrets).")
+    if not anthropic_api_key:
+        st.error("Липсва Anthropic API ключ (провери Streamlit Secrets).")
     elif df_ready.empty and df_watch.empty:
         st.warning("Първо натисни 'Сканирай пазара' горе, за да има какво да се анализира.")
     else:
-        with st.spinner("Gemini анализира резултатите..."):
+        with st.spinner("Claude анализира резултатите..."):
             try:
-                st.markdown(generate_ai_analysis(df_ready, df_watch, gemini_api_key))
+                st.markdown(generate_ai_analysis(df_ready, df_watch, anthropic_api_key))
             except Exception as e:
                 st.error(f"Грешка при AI анализа: {e}")
 
