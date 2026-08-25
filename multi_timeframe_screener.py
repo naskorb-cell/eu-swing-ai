@@ -37,6 +37,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # ============================================================================
 
 INSTRUMENTS_FILE = "eu_instruments.json"
+CURATED_FILE = "curated_universe.json"
 
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
@@ -63,34 +64,73 @@ FALLBACK_TICKERS = {
 
 
 @st.cache_data(ttl=6 * 3600)
-def load_universe(max_instruments: int = 300):
-    path = Path(INSTRUMENTS_FILE)
-    if not path.exists():
-        st.warning(
-            f"Не намерих {INSTRUMENTS_FILE} — ползвам малък резервен списък. "
-            "Пусни GitHub Actions workflow-а 'Fetch EU Instruments', за да генерираш пълния файл."
-        )
-        return FALLBACK_TICKERS
-
-    data = json.loads(path.read_text(encoding="utf-8"))
-    instruments = data.get("instruments", [])
-
+def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
+    """Зарежда универса за сканиране. Приоритет:
+    1) закачени (pinned_keywords) инструменти - винаги от ПЪЛНИЯ eu_instruments.json,
+       за да не пропуснем нищо, дори ако не са в месечната селекция;
+    2) curated_universe.json (месечна селекция по ликвидност+моментум+медиен buzz),
+       ако съществува;
+    3) fallback - суровият ред от eu_instruments.json, ако все още няма curated файл."""
+    pinned_keywords_lower = [kw.lower() for kw in pinned_keywords if kw.strip()]
     mapped = {}
-    unmapped_count = 0
-    for inst in instruments:
-        suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
-        if suffix is None:
-            unmapped_count += 1
-            continue
-        yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
-        label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
-        mapped[label] = yahoo_ticker
-        if len(mapped) >= max_instruments:
-            break
 
-    if unmapped_count:
-        st.caption(f"⚠️ {unmapped_count} инструмента нямаха разпознато име на борса и бяха пропуснати.")
-    return mapped
+    full_path = Path(INSTRUMENTS_FILE)
+    full_instruments = None
+    if full_path.exists():
+        full_instruments = json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
+
+        if pinned_keywords_lower:
+            for inst in full_instruments:
+                name_field = inst.get("name", "")
+                if not any(kw in name_field.lower() for kw in pinned_keywords_lower):
+                    continue
+                suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
+                if suffix is None:
+                    continue
+                yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
+                label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+                mapped[label] = yahoo_ticker
+
+    curated_path = Path(CURATED_FILE)
+    if curated_path.exists():
+        curated_data = json.loads(curated_path.read_text(encoding="utf-8"))
+        for item in curated_data.get("instruments", []):
+            if len(mapped) >= max_instruments:
+                break
+            label = item["name"]
+            if label in mapped:
+                continue
+            mapped[label] = item["symbol"]
+        st.caption(
+            f"📅 Универс от месечна селекция (обновена: {curated_data.get('generated_at', '?')}, "
+            f"медийно трендиращи: {curated_data.get('media_trending_count', 0)})"
+        )
+        return mapped
+
+    if full_instruments is not None:
+        st.warning(
+            "Не намерих curated_universe.json — ползвам обичайния ред от eu_instruments.json. "
+            "Пусни месечния workflow 'Monthly Curate Universe' за по-качествена селекция по "
+            "ликвидност/моментум/медиен интерес."
+        )
+        for inst in full_instruments:
+            if len(mapped) >= max_instruments:
+                break
+            suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
+            if suffix is None:
+                continue
+            yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
+            label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+            if label in mapped:
+                continue
+            mapped[label] = yahoo_ticker
+        return mapped
+
+    if mapped:
+        return mapped
+
+    st.warning(f"Не намерих нито {INSTRUMENTS_FILE}, нито {CURATED_FILE} — ползвам малък резервен списък.")
+    return FALLBACK_TICKERS
 
 
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -298,14 +338,35 @@ def generate_ai_analysis_daily(df_data: pd.DataFrame, api_key: str) -> str:
     return text
 
 
+@st.cache_data(ttl=6 * 3600)
+def load_full_universe_for_search():
+    """Отделна функция само за търсене - винаги чете суровия eu_instruments.json
+    в пълен размер, независимо от месечната curated_universe.json селекция, за
+    да можеш да провериш дали инструмент изобщо съществува в T212, дори да не
+    е попаднал в тазмесечния топ 500."""
+    path = Path(INSTRUMENTS_FILE)
+    if not path.exists():
+        return {}
+    instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
+    mapped = {}
+    for inst in instruments:
+        suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
+        if suffix is None:
+            continue
+        yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
+        label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+        mapped[label] = yahoo_ticker
+    return mapped
+
+
 def render_universe_search(key: str):
     """Малка помощна секция: търсене по име в ЦЕЛИЯ универс (не само
-    заредените за сканиране N инструмента) - зареждането само на имена/тикери
+    месечната selекция от 500) - зареждането само на имена/тикери
     е бързо (чете JSON), не тегли ценови данни, затова не бави нищо."""
     with st.expander("🔎 Търси в целия универс (провери дали инструмент е наличен)"):
         query = st.text_input("Име съдържа:", key=f"{key}_search").strip().lower()
         if query:
-            full_universe = load_universe(max_instruments=10_000)
+            full_universe = load_full_universe_for_search()
             matches = {name: sym for name, sym in full_universe.items() if query in name.lower()}
             if matches:
                 st.write(f"Намерени {len(matches)}:")
@@ -317,7 +378,12 @@ def render_universe_search(key: str):
 
 def render_daily_strategy():
     max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 150, step=20, key="daily_max")
-    tickers = load_universe(max_instruments=max_instr)
+    pinned_input = st.sidebar.text_input(
+        "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="daily_pinned",
+        help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+    )
+    pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="daily")
 
@@ -551,10 +617,15 @@ def generate_ai_analysis_mtf(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api
 
 def render_mtf_strategy():
     max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 300, step=20, key="mtf_max")
+    pinned_input = st.sidebar.text_input(
+        "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="mtf_pinned",
+        help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+    )
+    pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     swing_order_weekly = st.sidebar.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
     swing_order_daily = st.sidebar.slider("Чувствителност на дневните swing точки", 2, 6, 3)
 
-    tickers = load_universe(max_instruments=max_instr)
+    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="mtf")
 
