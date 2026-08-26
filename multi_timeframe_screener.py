@@ -133,6 +133,48 @@ def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
     return FALLBACK_TICKERS
 
 
+MACRO_SIGNAL_FILE = "daily_macro_signal.json"
+
+
+@st.cache_data(ttl=3 * 3600)
+def load_daily_macro_signal():
+    """Чете daily_macro_signal.json, генериран от daily_macro_scan.py (виж
+    .github/workflows/daily_macro.yml). Връща None, ако файлът липсва още -
+    приложението работи нормално и без него."""
+    path = Path(MACRO_SIGNAL_FILE)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def render_macro_section(key: str):
+    """Показва дневното макро резюме и връща (auto_pin_enabled, macro_keywords)."""
+    signal = load_daily_macro_signal()
+    if signal is None:
+        return False, []
+
+    themes = signal.get("themes", [])
+    macro_keywords = sorted({kw for t in themes for kw in t.get("keywords", [])})
+
+    with st.expander("📰 Дневен макро преглед", expanded=False):
+        generated_at = signal.get("generated_at", "?")
+        st.caption(f"Обновено: {generated_at}")
+        st.markdown(signal.get("summary_bg", ""))
+        for t in themes:
+            kws = ", ".join(t.get("keywords", []))
+            st.markdown(f"- **{t.get('theme', '')}** ({kws}) — {t.get('reasoning_bg', '')}")
+        auto_pin = st.checkbox(
+            "Автоматично добавяй тези активи към скрининга за деня",
+            value=True,
+            key=f"{key}_macro_autopin",
+        )
+
+    return auto_pin, macro_keywords
+
+
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -383,7 +425,10 @@ def render_daily_strategy():
             "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="daily_pinned",
             help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
         )
-    pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    auto_pin, macro_keywords = render_macro_section(key="daily")
+    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
+
     tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="daily")
@@ -625,7 +670,9 @@ def render_mtf_strategy():
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3)
-    pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    auto_pin, macro_keywords = render_macro_section(key="mtf")
+    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
 
     tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
