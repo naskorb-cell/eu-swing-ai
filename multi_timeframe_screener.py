@@ -251,6 +251,32 @@ def render_macro_section(key: str):
     return auto_pin, macro_keywords
 
 
+def flag_macro_signal(df: pd.DataFrame, macro_keywords, name_col="Име", ticker_col="Тикер") -> pd.DataFrame:
+    """Добавя булева колона '📰 Медиен сигнал' - True, ако името или тикерът на
+    инструмента съвпада (case-insensitive substring) с някоя от темите, които
+    daily_macro_scan.py е намерил за деня."""
+    df = df.copy()
+    if df.empty:
+        df["📰 Медиен сигнал"] = pd.Series(dtype=bool)
+        return df
+    if not macro_keywords:
+        df["📰 Медиен сигнал"] = False
+        return df
+    kws_lower = [k.lower() for k in macro_keywords]
+
+    def matches(row):
+        text = f"{row.get(name_col, '')} {row.get(ticker_col, '')}".lower()
+        return any(kw in text for kw in kws_lower)
+
+    df["📰 Медиен сигнал"] = df.apply(matches, axis=1)
+    # премести новата колона веднага след Име, за да се вижда лесно
+    cols = list(df.columns)
+    cols.remove("📰 Медиен сигнал")
+    insert_at = (cols.index(name_col) + 1) if name_col in cols else 1
+    cols.insert(insert_at, "📰 Медиен сигнал")
+    return df[cols]
+
+
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -516,7 +542,9 @@ def render_daily_strategy():
         st.info("Няма данни - провери универса/интернет връзката.")
         return
 
-    col1, col2, col3, col4 = st.columns(4)
+    df_summary = flag_macro_signal(df_summary, macro_keywords)
+
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Възможности (Бай Зона)", len(df_summary[df_summary["Бай Зона"] == True]))
     with col2:
@@ -528,6 +556,9 @@ def render_daily_strategy():
     with col4:
         bullish = len(df_summary[df_summary["Тренд"] == "↗ Възходящ"])
         st.metric("Активи във възходящ тренд", bullish)
+    with col5:
+        media_buy = len(df_summary[(df_summary["Бай Зона"] == True) & (df_summary["📰 Медиен сигнал"] == True)])
+        st.metric("Бай Зона + медиен сигнал", media_buy)
 
     st.markdown("---")
     tab1, tab2, tab3 = st.tabs(["🤖 AI АНАЛИЗ И ПЛАН", "📊 ПЪЛНА ТАБЛИЦА", "📈 ИНТЕРАКТИВНА ГРАФИКА"])
@@ -554,6 +585,7 @@ def render_daily_strategy():
                 "RSI": st.column_config.ProgressColumn("RSI (Моментум)", format="%.1f", min_value=0, max_value=100),
                 "Обем (x Средния)": st.column_config.NumberColumn("Обем (x Средния)", format="%.2fx"),
                 "Потвърдено обръщане": st.column_config.CheckboxColumn("Потвърдено обръщане"),
+                "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
             },
         )
 
@@ -774,7 +806,11 @@ def render_mtf_strategy():
     st.subheader("✅ Готови за вход")
     if results:
         df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
-        st.dataframe(df_ready, use_container_width=True, hide_index=True)
+        df_ready = flag_macro_signal(df_ready, macro_keywords)
+        st.dataframe(
+            df_ready, use_container_width=True, hide_index=True,
+            column_config={"📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал")},
+        )
     else:
         df_ready = pd.DataFrame()
         st.info("Няма инструменти с пълно потвърждение на трите таймфрейма в момента.")
@@ -783,7 +819,11 @@ def render_mtf_strategy():
     st.subheader("👀 Watchlist")
     if watch_list:
         df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход", "4ч up-тренд"])
-        st.dataframe(df_watch, use_container_width=True, hide_index=True)
+        df_watch = flag_macro_signal(df_watch, macro_keywords)
+        st.dataframe(
+            df_watch, use_container_width=True, hide_index=True,
+            column_config={"📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал")},
+        )
     else:
         df_watch = pd.DataFrame()
         st.info("Няма инструменти в зона на подкрепа в момента.")
