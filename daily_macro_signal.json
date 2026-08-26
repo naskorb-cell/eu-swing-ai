@@ -1,61 +1,56 @@
 {
-  "summary_bg": "Фед (вече под ръководството на Кевин Уорш) държи лихвите непроменени за пети пореден път на 3.5%-3.75%, а тонът е по-скоро ястребов, докато инвеститорите чакат речта му в Джаксън Хол в петък за повече яснота. Днешните по-силни от очакваното PCE данни (3.7% г/г инфлация) натиснаха надолу златото и среброто, тъй като намаляват шансовете за скорошно облекчаване на паричната политика. Паралелно ЕЦБ, която вдигна лихвите през юни заради енергиен инфлационен шок от войната в Близкия изток, изпраща ястребови сигнали и пазарът залага на ново повишение през септември, което тежи леко на европейските борси, макар те да остават близо до рекордни нива заради силен ръст в банковия и технологичния сектор.",
+  "summary_bg": "Пазарите са фокусирани върху предстоящата реч на новия председател на Фед Kevin Warsh на симпозиума в Джаксън Хоул (28 август) – за разлика от типичния сценарий за понижение на лихвите, сега пазарът оценява реални шансове (~40%) за повишение на лихвите заради инфлация над целта и геополитическо напрежение. Златото и среброто са близо до тримесечни върхове, движени от слабост на долара, опасения за американския държавен дълг (над $40 трилиона) и изкупуванията на облигации от Министерството на финансите на САЩ. Европейските борси (Stoxx 600, DAX, CAC 40) остават близо до рекордни нива, като европейските полупроводникови компании като ASML и Infineon са сред водещите двигатели на ръста. ЕЦБ остава в пауза след юнското повишение на лихвите (заради инфлационен шок от конфликта в Близкия изток) и юлското запазване без промяна.",
   "themes": [
     {
-      "theme": "Фед пауза с ястребов тон, чака се реч на Уорш в Джаксън Хол",
+      "theme": "Реч на Fed Chair Warsh в Джаксън Хоул - ключово събитие за посоката на лихвите",
       "keywords": [
-        "Fed Funds Rate",
+        "Gold",
+        "Silver",
+        "EUR/USD",
         "USD"
       ],
-      "reasoning_bg": "PBS News съобщава, че Фед остави лихвите непроменени за пети пореден път на диапазон 3.5%-3.75%, а председателят Кевин Уорш подчерта ангажимента на банката към борбата с инфлацията, докато Marketplace отбелязва, че основното събитие тази седмица е речта му на симпозиума в Джаксън Хол в петък."
+      "reasoning_bg": "Според анализ на Babypips и goldsilver.com, CME FedWatch показва около 40% вероятност за septemvriysko повишение на лихвите, а тонът на Warsh на 28 август ще определи посоката на долара, доходността и златото."
     },
     {
-      "theme": "ЕЦБ - пазарът залага на повишение на лихвите през септември",
-      "keywords": [
-        "ECB",
-        "EUR"
-      ],
-      "reasoning_bg": "Bloomberg съобщава, че <cite index=\"63-3\">President Christine Lagarde laid the groundwork for a possible interest-rate hike in September after the European Central Bank rejected an immediate move on Thursday</cite>, а CNBC цитира анализатор от Aviva Investors, че <cite index=\"62-1\">traders now expect a 0.25% hike in September</cite>."
-    },
-    {
-      "theme": "Злато поевтинява на по-силни от очакваното инфлационни данни",
+      "theme": "Злато близо до тримесечен връх заради слаб долар и опасения за дълга",
       "keywords": [
         "Gold"
       ],
-      "reasoning_bg": "Trading Economics отбелязва, че <cite index=\"9-12,9-13\">Gold prices fell toward $4,600 an ounce on Wednesday... as investors assessed fresh US economic data, while the PCE price index rose 0.2% in July, above expectations, with annual inflation reaching 3.7% versus forecasts of 3.6%</cite>."
+      "reasoning_bg": "CNBC съобщава, че златото се движи близо до най-високото си ниво от над три месеца, подкрепено от слабост на долара и плановете на Министерството на финансите за обратно изкупуване на облигации."
     },
     {
-      "theme": "Сребро в консолидация преди речта на Уорш и инфлационни данни",
+      "theme": "Сребро следва златото нагоре на фона на \"debasement trade\"",
       "keywords": [
         "Silver"
       ],
-      "reasoning_bg": "Trading Economics съобщава, че <cite index=\"39-1\">Silver prices fell below $68.0 an ounce on Tuesday after reaching a two-month high of $70.0 last week, as the recent rally lost momentum ahead of US inflation data and Federal Reserve Chair Kevin Warsh's speech</cite>."
+      "reasoning_bg": "Според bullionvault.com среброто се задържа над $69 за унция след ръст от над 19% за три седмици, като темата за отслабване на долара и нарастващ дълг подкрепя и двата метала."
     },
     {
-      "theme": "Отчет на Nvidia - катализатор за европейски AI/чип акции",
+      "theme": "\"Dollar debasement trade\" заради рекорден американски държавен дълг",
       "keywords": [
-        "Nvidia",
+        "Gold",
+        "Silver",
+        "USD"
+      ],
+      "reasoning_bg": "Bloomberg посочва, че златото се изкачи до най-високо ниво от над три месеца, тъй като намесата на американското Министерство на финансите на пазара на облигации възроди опасенията за фискалната политика и долара."
+    },
+    {
+      "theme": "Европейски полупроводникови акции сред водещите двигатели на Stoxx 600",
+      "keywords": [
         "ASML",
-        "Infineon",
-        "Siemens Energy"
+        "Infineon"
       ],
-      "reasoning_bg": "Trading Economics посочва, че в навечерието на отчета <cite index=\"52-5\">AI infrastructure stocks were lower ahead of Nvidia earnings after Wednesday's close, with Infineon and Siemens Energy dropping 3%, while ASML lost 1%</cite>, а FXStreet допълва, че тази вечер пазарите очакват резултатите на чипа гигант с приходи над $92 млрд."
+      "reasoning_bg": "Според Fortune европейски полупроводникови компании като ASML Holding и Infineon Technologies са поскъпнали с над 60% през 2026 г. и са сред основните двигатели на ръста на Stoxx 600."
     },
     {
-      "theme": "Европейски банки водят ръста на Stoxx 600 през 2026",
+      "theme": "Европейските борси близо до рекордни нива въпреки типично слаб август",
       "keywords": [
-        "Stoxx 600 Banks"
+        "Stoxx 600",
+        "DAX",
+        "CAC 40"
       ],
-      "reasoning_bg": "Fortune съобщава, че <cite index=\"58-12\">The Stoxx 600 Banks index is among the biggest gainers this year with a rally of 22%</cite>, което го прави водещ сектор във фокуса на анализаторите за втората половина на 2026 г."
-    },
-    {
-      "theme": "Спад в петрола подкрепя европейските борси на фона на ястребова ЕЦБ",
-      "keywords": [
-        "Brent",
-        "Oil"
-      ],
-      "reasoning_bg": "Yahoo Finance/Bloomberg отбелязва, че <cite index=\"55-3,55-4\">European equities moved modestly higher on Wednesday, remaining close to one-week highs as a steep decline in crude oil prices offered some relief to investors, tempered by hawkish signals from the European Central Bank</cite>."
+      "reasoning_bg": "Euronews отбелязва, че EURO STOXX 50 и DAX се движат близо до рекордни нива през август 2026 г., противно на историческата сезонна слабост на месеца."
     }
   ],
-  "generated_at": "2026-08-26T18:39:14.072115+00:00"
+  "generated_at": "2026-08-26T18:44:05.091034+00:00"
 }
