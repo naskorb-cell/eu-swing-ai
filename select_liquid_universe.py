@@ -110,14 +110,16 @@ def build_candidate_list():
         if suffix is None:
             continue
         symbol = f"{inst.get('shortName', '')}{suffix}"
-        name = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
-        candidates.append({"name": name, "symbol": symbol})
+        company_name = inst["name"]
+        label = f"{inst.get('shortName', inst['ticker'])} ({company_name})"
+        candidates.append({"name": label, "company_name": company_name, "symbol": symbol})
     return candidates
 
 
 def score_in_batches(candidates: list) -> list:
     scored = []
     symbol_to_name = {c["symbol"]: c["name"] for c in candidates}
+    symbol_to_company = {c["symbol"]: c["company_name"] for c in candidates}
     symbols = list(symbol_to_name.keys())
 
     for i in range(0, len(symbols), CHUNK_SIZE):
@@ -146,6 +148,7 @@ def score_in_batches(candidates: list) -> list:
 
                 scored.append({
                     "name": symbol_to_name[symbol],
+                    "company_name": symbol_to_company.get(symbol, ""),
                     "symbol": symbol,
                     "avg_dollar_volume": round(avg_dollar_volume, 0),
                     "momentum_3m_pct": round(momentum_3m_pct, 2),
@@ -179,8 +182,19 @@ def main():
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
     trending_names = fetch_trending_names(anthropic_api_key) if anthropic_api_key else set()
 
+    def is_trending_match(company_name: str) -> bool:
+        norm = normalize_company_name(company_name)
+        if not norm:
+            return False
+        if norm in trending_names:
+            return True
+        for t in trending_names:
+            if len(t) >= 3 and (t in norm or norm in t):
+                return True
+        return False
+
     for item in liquid_pool:
-        item["media_trending"] = normalize_company_name(item["name"]) in trending_names
+        item["media_trending"] = is_trending_match(item.get("company_name", ""))
 
     trending_matches = [x for x in liquid_pool if x["media_trending"]]
     non_trending = [x for x in liquid_pool if not x["media_trending"]]
