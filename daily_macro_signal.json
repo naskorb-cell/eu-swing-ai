@@ -1,59 +1,61 @@
 {
-  "summary_bg": "Днешната макро картина е необичайна: инфлацията в САЩ остава упорито висока (PCE 3.7% на годишна база, core PCE 3.3%), което засили залозите за възможно повишение, а не понижение на лихвите на Фед до края на годината, докато пазарът чака ключовата реч на новия председател Кевин Уорш в Джаксън Хол в петък. Златото и среброто търгуват встрани/леко надолу днес заради тези опасения от по-висок лихвен процент, докато европейските борси растат леко благодарение на поевтиняването на петрола след затихване на напрежението около Иран. Резултатите на Nvidia довечера ще бъдат ключов катализатор за технологичния/полупроводниковия сектор в Европа.",
+  "summary_bg": "Фед (вече под ръководството на Кевин Уорш) държи лихвите непроменени за пети пореден път на 3.5%-3.75%, а тонът е по-скоро ястребов, докато инвеститорите чакат речта му в Джаксън Хол в петък за повече яснота. Днешните по-силни от очакваното PCE данни (3.7% г/г инфлация) натиснаха надолу златото и среброто, тъй като намаляват шансовете за скорошно облекчаване на паричната политика. Паралелно ЕЦБ, която вдигна лихвите през юни заради енергиен инфлационен шок от войната в Близкия изток, изпраща ястребови сигнали и пазарът залага на ново повишение през септември, което тежи леко на европейските борси, макар те да остават близо до рекордни нива заради силен ръст в банковия и технологичния сектор.",
   "themes": [
     {
-      "theme": "Фед - риск от повишение на лихвите, не понижение",
+      "theme": "Фед пауза с ястребов тон, чака се реч на Уорш в Джаксън Хол",
       "keywords": [
-        "USD",
-        "Gold",
-        "Silver"
+        "Fed Funds Rate",
+        "USD"
       ],
-      "reasoning_bg": "Bloomberg отчете, че доларът се повиши най-силно от близо месец, след като инфлационните данни засилиха залозите, че Фед може да започне да повишава лихвите до края на годината, вместо да ги понижава."
+      "reasoning_bg": "PBS News съобщава, че Фед остави лихвите непроменени за пети пореден път на диапазон 3.5%-3.75%, а председателят Кевин Уорш подчерта ангажимента на банката към борбата с инфлацията, докато Marketplace отбелязва, че основното събитие тази седмица е речта му на симпозиума в Джаксън Хол в петък."
     },
     {
-      "theme": "Реч на председателя на Фед Кевин Уорш в Джаксън Хол (петък)",
+      "theme": "ЕЦБ - пазарът залага на повишение на лихвите през септември",
       "keywords": [
-        "USD",
-        "Gold",
-        "Silver",
-        "EURUSD"
+        "ECB",
+        "EUR"
       ],
-      "reasoning_bg": "Bloomberg и TheStreet посочват, че пазарите очакват първата реч на Уорш като председател в петък в Джаксън Хол, с шансове за хайк в диапазона 28-39%, което прави събитието ключов катализатор за волатилност в долара и суровините."
+      "reasoning_bg": "Bloomberg съобщава, че <cite index=\"63-3\">President Christine Lagarde laid the groundwork for a possible interest-rate hike in September after the European Central Bank rejected an immediate move on Thursday</cite>, а CNBC цитира анализатор от Aviva Investors, че <cite index=\"62-1\">traders now expect a 0.25% hike in September</cite>."
     },
     {
-      "theme": "Злато под натиск от опасения за по-висок лихвен процент",
+      "theme": "Злато поевтинява на по-силни от очакваното инфлационни данни",
       "keywords": [
         "Gold"
       ],
-      "reasoning_bg": "Trading Economics отчете, че златото пада към $4,600 за унция, тъй като инвеститорите оценяват свежите американски данни за пътя на лихвите на Фед, след по-висок от очакваното PCE показател."
+      "reasoning_bg": "Trading Economics отбелязва, че <cite index=\"9-12,9-13\">Gold prices fell toward $4,600 an ounce on Wednesday... as investors assessed fresh US economic data, while the PCE price index rose 0.2% in July, above expectations, with annual inflation reaching 3.7% versus forecasts of 3.6%</cite>."
     },
     {
-      "theme": "Сребро в застой преди ключови данни",
+      "theme": "Сребро в консолидация преди речта на Уорш и инфлационни данни",
       "keywords": [
         "Silver"
       ],
-      "reasoning_bg": "Yahoo Finance съобщи, че среброто е в „застой“ тази сутрин, докато пазарите чакат PCE индекса и речта на председателя на Фед Уорш в петък в Джаксън Хол, задържайки 17% месечна печалба."
+      "reasoning_bg": "Trading Economics съобщава, че <cite index=\"39-1\">Silver prices fell below $68.0 an ounce on Tuesday after reaching a two-month high of $70.0 last week, as the recent rally lost momentum ahead of US inflation data and Federal Reserve Chair Kevin Warsh's speech</cite>."
     },
     {
-      "theme": "Европейски акции нагоре с спада на петрола",
+      "theme": "Отчет на Nvidia - катализатор за европейски AI/чип акции",
       "keywords": [
-        "Stoxx600",
-        "Brent",
-        "Siemens Energy"
-      ],
-      "reasoning_bg": "Bloomberg отчете, че европейските акции поскъпнаха в хаотична сесия, тъй като спадът в цените на петрола облекчи част от инфлационния натиск, а Brent падна до около $89 от предишен връх от $95 след затихване на напрежението със САЩ и Иран."
-    },
-    {
-      "theme": "AI/полупроводников сектор - очакване на резултатите на Nvidia",
-      "keywords": [
+        "Nvidia",
         "ASML",
         "Infineon",
-        "STMicroelectronics",
-        "AT&S",
-        "Soitec"
+        "Siemens Energy"
       ],
-      "reasoning_bg": "Yahoo Finance посочи, че по-широкият сектор на чиповете се бори да задържи печалбите си след стръмните спадове през юли заради опасения за възвръщаемостта на AI инвестициите, като резултатите на Nvidia довечера са ключов катализатор за цялата индустрия, включително европейските производители на чипове."
+      "reasoning_bg": "Trading Economics посочва, че в навечерието на отчета <cite index=\"52-5\">AI infrastructure stocks were lower ahead of Nvidia earnings after Wednesday's close, with Infineon and Siemens Energy dropping 3%, while ASML lost 1%</cite>, а FXStreet допълва, че тази вечер пазарите очакват резултатите на чипа гигант с приходи над $92 млрд."
+    },
+    {
+      "theme": "Европейски банки водят ръста на Stoxx 600 през 2026",
+      "keywords": [
+        "Stoxx 600 Banks"
+      ],
+      "reasoning_bg": "Fortune съобщава, че <cite index=\"58-12\">The Stoxx 600 Banks index is among the biggest gainers this year with a rally of 22%</cite>, което го прави водещ сектор във фокуса на анализаторите за втората половина на 2026 г."
+    },
+    {
+      "theme": "Спад в петрола подкрепя европейските борси на фона на ястребова ЕЦБ",
+      "keywords": [
+        "Brent",
+        "Oil"
+      ],
+      "reasoning_bg": "Yahoo Finance/Bloomberg отбелязва, че <cite index=\"55-3,55-4\">European equities moved modestly higher on Wednesday, remaining close to one-week highs as a steep decline in crude oil prices offered some relief to investors, tempered by hawkish signals from the European Central Bank</cite>."
     }
   ],
-  "generated_at": "2026-08-26T16:26:38.038582+00:00"
+  "generated_at": "2026-08-26T18:39:14.072115+00:00"
 }
