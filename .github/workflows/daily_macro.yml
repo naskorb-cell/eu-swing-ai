@@ -1,0 +1,35 @@
+name: Daily Macro Scan
+
+on:
+  schedule:
+    # 04:30 UTC ≈ 07:30 ч. българско лятно време (EEST, UTC+3) /
+    # 06:30 ч. българско зимно време (EET, UTC+2) - същият тип фиксиран
+    # UTC cron, който вече ползва daily.yml (±1 час сезонно отклонение).
+    - cron: "30 4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  daily-macro-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install google-genai
+
+      - name: Run daily macro scan
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python daily_macro_scan.py
+
+      - name: Commit updated signal file
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add daily_macro_signal.json
+          git diff --staged --quiet || git commit -m "Daily macro scan: $(date -u +'%Y-%m-%d')"
+          git push
