@@ -5,6 +5,8 @@ import numpy as np
 import plotly.graph_objects as go
 from anthropic import Anthropic
 import json
+import time
+import requests
 from pathlib import Path
 
 st.set_page_config(
@@ -135,6 +137,14 @@ def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
 
 MACRO_SIGNAL_FILE = "daily_macro_signal.json"
 
+# Данни за repo-то, нужни само за да пуснем daily_macro.yml ръчно от приложението
+# (workflow_dispatch през GitHub REST API) - самото сканиране пак се изпълнява
+# в GitHub Actions, с техния ANTHROPIC_API_KEY secret, не тук.
+GITHUB_REPO_OWNER = "naskorb-cell"
+GITHUB_REPO_NAME = "eu-swing-ai"
+GITHUB_WORKFLOW_FILE = "daily_macro.yml"
+GITHUB_REF = "main"
+
 
 @st.cache_data(ttl=3 * 3600)
 def load_daily_macro_signal():
@@ -150,27 +160,82 @@ def load_daily_macro_signal():
         return None
 
 
-def render_macro_section(key: str):
-    """Показва дневното макро резюме и връща (auto_pin_enabled, macro_keywords)."""
-    signal = load_daily_macro_signal()
-    if signal is None:
-        return False, []
+def trigger_macro_workflow_dispatch(github_token: str):
+    """Праща workflow_dispatch към GitHub Actions, за да пусне daily_macro.yml
+    веднага, вместо да чака утрешния cron. Връща (success, съобщение)."""
+    url = (
+        f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}"
+        f"/actions/workflows/{GITHUB_WORKFLOW_FILE}/dispatches"
+    )
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+    }
+    try:
+        resp = requests.post(url, headers=headers, json={"ref": GITHUB_REF}, timeout=15)
+    except requests.RequestException as e:
+        return False, f"Грешка при връзка с GitHub: {e}"
 
-    themes = signal.get("themes", [])
+    if resp.status_code == 204:
+        return True, "Пуснато! Изчакай ~1 минута, после презареди страницата."
+    if resp.status_code == 404:
+        return False, "404 - провери GITHUB_REPO_OWNER/NAME/WORKFLOW_FILE или дали токенът има достъп до repo-то."
+    if resp.status_code == 401:
+        return False, "401 - невалиден или изтекъл GitHub token."
+    return False, f"GitHub върна {resp.status_code}: {resp.text[:200]}"
+
+
+def render_macro_section(key: str):
+    """Показва дневното макро резюме + бутон за принудително сканиране.
+    Връща (auto_pin_enabled, macro_keywords)."""
+    signal = load_daily_macro_signal()
+    themes = signal.get("themes", []) if signal else []
     macro_keywords = sorted({kw for t in themes for kw in t.get("keywords", [])})
 
     with st.expander("📰 Дневен макро преглед", expanded=False):
-        generated_at = signal.get("generated_at", "?")
-        st.caption(f"Обновено: {generated_at}")
-        st.markdown(signal.get("summary_bg", ""))
-        for t in themes:
-            kws = ", ".join(t.get("keywords", []))
-            st.markdown(f"- **{t.get('theme', '')}** ({kws}) — {t.get('reasoning_bg', '')}")
+        if signal is None:
+            st.info("Още няма записан макро сигнал за днес.")
+        else:
+            st.caption(f"Обновено: {signal.get('generated_at', '?')}")
+            st.markdown(signal.get("summary_bg", ""))
+            for t in themes:
+                kws = ", ".join(t.get("keywords", []))
+                st.markdown(f"- **{t.get('theme', '')}** ({kws}) — {t.get('reasoning_bg', '')}")
+
         auto_pin = st.checkbox(
             "Автоматично добавяй тези активи към скрининга за деня",
             value=True,
             key=f"{key}_macro_autopin",
         )
+
+        st.divider()
+        github_token = st.secrets.get("GITHUB_TOKEN", None)
+        if not github_token:
+            github_token = st.text_input(
+                "GitHub token (за ръчно пускане)", type="password", key=f"{key}_gh_token",
+                help="Fine-grained personal access token с права 'Actions: Read and write' "
+                     "само за repo-то eu-swing-ai. Може да го запишеш трайно в Streamlit "
+                     "Secrets като GITHUB_TOKEN, за да не го въвеждаш всеки път.",
+            )
+
+        cooldown_key = "macro_trigger_last_ts"
+        last_ts = st.session_state.get(cooldown_key, 0)
+        seconds_left = int(60 - (time.time() - last_ts))
+
+        if st.button(
+            "🔄 Изпълни макро сканиране сега",
+            key=f"{key}_macro_trigger",
+            disabled=seconds_left > 0,
+        ):
+            if not github_token:
+                st.error("Липсва GitHub token!")
+            else:
+                ok, msg = trigger_macro_workflow_dispatch(github_token)
+                st.session_state[cooldown_key] = time.time()
+                (st.success if ok else st.error)(msg)
+
+        if seconds_left > 0:
+            st.caption(f"Изчакай още {seconds_left} сек. преди да пуснеш пак.")
 
     return auto_pin, macro_keywords
 
