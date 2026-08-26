@@ -146,7 +146,7 @@ GITHUB_WORKFLOW_FILE = "daily_macro.yml"
 GITHUB_REF = "main"
 
 
-@st.cache_data(ttl=3 * 3600)
+@st.cache_data(ttl=30 * 60)
 def load_daily_macro_signal():
     """Чете daily_macro_signal.json, генериран от daily_macro_scan.py (виж
     .github/workflows/daily_macro.yml). Връща None, ако файлът липсва още -
@@ -222,20 +222,31 @@ def render_macro_section(key: str):
         last_ts = st.session_state.get(cooldown_key, 0)
         seconds_left = int(60 - (time.time() - last_ts))
 
-        if st.button(
-            "🔄 Изпълни макро сканиране сега",
-            key=f"{key}_macro_trigger",
-            disabled=seconds_left > 0,
-        ):
-            if not github_token:
-                st.error("Липсва GitHub token!")
-            else:
-                ok, msg = trigger_macro_workflow_dispatch(github_token)
-                st.session_state[cooldown_key] = time.time()
-                (st.success if ok else st.error)(msg)
+        col_trigger, col_reload = st.columns(2)
+        with col_trigger:
+            if st.button(
+                "🔄 Изпълни макро сканиране сега",
+                key=f"{key}_macro_trigger",
+                disabled=seconds_left > 0,
+            ):
+                if not github_token:
+                    st.error("Липсва GitHub token!")
+                else:
+                    ok, msg = trigger_macro_workflow_dispatch(github_token)
+                    st.session_state[cooldown_key] = time.time()
+                    (st.success if ok else st.error)(msg)
+        with col_reload:
+            if st.button("🧹 Изчисти кеша и презареди", key=f"{key}_macro_reload"):
+                load_daily_macro_signal.clear()
+                st.rerun()
 
         if seconds_left > 0:
             st.caption(f"Изчакай още {seconds_left} сек. преди да пуснеш пак.")
+        st.caption(
+            "Резюмето по-горе се кешира до 30 мин. Ако workflow-ът в GitHub Actions "
+            "вече е завършил (провери в Actions таба), натисни 'Изчисти кеша и презареди', "
+            "вместо да чакаш кеша сам да изтече."
+        )
 
     return auto_pin, macro_keywords
 
