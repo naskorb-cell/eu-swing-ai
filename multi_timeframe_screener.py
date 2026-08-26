@@ -18,21 +18,114 @@ st.set_page_config(
 
 hide_st_style = """
             <style>
+            @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+            :root {
+                --void: #0B0F14;
+                --panel: #141A21;
+                --ink: #E6EDF3;
+                --ink-muted: #7C8B99;
+                --hairline: #232B33;
+                --go: #3DDC97;
+                --watch: #E8A23D;
+                --info: #5B8DEF;
+                --risk: #E85D5D;
+            }
+
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
-            .stTabs [data-baseweb="tab-list"] {gap: 10px;}
-            .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #1E1E1E; border-radius: 4px 4px 0px 0px; padding: 10px; border: 1px solid #333; border-bottom: none;}
-            .stTabs [aria-selected="true"] {background-color: #2E5B88; color: white;}
-            .stMarkdown table { width: 100%; border-collapse: collapse; background-color: #FFFFFF !important; }
-            .stMarkdown th { background-color: #2E5B88 !important; color: white !important; font-size: 15px; padding: 12px 8px !important; border-bottom: 2px solid #ccc; }
-            .stMarkdown td { padding: 12px 8px !important; border-bottom: 1px solid #eee; font-size: 14px; color: #000000 !important; }
-            .stMarkdown tbody tr:nth-child(even) { background-color: #F8F9FA !important; }
-            .stMarkdown tbody tr:nth-child(odd) { background-color: #FFFFFF !important; }
-            .stMarkdown tbody tr:hover { background-color: #E2E6EA !important; transition: background-color 0.2s ease; }
+
+            html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+            h1, h2, h3 { font-family: 'Space Grotesk', sans-serif !important; letter-spacing: -0.01em; }
+
+            /* Заглавие */
+            .app-hero { display: flex; align-items: baseline; gap: 12px; margin-bottom: 2px; }
+            .app-hero h1 { font-size: 1.9rem !important; margin: 0 !important; }
+            .app-hero .app-sub { color: var(--ink-muted); font-size: 0.92rem; }
+
+            /* Радио бутони като pill-табове за избор на стратегия */
+            div[data-testid="stRadio"] > div { gap: 8px; }
+            div[data-testid="stRadio"] label {
+                background: var(--panel); border: 1px solid var(--hairline);
+                border-radius: 999px; padding: 8px 18px !important; transition: all 0.15s ease;
+            }
+            div[data-testid="stRadio"] label:has(input:checked) {
+                border-color: var(--info); background: rgba(91,141,239,0.12);
+            }
+
+            /* Метрики като приборни табла */
+            div[data-testid="stMetric"] {
+                background: var(--panel); border: 1px solid var(--hairline);
+                border-left: 3px solid var(--info); border-radius: 8px;
+                padding: 12px 16px;
+            }
+            div[data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+            div[data-testid="stMetricLabel"] { color: var(--ink-muted); }
+
+            /* Секционни статус-ленти (готово/watchlist/риск/инфо) */
+            .section-rail { border-left: 4px solid var(--info); padding: 6px 0 6px 14px; margin: 22px 0 12px 0; }
+            .section-rail.go { border-color: var(--go); }
+            .section-rail.watch { border-color: var(--watch); }
+            .section-rail.risk { border-color: var(--risk); }
+            .section-rail .title {
+                font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1.08rem; color: var(--ink);
+            }
+            .section-rail .sub { color: var(--ink-muted); font-size: 0.85rem; margin-top: 2px; }
+
+            /* Тънки разделители вместо дебели markdown "---" */
+            hr { border: none; border-top: 1px solid var(--hairline); margin: 18px 0; }
+
+            /* Табове */
+            .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+            .stTabs [data-baseweb="tab"] {
+                height: 46px; white-space: pre-wrap; background-color: var(--panel);
+                border-radius: 8px 8px 0 0; padding: 10px 16px; border: 1px solid var(--hairline); border-bottom: none;
+                font-family: 'Space Grotesk', sans-serif;
+            }
+            .stTabs [aria-selected="true"] { background-color: rgba(91,141,239,0.16); color: var(--info); }
+
+            /* Expander като карта */
+            div[data-testid="stExpander"] {
+                border: 1px solid var(--hairline) !important; border-radius: 10px !important; background: var(--panel);
+            }
+
+            /* Вторични бутони - по-тих "ghost" вид, primary остава акцентен */
+            .stButton > button[kind="secondary"] {
+                background: transparent; border: 1px solid var(--hairline); color: var(--ink-muted);
+            }
+            .stButton > button[kind="secondary"]:hover { border-color: var(--info); color: var(--info); }
+
+            /* Markdown таблици (напр. в AI анализа) */
+            .stMarkdown table { width: 100%; border-collapse: collapse; background-color: var(--panel) !important; }
+            .stMarkdown th {
+                background-color: rgba(91,141,239,0.16) !important; color: var(--ink) !important;
+                font-family: 'Space Grotesk', sans-serif; font-size: 14px; padding: 10px 8px !important;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .stMarkdown td {
+                padding: 10px 8px !important; border-bottom: 1px solid var(--hairline);
+                font-size: 14px; color: var(--ink) !important; font-family: 'JetBrains Mono', monospace;
+            }
+            .stMarkdown tbody tr:nth-child(even) { background-color: rgba(255,255,255,0.02) !important; }
+            .stMarkdown tbody tr:hover { background-color: rgba(91,141,239,0.08) !important; transition: background-color 0.15s ease; }
+
+            /* Caption-и (напр. "Обновено: ...") в моноспейс - усещане за таймстемп на терминал */
+            [data-testid="stCaptionContainer"] { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem !important; }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
+
+
+def section_header(title: str, status: str = "info", subtitle: str = ""):
+    """Секционно заглавие с цветова статус-лента: 'go' (зелено, готово за
+    вход), 'watch' (кехлибарено, наблюдавай), 'risk' (червено), 'info' (синьо,
+    по подразбиране - AI/аналитични секции)."""
+    sub_html = f'<div class="sub">{subtitle}</div>' if subtitle else ""
+    st.markdown(
+        f'<div class="section-rail {status}"><div class="title">{title}</div>{sub_html}</div>',
+        unsafe_allow_html=True,
+    )
 
 # ============================================================================
 # ОБЩА ЧАСТ: реален универс от eu_instruments.json (Trading 212 API)
@@ -803,7 +896,7 @@ def render_mtf_strategy():
     watch_list = st.session_state.get("mtf_watchlist", [])
 
     st.divider()
-    st.subheader("✅ Готови за вход")
+    section_header("✅ Готови за вход", status="go", subtitle="Пълно потвърждение на седмичен + дневен + 4ч таймфрейм")
     if results:
         df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
         df_ready = flag_macro_signal(df_ready, macro_keywords)
@@ -816,7 +909,7 @@ def render_mtf_strategy():
         st.info("Няма инструменти с пълно потвърждение на трите таймфрейма в момента.")
 
     st.divider()
-    st.subheader("👀 Watchlist")
+    section_header("👀 Watchlist", status="watch", subtitle="Минали седмичен + дневен филтър, чакат 4ч потвърждение")
     if watch_list:
         df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход", "4ч up-тренд"])
         df_watch = flag_macro_signal(df_watch, macro_keywords)
@@ -829,7 +922,7 @@ def render_mtf_strategy():
         st.info("Няма инструменти в зона на подкрепа в момента.")
 
     st.divider()
-    st.subheader("🤖 AI Анализ")
+    section_header("🤖 AI Анализ", status="info")
     anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
     if not anthropic_api_key:
         anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="mtf_key")
@@ -847,7 +940,7 @@ def render_mtf_strategy():
                     st.error(f"Грешка: {e}")
 
     st.divider()
-    st.subheader("📈 Преглед на графика")
+    section_header("📈 Преглед на графика", status="info")
     selected_name = st.selectbox("Избери инструмент:", list(tickers.keys()), key="mtf_chart")
     if selected_name:
         symbol = tickers[selected_name]
@@ -885,15 +978,20 @@ def render_mtf_strategy():
 # ИНТЕРФЕЙС: избор на стратегия
 # ============================================================================
 
-st.title("⚡ Swing Screener AI")
+st.markdown(
+    '<div class="app-hero"><h1>⚡ Swing Screener AI</h1>'
+    '<span class="app-sub">EU/EEA · EUR · Trading 212</span></div>',
+    unsafe_allow_html=True,
+)
 
 strategy = st.radio(
     "Избери стратегия за скрининг:",
     ["📅 Дневна (Pullback / Потвърдено обръщане)", "🎯 Multi-Timeframe (Седмичен → Дневен → 4ч)"],
     horizontal=True,
+    label_visibility="collapsed",
 )
 
-st.markdown("---")
+st.divider()
 
 if strategy.startswith("📅"):
     render_daily_strategy()
