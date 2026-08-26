@@ -377,11 +377,12 @@ def render_universe_search(key: str):
 
 
 def render_daily_strategy():
-    max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 150, step=20, key="daily_max")
-    pinned_input = st.sidebar.text_input(
-        "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="daily_pinned",
-        help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
-    )
+    with st.expander("⚙️ Настройки на скрининга", expanded=False):
+        max_instr = st.slider("Максимален брой инструменти", 20, 500, 150, step=20, key="daily_max")
+        pinned_input = st.text_input(
+            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="daily_pinned",
+            help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+        )
     pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
@@ -413,7 +414,7 @@ def render_daily_strategy():
     with tab1:
         anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
         if not anthropic_api_key:
-            anthropic_api_key = st.sidebar.text_input("Anthropic API Key", type="password", key="daily_key")
+            anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="daily_key")
         if st.button("🚀 Генерирай Анализ и Търговски План", type="primary", use_container_width=True):
             if not anthropic_api_key:
                 st.error("Липсва Anthropic API ключ!")
@@ -616,14 +617,15 @@ def generate_ai_analysis_mtf(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api
 
 
 def render_mtf_strategy():
-    max_instr = st.sidebar.slider("Максимален брой инструменти", 20, 500, 300, step=20, key="mtf_max")
-    pinned_input = st.sidebar.text_input(
-        "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="mtf_pinned",
-        help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
-    )
+    with st.expander("⚙️ Настройки на скрининга", expanded=False):
+        max_instr = st.slider("Максимален брой инструменти", 20, 500, 300, step=20, key="mtf_max")
+        pinned_input = st.text_input(
+            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="mtf_pinned",
+            help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+        )
+        swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
+        swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3)
     pinned_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
-    swing_order_weekly = st.sidebar.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
-    swing_order_daily = st.sidebar.slider("Чувствителност на дневните swing точки", 2, 6, 3)
 
     tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
     st.caption(f"Универс: {len(tickers)} инструмента")
@@ -667,7 +669,7 @@ def render_mtf_strategy():
     st.subheader("🤖 AI Анализ")
     anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
     if not anthropic_api_key:
-        anthropic_api_key = st.sidebar.text_input("Anthropic API Key", type="password", key="mtf_key")
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="mtf_key")
 
     if st.button("Генерирай AI анализ на резултатите", type="primary"):
         if not anthropic_api_key:
