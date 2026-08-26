@@ -86,11 +86,11 @@ ASML Holding
 Siemens Energy
 LVMH
 
-До 150 реда общо."""
+До 60 реда общо."""
 
         response = client.messages.create(
             model="claude-sonnet-5",
-            max_tokens=2048,
+            max_tokens=8192,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             messages=[{"role": "user", "content": prompt}],
         )
@@ -111,7 +111,7 @@ LVMH
                 continue
             names.add(normalize_company_name(line))
 
-        print(f"Намерени {len(names)} трендиращи имена от медиен анализ.")
+        print(f"Намерени {len(names)} трендиращи имена от медиен анализ. (stop_reason: {response.stop_reason})")
         if not names:
             # debug: показваме суровия отговор, за да разберем защо parsing-ът е дал 0
             snippet = full_text[:1500]
