@@ -862,6 +862,594 @@ def generate_ai_analysis_mtf(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api
     return text
 
 
+def average_true_range(df: pd.DataFrame, period: int = 14):
+    high, low, close = df["High"], df["Low"], df["Close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([(high - low), (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+    atr = tr.rolling(period).mean().iloc[-1]
+    return float(atr) if pd.notna(atr) else None
+
+
+def is_overextended(df_with_swings: pd.DataFrame, lookback_swings: int = 4):
+    """Правило 'спри след 3+ CP модела в една посока': поредни по-високи
+    swing highs без сериозна корекция = пренатегнат тренд, риск от изчерпване."""
+    highs = df_with_swings.loc[df_with_swings["SwingHigh"], "High"]
+    if len(highs) < 2:
+        return False, 0
+    recent = highs.tail(lookback_swings).to_numpy()
+    consecutive = 1
+    max_consecutive = 1
+    for i in range(1, len(recent)):
+        if recent[i] > recent[i - 1]:
+            consecutive += 1
+            max_consecutive = max(max_consecutive, consecutive)
+        else:
+            consecutive = 1
+    return max_consecutive >= 3, int(max_consecutive)
+
+
+def find_fresh_demand_zone(df: pd.DataFrame, max_base: int = 6):
+    """Supply & Demand (Alfonso Mores / Set & Forget) - Drop-Base-Rally детекция,
+    само demand (bullish) зони, тъй като приложението е long-only:
+      - база от 1-6 тесни свещи (тяло <= 50% от диапазона)
+      - последвана от departure импулс с диапазон >= 2x средния диапазон
+        на базата (2:1 imbalance), затварящ силно бичи (горна 20%)
+    Връща НАЙ-СКОРОШНАТА невалидирана ("не пробита надолу") зона, с брой
+    ретестове от формирането ѝ насам, или None ако няма такава."""
+    o, h, l, c = df["Open"].to_numpy(), df["High"].to_numpy(), df["Low"].to_numpy(), df["Close"].to_numpy()
+    n = len(df)
+    ranges = h - l
+    bodies = np.abs(c - o)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        body_ratio = np.where(ranges > 0, bodies / ranges, 1.0)
+
+    for j in range(n - 1, max_base, -1):
+        if ranges[j] <= 0:
+            continue
+        strong_bullish_close = c[j] > o[j] and (c[j] - l[j]) >= 0.8 * ranges[j]
+        if not strong_bullish_close:
+            continue
+        for base_width in range(1, max_base + 1):
+            base_start = j - base_width
+            if base_start < 0:
+                break
+            sl = slice(base_start, j)
+            base_ranges = ranges[sl]
+            base_body_ratio = body_ratio[sl]
+            if np.any(base_ranges <= 0) or not np.all(base_body_ratio <= 0.5):
+                continue
+            avg_base_range = base_ranges.mean()
+            if avg_base_range <= 0:
+                continue
+            imbalance_ratio = ranges[j] / avg_base_range
+            if imbalance_ratio < 2.0:
+                continue
+            proximal, distal = float(h[sl].max()), float(l[sl].min())
+            if proximal <= distal:
+                continue
+
+            invalidated, retests, in_zone = False, 0, False
+            for k in range(j + 1, n):
+                if c[k] < distal:
+                    invalidated = True
+                    break
+                touching = l[k] <= proximal
+                if touching and not in_zone:
+                    retests += 1
+                    in_zone = True
+                elif not touching:
+                    in_zone = False
+            if invalidated:
+                continue
+
+            return {
+                "formed_idx": j, "base_width": base_width, "proximal": proximal, "distal": distal,
+                "imbalance_ratio": float(imbalance_ratio), "avg_base_body_ratio": float(base_body_ratio.mean()),
+                "retests": retests, "formed_date": df.index[j],
+            }
+    return None
+
+
+@st.cache_data(ttl=3600)
+def analyze_instrument_sd(name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int):
+    daily_df = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
+    if daily_df.empty or len(daily_df) < 150:
+        return None
+    daily_df = flatten_columns(daily_df)
+
+    # --- 1. Седмичен тренд (твърд филтър - "търгувай само по посока на HTF") ---
+    weekly = (
+        daily_df.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
+    )
+    if len(weekly) < 20:
+        return None
+    weekly = find_swing_points(weekly, order=swing_order_weekly)
+    weekly_uptrend, weekly_resistance, weekly_support = structure_trend(weekly)
+    if not weekly_uptrend:
+        return None
+
+    # --- 2. Fresh demand зона на дневен таймфрейм (2:1 imbalance + силна база) ---
+    daily_swings_full = find_swing_points(daily_df, order=swing_order_daily)
+    zone = find_fresh_demand_zone(daily_df, max_base=6)
+    if zone is None:
+        return None
+    if zone["retests"] != 0:
+        return None  # само FRESH зони - твърдо правило, не "used up"
+    if not (zone["base_width"] <= 6 and zone["avg_base_body_ratio"] <= 0.5 and zone["imbalance_ratio"] >= 2.0):
+        return None
+
+    current_price = float(daily_df["Close"].iloc[-1])
+    proximal, distal = zone["proximal"], zone["distal"]
+    price_in_zone = distal <= current_price <= proximal
+    approaching = proximal < current_price <= proximal * 1.05
+    if not (price_in_zone or approaching):
+        return None
+
+    # --- 3. Пренатегнатост ("спри след 3+ CP модела в една посока") ---
+    overextended, extension_count = is_overextended(daily_swings_full)
+
+    # --- 4. Risk/Reward спрямо най-близкия swing high над зоната (мин. 3:1) ---
+    swing_highs_above = daily_swings_full.loc[
+        (daily_swings_full["SwingHigh"]) & (daily_swings_full["High"] > current_price), "High"
+    ]
+    target = float(swing_highs_above.min()) if not swing_highs_above.empty else weekly_resistance
+    risk = current_price - distal
+    reward = (target - current_price) if target else None
+    rr = (reward / risk) if (risk and risk > 0 and reward and reward > 0) else None
+    if not rr or rr < 3.0:
+        return None
+
+    # --- 5. 4-часова структура: потвърждава ли бичи реакция точно сега? ---
+    h4_bullish_reaction = False
+    try:
+        intraday = yf.download(symbol, period="60d", interval="60m", progress=False, auto_adjust=True)
+        if not intraday.empty:
+            intraday = flatten_columns(intraday)
+            h4 = (
+                intraday.resample("4h").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
+            )
+            if len(h4) >= 10:
+                h4 = find_swing_points(h4, order=1)
+                h4_bullish_reaction, _, _ = structure_trend(h4)
+    except Exception:
+        pass
+
+    ready = price_in_zone and h4_bullish_reaction and not overextended
+
+    # --- 6. Очакван хоризонт (груба ATR оценка, ориентир за ~3-седмичен суинг) ---
+    atr = average_true_range(daily_df, period=14)
+    est_days = round(reward / atr) if atr and atr > 0 else None
+    within_3_weeks = est_days is not None and est_days <= 15
+
+    return {
+        "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
+        "Зона (Distal–Proximal)": f"{round(distal, 2)}–{round(proximal, 2)}",
+        "Imbalance": f"{zone['imbalance_ratio']:.1f}x", "База (свещи)": zone["base_width"],
+        "R/R (до цел)": round(rr, 2), "Очаквано (дни, ATR)": est_days,
+        "≤3 седмици": within_3_weeks, "Пренатегнат": overextended,
+        "4ч бичи реакция": h4_bullish_reaction, "В зоната сега": price_in_zone,
+        "Готов за вход": ready,
+    }
+
+
+def generate_ai_analysis_sd(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
+    client = Anthropic(api_key=api_key)
+
+    ready_text = df_ready.to_string(index=False) if not df_ready.empty else "НЯМА зони, готови за вход в момента."
+    watch_text = df_watch.to_string(index=False) if not df_watch.empty else "НЯМА зони на watchlist в момента."
+
+    prompt = f"""
+    Ти си суинг търговец, ползващ Supply & Demand методологията на Alfonso Mores
+    (Set & Forget), адаптирана за Седмичен → Дневен → 4ч каскада, само LONG
+    (demand зони), с хоризонт на сделката до ~3 седмици:
+    1) седмичен тренд по структура (HH+HL) трябва да е възходящ;
+    2) на дневен таймфрейм трябва да има FRESH (0 ретеста) demand зона:
+       база от макс. 6 тесни свещи (тяло <= 50% от диапазона), последвана от
+       departure импулс с 2:1 imbalance (диапазон >= 2x средния на базата);
+    3) минимум 3:1 Risk/Reward до най-близкия swing high над зоната;
+    4) без пренатоварен тренд (спри след 3+ поредни по-високи върха);
+    5) 4-часова структура потвърждава бичи реакция точно сега.
+
+    Използвай СТРИКТНО само данните по-долу.
+
+    === ГОТОВИ ЗА ВХОД ===
+    {ready_text}
+
+    === WATCHLIST (fresh зона има, но 4ч реакция ОЩЕ НЕ е потвърдена / цената приближава) ===
+    {watch_text}
+
+    ЖЕЛЕЗНИ ПРАВИЛА:
+    - Избирай ЕДИНСТВЕНО измежду инструментите по-горе.
+    - Ако категория е празна, кажи го ясно - не импровизирай замяна.
+    - "Очаквано (дни, ATR)" е груба ориентировъчна оценка, не гаранция -
+      представи я като такава.
+    - За Watchlist обясни какво чакаме да видим на 4ч, за да минат в "готови".
+
+    За "ГОТОВИ ЗА ВХОД": обясни зоната (proximal/distal), Stop под distal линията,
+    Target от данните, защо отговаря на 3:1. Бъди кратък, удобен за телефон.
+    """
+    response = client.messages.create(
+        model="claude-sonnet-5", max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in response.content if block.type == "text")
+    if not text.strip():
+        raise ValueError(f"Claude върна празен отговор (stop_reason: {response.stop_reason}). Опитай пак.")
+    return text
+
+
+def render_sd_strategy():
+    with st.expander("⚙️ Настройки на скрининга", expanded=False):
+        max_instr = st.slider("Максимален брой инструменти", 20, 500, 250, step=20, key="sd_max")
+        pinned_input = st.text_input(
+            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="sd_pinned",
+            help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+        )
+        swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="sd_swo_w")
+        swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="sd_swo_d")
+    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    auto_pin, macro_keywords = render_macro_section(key="sd")
+    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
+
+    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+    st.caption(f"Универс: {len(tickers)} инструмента")
+    render_universe_search(key="sd")
+
+    if st.button("🔎 Сканирай пазара", type="primary", use_container_width=True, key="sd_scan_btn"):
+        results, watch_list = [], []
+        progress = st.progress(0, text="Търсене на fresh demand зони...")
+        items = list(tickers.items())
+        for i, (name, symbol) in enumerate(items):
+            res = analyze_instrument_sd(name, symbol, swing_order_weekly, swing_order_daily)
+            if res:
+                (results if res["Готов за вход"] else watch_list).append(res)
+            progress.progress((i + 1) / len(items), text=f"Проверих {i + 1}/{len(items)}: {name}")
+        progress.empty()
+        st.session_state["sd_results"] = results
+        st.session_state["sd_watch"] = watch_list
+
+    results = st.session_state.get("sd_results", [])
+    watch_list = st.session_state.get("sd_watch", [])
+
+    st.divider()
+    section_header(
+        "✅ Готови за вход", status="go",
+        subtitle="Fresh demand зона + 4ч бичи реакция + 3:1 R/R + без пренатоварен тренд",
+    )
+    if results:
+        df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
+        df_ready = flag_macro_signal(df_ready, macro_keywords)
+        st.dataframe(
+            df_ready, use_container_width=True, hide_index=True,
+            column_config={
+                "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
+                "≤3 седмици": st.column_config.CheckboxColumn("≤3 седмици"),
+                "Пренатегнат": st.column_config.CheckboxColumn("Пренатегнат"),
+            },
+        )
+    else:
+        df_ready = pd.DataFrame()
+        st.info("Няма fresh demand зони с пълно потвърждение в момента.")
+
+    st.divider()
+    section_header("👀 Watchlist", status="watch", subtitle="Fresh зона има, чакаме 4ч потвърждение или доближаване до зоната")
+    if watch_list:
+        df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход"])
+        df_watch = flag_macro_signal(df_watch, macro_keywords)
+        st.dataframe(
+            df_watch, use_container_width=True, hide_index=True,
+            column_config={"📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал")},
+        )
+    else:
+        df_watch = pd.DataFrame()
+        st.info("Няма инструменти на watchlist в момента.")
+
+    st.divider()
+    section_header("🤖 AI Анализ", status="info")
+    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    if not anthropic_api_key:
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="sd_key")
+    if st.button("🚀 Генерирай Анализ и Търговски План", type="primary", use_container_width=True, key="sd_ai_btn"):
+        if not anthropic_api_key:
+            st.error("Липсва Anthropic API ключ!")
+        else:
+            with st.spinner("Анализирам зоните..."):
+                try:
+                    analysis = generate_ai_analysis_sd(df_ready, df_watch, anthropic_api_key)
+                    st.markdown(analysis)
+                except Exception as e:
+                    st.error(f"Грешка: {e}")
+
+    st.divider()
+    section_header("📈 Преглед на графика", status="info")
+    if tickers:
+        selected_name = st.selectbox("Избери инструмент", list(tickers.keys()), key="sd_chart_select")
+        symbol = tickers[selected_name]
+        daily = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
+        if not daily.empty:
+            daily = flatten_columns(daily)
+            zone = find_fresh_demand_zone(daily, max_base=6)
+
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(
+                x=daily.index, open=daily["Open"], high=daily["High"], low=daily["Low"], close=daily["Close"],
+                name="Дневна цена",
+            ))
+            if zone:
+                fig.add_hrect(
+                    y0=zone["distal"], y1=zone["proximal"], fillcolor="#3DDC97", opacity=0.18, line_width=1,
+                    line_color="#3DDC97",
+                    annotation_text=f"Demand зона (retests: {zone['retests']}, {zone['imbalance_ratio']:.1f}x imbalance)",
+                )
+            fig.update_layout(height=600, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+
+
+def detect_structure_events(df_with_swings: pd.DataFrame):
+    """Photon Trading MTF Phases логика, приложена върху 4ч ('Internal'):
+    определя дали структурата в момента продължава по тренда (Pro Internal)
+    или тече пулбек (Counter Internal), и дали ТОЧНО СЕГА има бичи CHoCH
+    (Change of Character) - пробив над последния swing high след пулбек,
+    сигнал че пулбекът е приключил. Връща None, ако няма достатъчно swing
+    точки за преценка."""
+    highs = df_with_swings.loc[df_with_swings["SwingHigh"], "High"]
+    lows = df_with_swings.loc[df_with_swings["SwingLow"], "Low"]
+    if len(highs) < 2 or len(lows) < 2:
+        return None
+
+    last_high_idx, prev_high_idx = highs.index[-1], highs.index[-2]
+    last_low_idx = lows.index[-1]
+    last_high, prev_high = float(highs.iloc[-1]), float(highs.iloc[-2])
+    last_low = float(lows.iloc[-1])
+    current_close = float(df_with_swings["Close"].iloc[-1])
+
+    most_recent_swing_is_low = last_low_idx > last_high_idx
+
+    if most_recent_swing_is_low:
+        # последно движение: high -> нов low = пулбек в ход (потенциален Counter Internal)
+        internal_state = "counter" if last_low < prev_high else "pro"
+        choch_bullish_now = current_close > last_high  # пробив над предишния high = CHoCH
+        reference_low = last_low
+    else:
+        # последно движение: продължение нагоре (нов high след предходен low) = Pro Internal
+        internal_state = "pro" if last_high > prev_high else "counter"
+        choch_bullish_now = False
+        reference_low = float(lows.iloc[-1])
+
+    return {"internal_state": internal_state, "choch_bullish_now": choch_bullish_now, "reference_low": reference_low}
+
+
+@st.cache_data(ttl=3600)
+def analyze_instrument_photon(name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int):
+    daily_df = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
+    if daily_df.empty or len(daily_df) < 150:
+        return None
+    daily_df = flatten_columns(daily_df)
+
+    # --- HTF (Седмичен): задължителна посока, само LONG ---
+    weekly = (
+        daily_df.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
+    )
+    if len(weekly) < 20:
+        return None
+    weekly = find_swing_points(weekly, order=swing_order_weekly)
+    weekly_uptrend, weekly_resistance, weekly_support = structure_trend(weekly)
+    if not weekly_uptrend:
+        return None
+
+    # --- Swing/MTF (Дневен): трябва да е Pro Swing (нагоре) - Phase C/D извън обхват ---
+    daily_swings = find_swing_points(daily_df, order=swing_order_daily)
+    daily_uptrend, daily_resistance, daily_support = structure_trend(daily_swings)
+    if not daily_uptrend or daily_support is None or daily_resistance is None:
+        return None
+    daily_range = daily_resistance - daily_support
+    if daily_range <= 0:
+        return None
+
+    current_price = float(daily_df["Close"].iloc[-1])
+    equilibrium = daily_support + daily_range / 2
+    in_discount = current_price <= equilibrium
+    discount_pct = round(100 * (equilibrium - current_price) / (daily_range / 2), 1) if daily_range > 0 else None
+
+    # --- Internal/LTF (4ч): Pro или Counter Internal + CHoCH тригер ---
+    internal_state, choch_now, reference_low = None, False, None
+    try:
+        intraday = yf.download(symbol, period="60d", interval="60m", progress=False, auto_adjust=True)
+        if not intraday.empty:
+            intraday = flatten_columns(intraday)
+            h4 = (
+                intraday.resample("4h").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
+            )
+            if len(h4) >= 10:
+                h4 = find_swing_points(h4, order=1)
+                events = detect_structure_events(h4)
+                if events:
+                    internal_state = events["internal_state"]
+                    choch_now = events["choch_bullish_now"]
+                    reference_low = events["reference_low"]
+    except Exception:
+        pass
+    if internal_state is None:
+        return None
+
+    # --- Класификация на фазата (само A и B - long-only, консервативен обхват) ---
+    if internal_state == "pro":
+        phase = "A"
+        ready = in_discount or discount_pct is not None and discount_pct >= 0  # Phase A: не чакаме CHoCH, влизаме на POI
+    else:
+        phase = "B"
+        ready = choch_now and in_discount  # Phase B: чакаме CHoCH ТОЧНО СЕГА + discount зона
+
+    stop_ref = reference_low if reference_low else daily_support
+    risk = current_price - stop_ref
+    reward = daily_resistance - current_price
+    rr = round(reward / risk, 2) if risk and risk > 0 and reward and reward > 0 else None
+
+    return {
+        "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
+        "Фаза": f"{phase} ({'Pro' if phase == 'A' else 'Pro Swing+Counter'} Internal)",
+        "Premium/Discount": f"{'Discount' if in_discount else 'Premium'} ({discount_pct}%)" if discount_pct is not None else "-",
+        "4ч CHoCH сега": choch_now,
+        "Дневна подкрепа": round(daily_support, 2), "Дневна съпротива": round(daily_resistance, 2),
+        "Reference Low (stop)": round(stop_ref, 2) if stop_ref else None,
+        "R/R (до дневна съпротива)": rr,
+        "Готов за вход": ready,
+    }
+
+
+def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
+    client = Anthropic(api_key=api_key)
+
+    ready_text = df_ready.to_string(index=False) if not df_ready.empty else "НЯМА готови сетъпи в момента."
+    watch_text = df_watch.to_string(index=False) if not df_watch.empty else "НЯМА инструменти на watchlist в момента."
+
+    prompt = f"""
+    Ти си суинг търговец, ползващ Photon Trading MTF Phases методологията
+    (Smart Money Concepts, top-down: HTF Objective -> MTF POIs -> LTF Execution),
+    адаптирана: HTF=Седмичен, Swing/MTF=Дневен, Internal/LTF=4ч. САМО LONG.
+
+    Правила:
+    - Седмичен тренд трябва да е Pro (възходящ) - твърд филтър.
+    - Дневен Swing тренд трябва също да е Pro (възходящ) - твърд филтър.
+      (Counter Swing фази C/D са изключени - твърде агресивни за системата.)
+    - Phase A (Pro Swing + Pro Internal): 4ч структурата продължава нагоре
+      без пулбек - може да се влиза направо на POI, без да чакаме CHoCH.
+    - Phase B (Pro Swing + Counter Internal): 4ч е в пулбек - влизаме ТОЧНО
+      на CHoCH (пробив над последния 4ч swing high), и само в discount зона
+      (цената под 50% от дневния диапазон).
+
+    Използвай СТРИКТНО само данните по-долу.
+
+    === ГОТОВИ ЗА ВХОД ===
+    {ready_text}
+
+    === WATCHLIST ===
+    {watch_text}
+
+    ЖЕЛЕЗНИ ПРАВИЛА:
+    - Избирай ЕДИНСТВЕНО измежду инструментите по-долу.
+    - Ако категория е празна, кажи го ясно.
+    - За Watchlist Phase B обясни, че чакаме CHoCH на 4ч.
+
+    За "ГОТОВИ ЗА ВХОД": обясни фазата, Stop на Reference Low, Target на дневна съпротива.
+    Бъди кратък, удобен за телефон.
+    """
+    response = client.messages.create(
+        model="claude-sonnet-5", max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in response.content if block.type == "text")
+    if not text.strip():
+        raise ValueError(f"Claude върна празен отговор (stop_reason: {response.stop_reason}). Опитай пак.")
+    return text
+
+
+def render_photon_strategy():
+    with st.expander("⚙️ Настройки на скрининга", expanded=False):
+        max_instr = st.slider("Максимален брой инструменти", 20, 500, 250, step=20, key="ph_max")
+        pinned_input = st.text_input(
+            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="ph_pinned",
+            help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+        )
+        swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
+        swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
+    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
+    auto_pin, macro_keywords = render_macro_section(key="ph")
+    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
+
+    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+    st.caption(f"Универс: {len(tickers)} инструмента")
+    render_universe_search(key="ph")
+
+    if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
+        results, watch_list = [], []
+        progress = st.progress(0.0, text="Търсене на Phase A/B сетъпи...")
+        items = list(tickers.items())
+        for idx, (name, symbol) in enumerate(items):
+            progress.progress((idx + 1) / len(items), text=f"Анализирам {name}...")
+            res = analyze_instrument_photon(name, symbol, swing_order_weekly, swing_order_daily)
+            if res is not None:
+                (results if res["Готов за вход"] else watch_list).append(res)
+        progress.empty()
+        st.session_state["photon_results"] = results
+        st.session_state["photon_watchlist"] = watch_list
+
+    results = st.session_state.get("photon_results", [])
+    watch_list = st.session_state.get("photon_watchlist", [])
+
+    st.divider()
+    section_header("✅ Готови за вход", status="go", subtitle="Phase A (Pro Internal, POI) или Phase B (CHoCH точно сега + discount)")
+    if results:
+        df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
+        df_ready = flag_macro_signal(df_ready, macro_keywords)
+        st.dataframe(
+            df_ready, use_container_width=True, hide_index=True,
+            column_config={
+                "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
+                "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
+            },
+        )
+    else:
+        df_ready = pd.DataFrame()
+        st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента.")
+
+    st.divider()
+    section_header("👀 Watchlist", status="watch", subtitle="Pro Swing потвърден, чакаме Phase A POI или Phase B CHoCH")
+    if watch_list:
+        df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход"])
+        df_watch = flag_macro_signal(df_watch, macro_keywords)
+        st.dataframe(
+            df_watch, use_container_width=True, hide_index=True,
+            column_config={
+                "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
+                "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
+            },
+        )
+    else:
+        df_watch = pd.DataFrame()
+        st.info("Няма инструменти на watchlist в момента.")
+
+    st.divider()
+    section_header("🤖 AI Анализ", status="info")
+    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    if not anthropic_api_key:
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="ph_key")
+    if st.button("🚀 Генерирай Анализ и Търговски План", type="primary", use_container_width=True, key="ph_ai_btn"):
+        if not anthropic_api_key:
+            st.error("Липсва Anthropic API ключ!")
+        else:
+            with st.spinner("Анализирам фазите..."):
+                try:
+                    analysis = generate_ai_analysis_photon(df_ready, df_watch, anthropic_api_key)
+                    st.markdown(analysis)
+                except Exception as e:
+                    st.error(f"Грешка: {e}")
+
+    st.divider()
+    section_header("📈 Преглед на графика", status="info")
+    if tickers:
+        selected_name = st.selectbox("Избери инструмент", list(tickers.keys()), key="ph_chart_select")
+        symbol = tickers[selected_name]
+        daily = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
+        if not daily.empty:
+            daily = flatten_columns(daily)
+            daily_swings = find_swing_points(daily, order=3)
+            _, res_lvl, sup_lvl = structure_trend(daily_swings)
+
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(
+                x=daily.index, open=daily["Open"], high=daily["High"], low=daily["Low"], close=daily["Close"],
+                name="Дневна цена",
+            ))
+            if sup_lvl and res_lvl:
+                mid = sup_lvl + (res_lvl - sup_lvl) / 2
+                fig.add_hline(y=res_lvl, line_dash="dot", line_color="red", annotation_text="Дневна съпротива")
+                fig.add_hline(y=mid, line_dash="dash", line_color="gray", annotation_text="Equilibrium (50%)")
+                fig.add_hline(y=sup_lvl, line_dash="dot", line_color="#3DDC97", annotation_text="Дневна подкрепа")
+            fig.update_layout(height=600, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+
+
 def render_mtf_strategy():
     with st.expander("⚙️ Настройки на скрининга", expanded=False):
         max_instr = st.slider("Максимален брой инструменти", 20, 500, 300, step=20, key="mtf_max")
@@ -986,7 +1574,12 @@ st.markdown(
 
 strategy = st.radio(
     "Избери стратегия за скрининг:",
-    ["📅 Дневна (Pullback / Потвърдено обръщане)", "🎯 Multi-Timeframe (Седмичен → Дневен → 4ч)"],
+    [
+        "📅 Дневна (Pullback / Потвърдено обръщане)",
+        "🎯 Multi-Timeframe (Седмичен → Дневен → 4ч)",
+        "📦 Supply & Demand (Седм. → Дневен → 4ч, до 3 седмици)",
+        "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
+    ],
     horizontal=True,
     label_visibility="collapsed",
 )
@@ -995,5 +1588,9 @@ st.divider()
 
 if strategy.startswith("📅"):
     render_daily_strategy()
-else:
+elif strategy.startswith("🎯"):
     render_mtf_strategy()
+elif strategy.startswith("📦"):
+    render_sd_strategy()
+else:
+    render_photon_strategy()
