@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-08-26 05:04:50",
-  "total": 3673,
+  "fetched_at": "2026-08-28 21:13:16",
+  "total": 3678,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -3211,6 +3211,19 @@
       "maxOpenQuantity": 36.0,
       "extendedHours": false,
       "addedOn": "2025-01-24T14:50:14.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "FTSAd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000OL3XN92",
+      "currencyCode": "EUR",
+      "name": "iShares FTSE All World (Dist)",
+      "shortName": "FTSA",
+      "maxOpenQuantity": 1159555.0,
+      "extendedHours": false,
+      "addedOn": "2026-08-26T18:29:30.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -14404,6 +14417,19 @@
       "maxOpenQuantity": 146598.0,
       "extendedHours": false,
       "addedOn": "2025-08-06T16:50:19.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "TCQEd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000DN0XQM1",
+      "currencyCode": "EUR",
+      "name": "Trading Central Quant Europe 50 Equity (Acc)",
+      "shortName": "TCQE",
+      "maxOpenQuantity": 643252.0,
+      "extendedHours": false,
+      "addedOn": "2026-08-26T18:29:29.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -26172,6 +26198,19 @@
       "exchangeName": "Gettex"
     },
     {
+      "ticker": "IQSWd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000S0JMIY6",
+      "currencyCode": "EUR",
+      "name": "Invesco All Country World Enhanced Equity (Acc)",
+      "shortName": "IQSW",
+      "maxOpenQuantity": 1164687.0,
+      "extendedHours": false,
+      "addedOn": "2026-08-26T18:29:28.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
       "ticker": "USB7d_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -27600,6 +27639,19 @@
       "extendedHours": false,
       "addedOn": "2025-03-27T10:33:06.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "B1TAa_EQ",
+      "type": "ETF",
+      "workingScheduleId": 164,
+      "isin": "IE000XPG7Q27",
+      "currencyCode": "EUR",
+      "name": "iShares AT1 Bond Active (Dist)",
+      "shortName": "B1TA",
+      "maxOpenQuantity": 998801.0,
+      "extendedHours": false,
+      "addedOn": "2026-08-26T18:29:31.000+03:00",
+      "exchangeName": "Euronext Amsterdam"
     },
     {
       "ticker": "EHBAd_EQ",
@@ -45500,6 +45552,19 @@
       "maxOpenQuantity": 342811.0,
       "extendedHours": false,
       "addedOn": "2026-01-15T15:42:32.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "E600d_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000XSFZL82",
+      "currencyCode": "EUR",
+      "name": "iShares STOXX Europe 600 (Acc)",
+      "shortName": "E600",
+      "maxOpenQuantity": 995619.0,
+      "extendedHours": false,
+      "addedOn": "2026-08-26T18:29:31.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
