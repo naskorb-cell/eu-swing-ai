@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-08-29 03:05:47",
+  "fetched_at": "2026-08-30 03:05:56",
   "total": 3678,
   "instruments": [
     {
@@ -640,19 +640,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "QSPAd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE000E6TPCH9",
-      "currencyCode": "EUR",
-      "name": "Invesco S&P 500 Quality (Acc)",
-      "shortName": "QSPA",
-      "maxOpenQuantity": 865151.0,
-      "extendedHours": false,
-      "addedOn": "2025-12-10T18:59:57.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "XWSCd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -663,6 +650,19 @@
       "maxOpenQuantity": 468484.0,
       "extendedHours": false,
       "addedOn": "2026-01-14T18:48:47.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "QSPAd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000E6TPCH9",
+      "currencyCode": "EUR",
+      "name": "Invesco S&P 500 Quality (Acc)",
+      "shortName": "QSPA",
+      "maxOpenQuantity": 865151.0,
+      "extendedHours": false,
+      "addedOn": "2025-12-10T18:59:57.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -2460,19 +2460,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "FLXUd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE00BF2B0P08",
-      "currencyCode": "EUR",
-      "name": "Franklin US Equity (Acc)",
-      "shortName": "FLXU",
-      "maxOpenQuantity": 70323.0,
-      "extendedHours": false,
-      "addedOn": "2026-01-15T15:51:56.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "UIM4d_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -2483,6 +2470,19 @@
       "maxOpenQuantity": 20845.0,
       "extendedHours": false,
       "addedOn": "2018-06-29T14:55:31.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "FLXUd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE00BF2B0P08",
+      "currencyCode": "EUR",
+      "name": "Franklin US Equity (Acc)",
+      "shortName": "FLXU",
+      "maxOpenQuantity": 70323.0,
+      "extendedHours": false,
+      "addedOn": "2026-01-15T15:51:56.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -3357,19 +3357,6 @@
       "exchangeName": "Borsa Italiana"
     },
     {
-      "ticker": "IG34d_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE000UY6XF65",
-      "currencyCode": "EUR",
-      "name": "iShares iBonds Dec 2034 Term EUR Corp (Acc)",
-      "shortName": "IG34",
-      "maxOpenQuantity": 819432.0,
-      "extendedHours": false,
-      "addedOn": "2025-08-05T16:56:55.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "IPRPa_EQ",
       "type": "ETF",
       "workingScheduleId": 164,
@@ -3381,6 +3368,19 @@
       "extendedHours": false,
       "addedOn": "2023-06-21T16:25:04.000+03:00",
       "exchangeName": "Euronext Amsterdam"
+    },
+    {
+      "ticker": "IG34d_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000UY6XF65",
+      "currencyCode": "EUR",
+      "name": "iShares iBonds Dec 2034 Term EUR Corp (Acc)",
+      "shortName": "IG34",
+      "maxOpenQuantity": 819432.0,
+      "extendedHours": false,
+      "addedOn": "2025-08-05T16:56:55.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "HEDLd_EQ",
@@ -5086,19 +5086,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "B8TQd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "LU1910940268",
-      "currencyCode": "EUR",
-      "name": "Amundi Global Government Inflation-Linked Bond 1-10Y (Dist)",
-      "shortName": "B8TQ",
-      "maxOpenQuantity": 393619.0,
-      "extendedHours": false,
-      "addedOn": "2025-08-01T17:15:42.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "VNXd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -5110,6 +5097,19 @@
       "extendedHours": false,
       "addedOn": "2025-01-24T14:50:16.000+02:00",
       "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "B8TQd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "LU1910940268",
+      "currencyCode": "EUR",
+      "name": "Amundi Global Government Inflation-Linked Bond 1-10Y (Dist)",
+      "shortName": "B8TQ",
+      "maxOpenQuantity": 393619.0,
+      "extendedHours": false,
+      "addedOn": "2025-08-01T17:15:42.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "3QDd_EQ",
@@ -5697,19 +5697,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "ETLNd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE00BFXR5V83",
-      "currencyCode": "EUR",
-      "name": "L&G Europe ex UK Equity (Acc)",
-      "shortName": "LGEU",
-      "maxOpenQuantity": 203159.0,
-      "extendedHours": false,
-      "addedOn": "2020-02-21T15:31:11.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "JRECd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -5720,6 +5707,19 @@
       "maxOpenQuantity": 190143.0,
       "extendedHours": false,
       "addedOn": "2026-01-14T16:21:40.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "ETLNd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE00BFXR5V83",
+      "currencyCode": "EUR",
+      "name": "L&G Europe ex UK Equity (Acc)",
+      "shortName": "LGEU",
+      "maxOpenQuantity": 203159.0,
+      "extendedHours": false,
+      "addedOn": "2020-02-21T15:31:11.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
