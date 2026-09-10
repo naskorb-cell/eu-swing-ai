@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-09-09 03:11:16",
+  "fetched_at": "2026-09-10 03:11:16",
   "total": 3694,
   "instruments": [
     {
@@ -5749,19 +5749,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "LIGHTa_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 57,
-      "isin": "NL0011821392",
-      "currencyCode": "EUR",
-      "name": "Signify",
-      "shortName": "LIGHT",
-      "maxOpenQuantity": 33179.0,
-      "extendedHours": false,
-      "addedOn": "2018-07-12T07:10:22.000+03:00",
-      "exchangeName": "Euronext Amsterdam"
-    },
-    {
       "ticker": "TDVXd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -5773,6 +5760,19 @@
       "extendedHours": false,
       "addedOn": "2026-06-16T16:41:03.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "LIGHTa_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 57,
+      "isin": "NL0011821392",
+      "currencyCode": "EUR",
+      "name": "Signify",
+      "shortName": "LIGHT",
+      "maxOpenQuantity": 33179.0,
+      "extendedHours": false,
+      "addedOn": "2018-07-12T07:10:22.000+03:00",
+      "exchangeName": "Euronext Amsterdam"
     },
     {
       "ticker": "CSYUd_EQ",
@@ -28954,19 +28954,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "9GAGd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "JE00B24DMD55",
-      "currencyCode": "EUR",
-      "name": "WisdomTree Energy Longer Dated",
-      "shortName": "9GAG",
-      "maxOpenQuantity": 154204.0,
-      "extendedHours": false,
-      "addedOn": "2023-10-04T11:41:22.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "LITUm_EQ",
       "type": "ETF",
       "workingScheduleId": 75,
@@ -28978,6 +28965,19 @@
       "extendedHours": false,
       "addedOn": "2022-03-17T16:33:02.000+02:00",
       "exchangeName": "Borsa Italiana"
+    },
+    {
+      "ticker": "9GAGd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "JE00B24DMD55",
+      "currencyCode": "EUR",
+      "name": "WisdomTree Energy Longer Dated",
+      "shortName": "9GAG",
+      "maxOpenQuantity": 154204.0,
+      "extendedHours": false,
+      "addedOn": "2023-10-04T11:41:22.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "FEUQd_EQ",
