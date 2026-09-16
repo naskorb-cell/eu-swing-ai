@@ -1,56 +1,45 @@
 {
-  "summary_bg": "Пазарната картина в навечерието на 15-17 септември 2026 г. е доминирана от обрат в лихвената политика на Фед и ЕЦБ – заради петролен шок от войната в Иран (затворени тръбопроводи в Саудитска Арабия, риск за Ормузкия проток) инфлацията се ускорява отново, което кара анализаторите да очакват ПОВИШЕНИЕ, а не понижение, на лихвите на предстоящото заседание на Фед (16-17 септември), докато ЕЦБ вече проведе ново повишение около 10 септември. Този хауки завой натиска надолу златото и особено среброто, които се сриват от рекордните си нива, а петролът (Brent/WTI) продължава да поскъпва рязко. Европейските борси (STOXX 600) са под натиск от очакванията за по-високи лихви и енергийни разходи, но секторът на полупроводниците/AI (ASML, Infineon) остава структурно силна тема.",
+  "summary_bg": "Днес (16 септември) Федералният резерв обявява решението си по лихвите, като пазарите ценообразуват над 90% вероятност за повишение с 25 базисни пункта - първото от над три години насам, което вече оказва натиск върху златото и среброто. ЕЦБ вече повиши лихвите с 25 б.п. на 10 септември (депозитна лихва 2.50%, влизаща в сила от 16 септември) заради инфлационен натиск от конфликта в Близкия изток. Ескалацията в региона (спряло тръбопровода Изток-Запад в Саудитска Арабия, атаки на хутите) тласна петрола над $100/барел и природния газ в Европа нагоре, което подхранва инфлационни рискове и влияе върху енергийния сектор.",
   "themes": [
     {
-      "theme": "Фед – очаквано повишение на лихвите на заседанието на 16-17 септември",
+      "theme": "Решение на Фед по лихвите (очаквано повишение)",
       "keywords": [
-        "Fed",
-        "USD",
-        "US10Y"
+        "Gold",
+        "Silver"
       ],
-      "reasoning_bg": "Trading Economics и JM Bullion отчитат, че <cite index=\"63-3,63-4\">Silver fell below $63 an ounce on Monday...as a stronger US dollar and rising expectations of a Federal Reserve rate hike pressured the precious metal, with markets pricing in around a 90% chance of a rate hike on Wednesday, after data showed US inflation accelerated in August</cite>, а <cite index=\"64-6\">persistent inflation and renewed strength in oil prices have increased the likelihood of a rate hike this week, keeping yields elevated</cite>."
+      "reasoning_bg": "CNBC цитира бивш президент на Ню Йоркския Фед Бил Дъдли, като пазарите ценообразуват над 92% вероятност за повишение с 25 б.п. на срещата тази седмица, което вече притиска златото и среброто надолу преди решението."
     },
     {
-      "theme": "ЕЦБ – продължаващ цикъл на повишения заради енергиен шок",
+      "theme": "ЕЦБ вече повиши лихвите заради инфлация от Близкия изток",
       "keywords": [
         "EUR",
-        "ECB",
-        "Bunds"
+        "ECB"
       ],
-      "reasoning_bg": "Trading Economics съобщава на 10 септември, че <cite index=\"55-1\">All ECB policymakers agreed to leave rates unchanged at the July meeting, following the first rate hike since 2023 in June, citing elevated uncertainty and the fact that the full inflationary impact of the energy shock</cite> не е отшумяла, а по-нов преглед на европейските борси потвърждава, че <cite index=\"88-3,88-4\">Investors were additionally preparing for the US Federal Reserve's policy meeting this week...The European Central Bank also delivered a rate hike last week</cite>."
+      "reasoning_bg": "Според TradingEconomics ЕЦБ повиши основните лихви с 25 б.п. на септемврийската среща, като посочи, че конфликтът в Близкия изток продължава да подхранва инфлационния натиск, а новите нива влизат в сила именно днес, 16 септември."
     },
     {
-      "theme": "Злато – под натиск от очаквания за повишение на лихвите",
+      "theme": "Петрол и природен газ - ескалация в Близкия изток",
+      "keywords": [
+        "Oil",
+        "Brent",
+        "Natural Gas"
+      ],
+      "reasoning_bg": "CNBC съобщава, че петролът Brent се търгува с ръст от над 2.6% до над $108 на барел, докато Саудитска Арабия отчита закъснения в износа заради затворения тръбопровод Изток-Запад след дронови атаки."
+    },
+    {
+      "theme": "Злато - волатилност около решението на Фед",
       "keywords": [
         "Gold"
       ],
-      "reasoning_bg": "FXEmpire отбелязва, че <cite index=\"8-5,8-6\">Gold starts the week near $4,410...Strong U.S. job growth has increased expectations of a rate hike in September, while the 10-year Treasury yield closed Friday near 4.79%</cite>, като gold остава под ключовата 200-дневна пресечна линия."
+      "reasoning_bg": "LiteFinance посочва, че цените на златото се очаква да бъдат силно волатилни тази седмица заради решението на Фед по лихвите и придружаващите го прогнози (dot plot)."
     },
     {
-      "theme": "Сребро – рязко отдръпване от рекордните нива",
+      "theme": "Сребро - под натиск преди решението на Фед, но с бичи дългосрочни прогнози",
       "keywords": [
         "Silver"
       ],
-      "reasoning_bg": "Forbes Advisor и Trading Economics отчитат резки понижения – <cite index=\"65-1,65-2,65-3\">The price of silver today, as of 8:27 a.m. ET, is $63.87 per ounce. That's up 0.47% from yesterday's price of $63.57</cite>, след като <cite index=\"63-6\">oil prices extended their rally after Saudi Arabia shut a major crude pipeline following drone attacks, disrupting a key route that bypasses the Strait of Hormuz</cite> засили инфлационните опасения."
-    },
-    {
-      "theme": "Петрол – ескалация заради войната в Иран",
-      "keywords": [
-        "Brent Crude",
-        "WTI Crude"
-      ],
-      "reasoning_bg": "Reuters съобщава, че <cite index=\"71-2,71-3\">Oil prices rose to a six-week high on Monday as Iran vowed to strike energy infrastructure across the Middle East in response to further U.S. attacks on its assets...Brent crude futures rose $1.03, or 1.1%, to settle at $97.31 a barrel</cite>, а по-нови данни за 14 септември потвърждават нов ръст след атака срещу саудитски тръбопровод."
-    },
-    {
-      "theme": "Европейски акции – натиск от лихви и енергия, но AI/чипове остават силни",
-      "keywords": [
-        "STOXX 600",
-        "DAX",
-        "ASML",
-        "Infineon"
-      ],
-      "reasoning_bg": "Investing.com/Reuters заглавия показват <cite index=\"83-7\">European shares close at two-month low as ECB hike fuels further tightening bets</cite> и <cite index=\"88-6\">In premarket trading, Euro Stoxx 50 and Stoxx 600 futures fell 0.4% and 0.2%, respectively</cite>, докато Fortune посочва структурен ръст при <cite index=\"82-11\">European semiconductor-related firms such as ASML Holding NV and Infineon Technologies AG have jumped more than 60% in 2026 and are among the biggest drivers of the Stoxx 600</cite>."
+      "reasoning_bg": "Yahoo Finance цитира анализатори от BlackRock и J.P. Morgan, които очакват среброто да надхвърли $80 за унция до края на 2026 г., въпреки краткосрочния натиск от очакваното повишение на лихвите."
     }
   ],
-  "generated_at": "2026-09-15T04:44:20.174195+00:00"
+  "generated_at": "2026-09-16T04:42:31.643628+00:00"
 }
