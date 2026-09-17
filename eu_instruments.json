@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-09-16 03:11:02",
-  "total": 3694,
+  "fetched_at": "2026-09-17 03:11:07",
+  "total": 3698,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -17553,6 +17553,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "M4M1d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "LU0038705702",
+      "currencyCode": "EUR",
+      "name": "Millicom International Cellular",
+      "shortName": "M4M1",
+      "maxOpenQuantity": 8.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-16T18:15:17.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "VGEMd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -29942,6 +29955,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "W9Cd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CA21037X1006",
+      "currencyCode": "EUR",
+      "name": "Constellation Software",
+      "shortName": "W9C",
+      "maxOpenQuantity": 1.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-16T18:15:10.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "CRA1d_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -39939,6 +39965,19 @@
       "exchangeName": "Euronext Paris"
     },
     {
+      "ticker": "AEXd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CH0044328745",
+      "currencyCode": "EUR",
+      "name": "Chubb",
+      "shortName": "AEX",
+      "maxOpenQuantity": 2.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-16T18:15:31.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "WELQd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -47841,6 +47880,19 @@
       "extendedHours": false,
       "addedOn": "2024-09-17T15:29:45.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "0WPd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "JE00B8KF9B49",
+      "currencyCode": "EUR",
+      "name": "WPP",
+      "shortName": "0WP",
+      "maxOpenQuantity": 145.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-16T18:15:27.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "ZPDFd_EQ",
