@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-09-17 03:11:07",
-  "total": 3698,
+  "fetched_at": "2026-09-18 03:11:02",
+  "total": 3708,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -2289,6 +2289,19 @@
       "extendedHours": false,
       "addedOn": "2023-11-16T09:52:05.000+02:00",
       "exchangeName": "Euronext Amsterdam"
+    },
+    {
+      "ticker": "IPTd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CA46016U1084",
+      "currencyCode": "EUR",
+      "name": "International Petroleum",
+      "shortName": "IPT",
+      "maxOpenQuantity": 29.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:29:04.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "CEMDd_EQ",
@@ -7829,6 +7842,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "AHZ0d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CA09261Q1072",
+      "currencyCode": "EUR",
+      "name": "Blackrock Silver",
+      "shortName": "AHZ0",
+      "maxOpenQuantity": 925.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:46.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "CPERm_EQ",
       "type": "ETF",
       "workingScheduleId": 75,
@@ -10466,6 +10492,19 @@
       "extendedHours": false,
       "addedOn": "2026-01-14T14:12:53.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "735d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "KYG7170M1033",
+      "currencyCode": "EUR",
+      "name": "Pop Mart International",
+      "shortName": "735",
+      "maxOpenQuantity": 38.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:54.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "AW1Rd_EQ",
@@ -22935,6 +22974,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "NEC1d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "JP3733000008",
+      "currencyCode": "EUR",
+      "name": "NEC",
+      "shortName": "NEC1",
+      "maxOpenQuantity": 24.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:59.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "GC40d_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -26742,6 +26794,19 @@
       "extendedHours": false,
       "addedOn": "2021-02-23T21:23:03.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "NMRd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "IL0010845571",
+      "currencyCode": "EUR",
+      "name": "Nova",
+      "shortName": "NMR",
+      "maxOpenQuantity": 2.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:29:01.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "XMA1d_EQ",
@@ -31422,6 +31487,19 @@
       "extendedHours": false,
       "addedOn": "2026-01-14T18:25:50.000+02:00",
       "exchangeName": "Euronext Paris"
+    },
+    {
+      "ticker": "WEEKd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000I50V6C7",
+      "currencyCode": "EUR",
+      "name": "HANetf Weekly World Equity Income (Dist)",
+      "shortName": "WEEK",
+      "maxOpenQuantity": 573394.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T15:23:58.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "CIWPd_EQ",
@@ -36793,6 +36871,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "1I1d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CA46050R1029",
+      "currencyCode": "EUR",
+      "name": "International Tower Hill Mines",
+      "shortName": "1I1",
+      "maxOpenQuantity": 318.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:29:06.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "EDEXd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -39482,6 +39573,19 @@
       "extendedHours": false,
       "addedOn": "2026-08-21T11:28:32.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "886d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "PLLVTSF00010",
+      "currencyCode": "EUR",
+      "name": "Text",
+      "shortName": "886",
+      "maxOpenQuantity": 66.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:58.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "QAAd_EQ",
@@ -46621,6 +46725,19 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
+      "ticker": "ALZCd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "SE0007100581",
+      "currencyCode": "EUR",
+      "name": "Assa Abloy Series B",
+      "shortName": "ALZC",
+      "maxOpenQuantity": 21.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:48.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
       "ticker": "LYQ7d_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -47386,6 +47503,19 @@
       "extendedHours": false,
       "addedOn": "2025-07-15T14:16:58.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "FKMd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "NO0010234552",
+      "currencyCode": "EUR",
+      "name": "Aker",
+      "shortName": "FKM",
+      "maxOpenQuantity": 4.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-17T18:28:58.000+03:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "WELKd_EQ",
