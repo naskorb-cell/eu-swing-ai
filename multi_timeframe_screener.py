@@ -228,6 +228,100 @@ def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
     return FALLBACK_TICKERS
 
 
+def parse_uploaded_ticker_list(uploaded_file):
+    """Чете CSV/XLSX (напр. износ от InvestingPro screener) и връща списък
+    от термини (имена/тикери на компании) за съпоставяне срещу нашия
+    универс. Търси колона 'Name'/'Symbol'/'Ticker'/'Company' (case-
+    insensitive), иначе взима първата колона."""
+    try:
+        if uploaded_file.name.lower().endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+    except Exception as e:
+        st.error(f"Не успях да прочета файла: {e}")
+        return []
+    if df.empty:
+        return []
+    col = None
+    for candidate in ["Name", "Symbol", "Ticker", "Company", "Instrument"]:
+        for c in df.columns:
+            if str(c).strip().lower() == candidate.lower():
+                col = c
+                break
+        if col:
+            break
+    if col is None:
+        col = df.columns[0]
+    terms = df[col].dropna().astype(str).str.strip()
+    return [t for t in terms if t and t.lower() != "nan"]
+
+
+def load_universe_from_terms(terms: list):
+    """Съпоставя списък от имена/тикери (напр. от InvestingPro export) срещу
+    ПЪЛНИЯ eu_instruments.json по подниз в името (case-insensitive) и връща
+    само намерените инструменти - без ограничение в брой, целият качен
+    списък е за сканиране. Термините без съвпадение обикновено са активи
+    извън твоя ЕС/ЕИП+EUR обхват (вече филтриран при fetch_eu_instruments.py)."""
+    full_path = Path(INSTRUMENTS_FILE)
+    if not full_path.exists():
+        st.error(f"Не намерих {INSTRUMENTS_FILE} - не мога да съпоставя качения списък.")
+        return {}
+    full_instruments = json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
+
+    mapped = {}
+    matched_terms = set()
+    terms_lower = [(t, t.lower()) for t in terms]
+
+    for inst in full_instruments:
+        name_field = inst.get("name", "").lower()
+        short_field = inst.get("shortName", "").lower()
+        for original, term_lower in terms_lower:
+            if not term_lower:
+                continue
+            if term_lower in name_field or term_lower in short_field or (name_field and name_field in term_lower):
+                suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
+                if suffix is None:
+                    continue
+                yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
+                label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+                mapped[label] = yahoo_ticker
+                matched_terms.add(original)
+                break
+
+    unmatched = [t for t in terms if t not in matched_terms]
+    if unmatched:
+        preview = ", ".join(unmatched[:8])
+        more = f" (+{len(unmatched) - 8} още)" if len(unmatched) > 8 else ""
+        st.warning(
+            f"{len(unmatched)} от {len(terms)} реда не намерих в ЕС/ЕИП+EUR универса "
+            f"(извън обхвата на проекта или разлика в изписването): {preview}{more}"
+        )
+    return mapped
+
+
+def render_universe_uploader(key: str):
+    """Бутон за качване на фундаментално прецеден списък (напр. InvestingPro
+    Fair Value/Health Score screener export, или списък от брокера). Ако
+    качиш файл, той ЗАМЕСТВА обичайния универс за тази сесия - технически
+    сканираме САМО компаниите от файла. Връща dict {label: ticker} или None."""
+    uploaded = st.file_uploader(
+        "📤 Качи фундаментален списък (CSV/Excel — напр. InvestingPro screener export)",
+        type=["csv", "xlsx", "xls"], key=f"{key}_universe_upload",
+        help="Заменя обичайния универс за тази сесия - сканираме технически САМО компаниите от файла.",
+    )
+    if uploaded is None:
+        return None
+    terms = parse_uploaded_ticker_list(uploaded)
+    if not terms:
+        st.error("Файлът изглежда празен или нечетим.")
+        return None
+    mapped = load_universe_from_terms(terms)
+    if mapped:
+        st.success(f"Качени {len(terms)} реда → {len(mapped)} съвпадения в ЕС/ЕИП+EUR универса.")
+    return mapped or None
+
+
 MACRO_SIGNAL_FILE = "daily_macro_signal.json"
 
 # Данни за repo-то, нужни само за да пуснем daily_macro.yml ръчно от приложението
@@ -620,12 +714,17 @@ def render_daily_strategy():
             "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="daily_pinned",
             help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
         )
+        uploaded_universe = render_universe_uploader(key="daily")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="daily")
     pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
 
-    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
-    st.caption(f"Универс: {len(tickers)} инструмента")
+    if uploaded_universe:
+        tickers = uploaded_universe
+        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
+    else:
+        tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+        st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="daily")
 
     with st.spinner("Синхронизиране и търсене на суинг възможности..."):
@@ -1087,12 +1186,17 @@ def render_sd_strategy():
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="sd_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="sd_swo_d")
+        uploaded_universe = render_universe_uploader(key="sd")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="sd")
     pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
 
-    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
-    st.caption(f"Универс: {len(tickers)} инструмента")
+    if uploaded_universe:
+        tickers = uploaded_universe
+        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
+    else:
+        tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+        st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="sd")
 
     if st.button("🔎 Сканирай пазара", type="primary", use_container_width=True, key="sd_scan_btn"):
@@ -1353,12 +1457,17 @@ def render_photon_strategy():
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
+        uploaded_universe = render_universe_uploader(key="ph")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="ph")
     pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
 
-    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
-    st.caption(f"Универс: {len(tickers)} инструмента")
+    if uploaded_universe:
+        tickers = uploaded_universe
+        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
+    else:
+        tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+        st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="ph")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
@@ -1459,12 +1568,17 @@ def render_mtf_strategy():
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2)
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3)
+        uploaded_universe = render_universe_uploader(key="mtf")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="mtf")
     pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
 
-    tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
-    st.caption(f"Универс: {len(tickers)} инструмента")
+    if uploaded_universe:
+        tickers = uploaded_universe
+        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
+    else:
+        tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
+        st.caption(f"Универс: {len(tickers)} инструмента")
     render_universe_search(key="mtf")
 
     if st.button("🔍 Сканирай пазара", type="primary"):
