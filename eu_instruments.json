@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-09-20 08:19:30",
-  "total": 3726,
+  "fetched_at": "2026-09-21 08:37:10",
+  "total": 3728,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -4148,6 +4148,19 @@
       "extendedHours": false,
       "addedOn": "2023-11-16T09:52:15.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "ILUd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "US4523271090",
+      "currencyCode": "EUR",
+      "name": "Illumina",
+      "shortName": "ILU",
+      "maxOpenQuantity": 18.0,
+      "extendedHours": false,
+      "addedOn": "2024-12-31T14:45:48.000+02:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "EXX1d_EQ",
@@ -21960,19 +21973,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "TT8d_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 172,
-      "isin": "US88339J1051",
-      "currencyCode": "EUR",
-      "name": "Trade Desk",
-      "shortName": "TT8",
-      "maxOpenQuantity": 789.0,
-      "extendedHours": false,
-      "addedOn": "2025-01-24T14:50:13.000+02:00",
-      "exchangeName": "Gettex"
-    },
-    {
       "ticker": "VYGLd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -23011,6 +23011,19 @@
       "extendedHours": false,
       "addedOn": "2025-08-01T17:15:47.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "6PUd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "US74624M1027",
+      "currencyCode": "EUR",
+      "name": "Everpure",
+      "shortName": "6PU",
+      "maxOpenQuantity": 9.0,
+      "extendedHours": false,
+      "addedOn": "2025-01-24T14:50:41.000+02:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "XJ2Cd_EQ",
@@ -44669,6 +44682,19 @@
       "extendedHours": false,
       "addedOn": "2024-07-16T17:47:54.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "1ZBd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "US0937121079",
+      "currencyCode": "EUR",
+      "name": "Bloom Energy",
+      "shortName": "1ZB",
+      "maxOpenQuantity": 366.0,
+      "extendedHours": false,
+      "addedOn": "2025-01-24T14:51:16.000+02:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "CCC3d_EQ",
