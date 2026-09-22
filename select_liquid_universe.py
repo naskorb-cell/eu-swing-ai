@@ -11,7 +11,15 @@ Streamlit приложението реално ползва за сканира
 Тежка операция (тегли данни за хиляди тикери) - затова НЕ се пуска на всеки
 дневен fetch, а отделно, рядко.
 
-Изисква: pip install yfinance pandas
+FMP fundamentals (ново): за първите FMP_MAX_INSTRUMENTS от финалния избран
+списък (не за целия универс - FMP free tier е 250 заявки/ден общо, а DCF+
+съотношения искат 2 заявки/инструмент) добавяме DCF Fair Value upside % и
+проста оценка за финансово здраве (Debt/Equity + Current Ratio) - най-
+близкото безплатно съответствие на InvestingPro Fair Value/Health Score.
+Мека добавка (като trending сигнала) - при грешка полето просто остава
+празно, скриптът продължава без да спира.
+
+Изисква: pip install yfinance pandas anthropic requests
 """
 
 import json
@@ -20,6 +28,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import requests
 import yfinance as yf
 from anthropic import Anthropic
 
@@ -29,6 +38,9 @@ TOP_N = 500
 LIQUID_KEEP_FRACTION = 0.6
 CHUNK_SIZE = 50
 TRENDING_RESERVED_SLOTS = 80  # колко от TOP_N места пазим за медийно/аналитично "трендиращи" имена
+
+FMP_BASE_URL = "https://financialmodelingprep.com/stable"
+FMP_MAX_INSTRUMENTS = 100  # 2 заявки/инструмент => до 200 от 250-те дневни FMP заявки, с буфер
 
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
@@ -120,6 +132,76 @@ LVMH
     except Exception as e:
         print(f"Предупреждение: неуспешно теглене на трендиращи имена ({e}), продължавам без тях.")
         return set()
+
+
+def fetch_fmp_fundamentals(symbol: str, api_key: str):
+    """Тегли DCF Fair Value + основни съотношения за ЕДИН инструмент от FMP
+    (2 заявки). Връща dict с dcf_upside_pct и financially_healthy, или None
+    при грешка/липсващи данни - никога не гърми скрипта, само пропуска."""
+    try:
+        dcf_resp = requests.get(
+            f"{FMP_BASE_URL}/discounted-cash-flow",
+            params={"symbol": symbol, "apikey": api_key}, timeout=10,
+        )
+        dcf_resp.raise_for_status()
+        dcf_data = dcf_resp.json()
+        if not dcf_data:
+            return None
+        dcf_row = dcf_data[0] if isinstance(dcf_data, list) else dcf_data
+        dcf_value = dcf_row.get("dcf")
+        stock_price = dcf_row.get("Stock Price") or dcf_row.get("stockPrice")
+
+        dcf_upside_pct = None
+        if dcf_value and stock_price and stock_price > 0:
+            dcf_upside_pct = round((float(dcf_value) - float(stock_price)) / float(stock_price) * 100, 1)
+
+        ratios_resp = requests.get(
+            f"{FMP_BASE_URL}/ratios-ttm",
+            params={"symbol": symbol, "apikey": api_key}, timeout=10,
+        )
+        ratios_resp.raise_for_status()
+        ratios_data = ratios_resp.json()
+        ratios_row = (ratios_data[0] if isinstance(ratios_data, list) else ratios_data) if ratios_data else {}
+
+        debt_equity = ratios_row.get("debtToEquityRatioTTM", ratios_row.get("debtEquityRatioTTM"))
+        current_ratio = ratios_row.get("currentRatioTTM")
+
+        financially_healthy = None
+        if debt_equity is not None and current_ratio is not None:
+            financially_healthy = bool(debt_equity < 2 and current_ratio > 1)
+
+        if dcf_upside_pct is None and financially_healthy is None:
+            return None
+
+        return {
+            "dcf_upside_pct": dcf_upside_pct,
+            "financially_healthy": financially_healthy,
+        }
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        return None
+
+
+def enrich_with_fmp_fundamentals(top: list, api_key: str):
+    """Обогатява първите FMP_MAX_INSTRUMENTS от финалния избран списък с
+    DCF upside % и финансово здраве. НЕ променя кой е избран - само добавя
+    информация, за да можеш после да приоритизираш/филтрираш по нея в
+    приложението или AI анализа. При липсващ ключ прескача изцяло."""
+    if not api_key:
+        print("Предупреждение: липсва FMP_API_KEY - пропускам fundamentals enrichment.")
+        return 0
+
+    enriched_count = 0
+    subset = top[:FMP_MAX_INSTRUMENTS]
+    for i, item in enumerate(subset):
+        fundamentals = fetch_fmp_fundamentals(item["symbol"], api_key)
+        if fundamentals:
+            item.update(fundamentals)
+            enriched_count += 1
+        if (i + 1) % 20 == 0:
+            print(f"  FMP fundamentals: {i + 1}/{len(subset)} проверени...")
+        time.sleep(0.25)  # леко забавяне, за да не гърмим rate limit-а на FMP
+
+    return enriched_count
 
 
 def build_candidate_list():
@@ -233,16 +315,23 @@ def main():
     fill = non_trending[:remaining_slots]
     top = reserved + fill
 
+    # --- FMP DCF Fair Value + финансово здраве (мека добавка, само за
+    # първите FMP_MAX_INSTRUMENTS - виж коментара при константата защо) ---
+    fmp_api_key = os.environ.get("FMP_API_KEY")
+    enriched_count = enrich_with_fmp_fundamentals(top, fmp_api_key)
+    print(f"FMP fundamentals добавени за {enriched_count} инструмента.")
+
     result = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "total_evaluated": len(scored),
         "count": len(top),
         "media_trending_count": len(reserved),
+        "fmp_fundamentals_count": enriched_count,
         "instruments": top,
     }
 
     Path(OUTPUT_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи)")
+    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи, {enriched_count} с FMP fundamentals)")
 
 
 if __name__ == "__main__":
