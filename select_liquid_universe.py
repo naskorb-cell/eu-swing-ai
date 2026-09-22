@@ -11,15 +11,13 @@ Streamlit приложението реално ползва за сканира
 Тежка операция (тегли данни за хиляди тикери) - затова НЕ се пуска на всеки
 дневен fetch, а отделно, рядко.
 
-FMP fundamentals (ново): за първите FMP_MAX_INSTRUMENTS от финалния избран
-списък (не за целия универс - FMP free tier е 250 заявки/ден общо, а DCF+
-съотношения искат 2 заявки/инструмент) добавяме DCF Fair Value upside % и
-проста оценка за финансово здраве (Debt/Equity + Current Ratio) - най-
-близкото безплатно съответствие на InvestingPro Fair Value/Health Score.
-Мека добавка (като trending сигнала) - при грешка полето просто остава
-празно, скриптът продължава без да спира.
+Бел.: пробвахме да добавим FMP DCF Fair Value/Ratings Snapshot enrichment
+тук, но FMP free tier връща 402 Payment Required за всички европейски
+тикери (.DE/.PA/.MI/.AS) - покритието за EU борси изисква платен план.
+Премахнато - виж историята на repo-то, ако решиш да платиш за EODHD или
+FMP по-нататък и искаш да го върнем.
 
-Изисква: pip install yfinance pandas anthropic requests
+Изисква: pip install yfinance pandas anthropic
 """
 
 import json
@@ -28,7 +26,6 @@ import time
 from pathlib import Path
 
 import pandas as pd
-import requests
 import yfinance as yf
 from anthropic import Anthropic
 
@@ -38,9 +35,6 @@ TOP_N = 500
 LIQUID_KEEP_FRACTION = 0.6
 CHUNK_SIZE = 50
 TRENDING_RESERVED_SLOTS = 80  # колко от TOP_N места пазим за медийно/аналитично "трендиращи" имена
-
-FMP_BASE_URL = "https://financialmodelingprep.com/stable"
-FMP_MAX_INSTRUMENTS = 100  # 2 заявки/инструмент => до 200 от 250-те дневни FMP заявки, с буфер
 
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
@@ -132,82 +126,6 @@ LVMH
     except Exception as e:
         print(f"Предупреждение: неуспешно теглене на трендиращи имена ({e}), продължавам без тях.")
         return set()
-
-
-def fetch_fmp_fundamentals(symbol: str, api_key: str, debug: bool = False):
-    """Тегли FMP Ratings Snapshot (буквена оценка + score, комбинира DCF,
-    ROE, ROA, Debt/Equity, P/E, P/B в едно число - аналог на InvestingPro
-    'Overall Health Label') + отделно чист DCF upside % за информация.
-    Двете заявки са НЕЗАВИСИМИ - неуспех на едната не хвърля другата.
-    Връща dict (може да съдържа само част от полетата) или None, ако и
-    двете заявки се провалят."""
-    result = {}
-
-    try:
-        rating_resp = requests.get(
-            f"{FMP_BASE_URL}/ratings-snapshot",
-            params={"symbol": symbol, "apikey": api_key}, timeout=10,
-        )
-        rating_resp.raise_for_status()
-        rating_data = rating_resp.json()
-        if debug:
-            print(f"    [debug] ratings-snapshot суров отговор за {symbol}: {rating_data}")
-        if rating_data:
-            row = rating_data[0] if isinstance(rating_data, list) else rating_data
-            fmp_rating = row.get("rating")
-            fmp_rating_score = row.get("overallScore", row.get("ratingScore"))
-            if fmp_rating is not None:
-                result["fmp_rating"] = fmp_rating
-            if fmp_rating_score is not None:
-                result["fmp_rating_score"] = fmp_rating_score
-    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
-        if debug:
-            print(f"    [debug] ratings-snapshot грешка за {symbol}: {e}")
-
-    try:
-        dcf_resp = requests.get(
-            f"{FMP_BASE_URL}/discounted-cash-flow",
-            params={"symbol": symbol, "apikey": api_key}, timeout=10,
-        )
-        dcf_resp.raise_for_status()
-        dcf_data = dcf_resp.json()
-        if debug:
-            print(f"    [debug] discounted-cash-flow суров отговор за {symbol}: {dcf_data}")
-        if dcf_data:
-            row = dcf_data[0] if isinstance(dcf_data, list) else dcf_data
-            dcf_value = row.get("dcf")
-            stock_price = row.get("Stock Price") or row.get("stockPrice")
-            if dcf_value and stock_price and float(stock_price) > 0:
-                result["dcf_upside_pct"] = round((float(dcf_value) - float(stock_price)) / float(stock_price) * 100, 1)
-    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
-        if debug:
-            print(f"    [debug] discounted-cash-flow грешка за {symbol}: {e}")
-
-    return result or None
-
-
-def enrich_with_fmp_fundamentals(top: list, api_key: str):
-    """Обогатява първите FMP_MAX_INSTRUMENTS от финалния избран списък с
-    FMP Ratings Snapshot + DCF upside %. НЕ променя кой е избран - само
-    добавя информация. При липсващ ключ прескача изцяло. Първите 3
-    инструмента се теглят с debug=True, за да имаме суров отговор в лога
-    за диагностика, ако нещо не съвпада с очакваните полета."""
-    if not api_key:
-        print("Предупреждение: липсва FMP_API_KEY - пропускам fundamentals enrichment.")
-        return 0
-
-    enriched_count = 0
-    subset = top[:FMP_MAX_INSTRUMENTS]
-    for i, item in enumerate(subset):
-        fundamentals = fetch_fmp_fundamentals(item["symbol"], api_key, debug=(i < 3))
-        if fundamentals:
-            item.update(fundamentals)
-            enriched_count += 1
-        if (i + 1) % 20 == 0:
-            print(f"  FMP fundamentals: {i + 1}/{len(subset)} проверени...")
-        time.sleep(0.25)  # леко забавяне, за да не гърмим rate limit-а на FMP
-
-    return enriched_count
 
 
 def build_candidate_list():
@@ -321,23 +239,16 @@ def main():
     fill = non_trending[:remaining_slots]
     top = reserved + fill
 
-    # --- FMP DCF Fair Value + финансово здраве (мека добавка, само за
-    # първите FMP_MAX_INSTRUMENTS - виж коментара при константата защо) ---
-    fmp_api_key = os.environ.get("FMP_API_KEY")
-    enriched_count = enrich_with_fmp_fundamentals(top, fmp_api_key)
-    print(f"FMP fundamentals добавени за {enriched_count} инструмента.")
-
     result = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "total_evaluated": len(scored),
         "count": len(top),
         "media_trending_count": len(reserved),
-        "fmp_fundamentals_count": enriched_count,
         "instruments": top,
     }
 
     Path(OUTPUT_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи, {enriched_count} с FMP fundamentals)")
+    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи)")
 
 
 if __name__ == "__main__":
