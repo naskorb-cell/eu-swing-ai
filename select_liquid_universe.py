@@ -134,10 +134,36 @@ LVMH
         return set()
 
 
-def fetch_fmp_fundamentals(symbol: str, api_key: str):
-    """Тегли DCF Fair Value + основни съотношения за ЕДИН инструмент от FMP
-    (2 заявки). Връща dict с dcf_upside_pct и financially_healthy, или None
-    при грешка/липсващи данни - никога не гърми скрипта, само пропуска."""
+def fetch_fmp_fundamentals(symbol: str, api_key: str, debug: bool = False):
+    """Тегли FMP Ratings Snapshot (буквена оценка + score, комбинира DCF,
+    ROE, ROA, Debt/Equity, P/E, P/B в едно число - аналог на InvestingPro
+    'Overall Health Label') + отделно чист DCF upside % за информация.
+    Двете заявки са НЕЗАВИСИМИ - неуспех на едната не хвърля другата.
+    Връща dict (може да съдържа само част от полетата) или None, ако и
+    двете заявки се провалят."""
+    result = {}
+
+    try:
+        rating_resp = requests.get(
+            f"{FMP_BASE_URL}/ratings-snapshot",
+            params={"symbol": symbol, "apikey": api_key}, timeout=10,
+        )
+        rating_resp.raise_for_status()
+        rating_data = rating_resp.json()
+        if debug:
+            print(f"    [debug] ratings-snapshot суров отговор за {symbol}: {rating_data}")
+        if rating_data:
+            row = rating_data[0] if isinstance(rating_data, list) else rating_data
+            fmp_rating = row.get("rating")
+            fmp_rating_score = row.get("overallScore", row.get("ratingScore"))
+            if fmp_rating is not None:
+                result["fmp_rating"] = fmp_rating
+            if fmp_rating_score is not None:
+                result["fmp_rating_score"] = fmp_rating_score
+    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
+        if debug:
+            print(f"    [debug] ratings-snapshot грешка за {symbol}: {e}")
+
     try:
         dcf_resp = requests.get(
             f"{FMP_BASE_URL}/discounted-cash-flow",
@@ -145,47 +171,27 @@ def fetch_fmp_fundamentals(symbol: str, api_key: str):
         )
         dcf_resp.raise_for_status()
         dcf_data = dcf_resp.json()
-        if not dcf_data:
-            return None
-        dcf_row = dcf_data[0] if isinstance(dcf_data, list) else dcf_data
-        dcf_value = dcf_row.get("dcf")
-        stock_price = dcf_row.get("Stock Price") or dcf_row.get("stockPrice")
+        if debug:
+            print(f"    [debug] discounted-cash-flow суров отговор за {symbol}: {dcf_data}")
+        if dcf_data:
+            row = dcf_data[0] if isinstance(dcf_data, list) else dcf_data
+            dcf_value = row.get("dcf")
+            stock_price = row.get("Stock Price") or row.get("stockPrice")
+            if dcf_value and stock_price and float(stock_price) > 0:
+                result["dcf_upside_pct"] = round((float(dcf_value) - float(stock_price)) / float(stock_price) * 100, 1)
+    except (requests.RequestException, ValueError, KeyError, TypeError) as e:
+        if debug:
+            print(f"    [debug] discounted-cash-flow грешка за {symbol}: {e}")
 
-        dcf_upside_pct = None
-        if dcf_value and stock_price and stock_price > 0:
-            dcf_upside_pct = round((float(dcf_value) - float(stock_price)) / float(stock_price) * 100, 1)
-
-        ratios_resp = requests.get(
-            f"{FMP_BASE_URL}/ratios-ttm",
-            params={"symbol": symbol, "apikey": api_key}, timeout=10,
-        )
-        ratios_resp.raise_for_status()
-        ratios_data = ratios_resp.json()
-        ratios_row = (ratios_data[0] if isinstance(ratios_data, list) else ratios_data) if ratios_data else {}
-
-        debt_equity = ratios_row.get("debtToEquityRatioTTM", ratios_row.get("debtEquityRatioTTM"))
-        current_ratio = ratios_row.get("currentRatioTTM")
-
-        financially_healthy = None
-        if debt_equity is not None and current_ratio is not None:
-            financially_healthy = bool(debt_equity < 2 and current_ratio > 1)
-
-        if dcf_upside_pct is None and financially_healthy is None:
-            return None
-
-        return {
-            "dcf_upside_pct": dcf_upside_pct,
-            "financially_healthy": financially_healthy,
-        }
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        return None
+    return result or None
 
 
 def enrich_with_fmp_fundamentals(top: list, api_key: str):
     """Обогатява първите FMP_MAX_INSTRUMENTS от финалния избран списък с
-    DCF upside % и финансово здраве. НЕ променя кой е избран - само добавя
-    информация, за да можеш после да приоритизираш/филтрираш по нея в
-    приложението или AI анализа. При липсващ ключ прескача изцяло."""
+    FMP Ratings Snapshot + DCF upside %. НЕ променя кой е избран - само
+    добавя информация. При липсващ ключ прескача изцяло. Първите 3
+    инструмента се теглят с debug=True, за да имаме суров отговор в лога
+    за диагностика, ако нещо не съвпада с очакваните полета."""
     if not api_key:
         print("Предупреждение: липсва FMP_API_KEY - пропускам fundamentals enrichment.")
         return 0
@@ -193,7 +199,7 @@ def enrich_with_fmp_fundamentals(top: list, api_key: str):
     enriched_count = 0
     subset = top[:FMP_MAX_INSTRUMENTS]
     for i, item in enumerate(subset):
-        fundamentals = fetch_fmp_fundamentals(item["symbol"], api_key)
+        fundamentals = fetch_fmp_fundamentals(item["symbol"], api_key, debug=(i < 3))
         if fundamentals:
             item.update(fundamentals)
             enriched_count += 1
