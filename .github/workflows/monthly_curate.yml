@@ -19,12 +19,11 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install yfinance pandas anthropic requests
+        run: pip install yfinance pandas anthropic
 
       - name: Run curation script
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: python select_liquid_universe.py
 
       - name: Commit curated universe
