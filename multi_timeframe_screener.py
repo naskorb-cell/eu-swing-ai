@@ -110,6 +110,22 @@ hide_st_style = """
             .stMarkdown tbody tr:nth-child(even) { background-color: rgba(255,255,255,0.02) !important; }
             .stMarkdown tbody tr:hover { background-color: rgba(91,141,239,0.08) !important; transition: background-color 0.15s ease; }
 
+            /* Текстови/парола/число полета - постоянна видима рамка, не само при hover/focus */
+            div[data-testid="stTextInput"] input,
+            div[data-testid="stNumberInput"] input,
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="input"] {
+                background-color: var(--panel) !important;
+                border: 1px solid var(--hairline) !important;
+                color: var(--ink) !important;
+            }
+            div[data-testid="stTextInput"] input:focus,
+            div[data-testid="stNumberInput"] input:focus,
+            div[data-baseweb="input"]:focus-within {
+                border-color: var(--info) !important;
+            }
+            div[data-testid="stTextInput"] input::placeholder { color: var(--ink-muted) !important; opacity: 1; }
+
             /* Caption-и (напр. "Обновено: ...") в моноспейс - усещане за таймстемп на терминал */
             [data-testid="stCaptionContainer"] { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem !important; }
             </style>
