@@ -7,6 +7,10 @@
     {
       "name": "AMZ (Amazon)",
       "symbol": "AMZ.DE"
+    },
+    {
+      "name": "SAF (Safran)",
+      "symbol": "SAF.PA"
     }
   ],
   "exclude": []
