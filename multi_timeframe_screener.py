@@ -789,6 +789,12 @@ def render_manual_universe_editor(key: str):
                 help="Същият token, ползван за макро бутона, но с добавено право 'Contents: Read and write'.",
             )
 
+        scan_only_manual = st.checkbox(
+            "🎯 Сканирай само ръчно добавените активи",
+            value=False, key=f"{key}_manual_only",
+            help="Игнорира целия универс (curated/качен файл/лимит) - сканира се САМО списъкът 'Винаги включвай' по-долу.",
+        )
+
         def _save(new_manual, action_desc):
             content_str = json.dumps(new_manual, ensure_ascii=False, indent=2)
             ok, msg = github_write_file(MANUAL_UNIVERSE_FILE, content_str, github_token, action_desc)
@@ -864,11 +870,15 @@ def render_manual_universe_editor(key: str):
                         }
                         _save(new_manual, f"Manual universe: add exclude {sym}")
 
-    return manual
+    return manual, scan_only_manual
 
 
-def apply_manual_universe(tickers: dict, manual: dict) -> dict:
-    """Прилага ръчния include/exclude списък върху вече заредения универс."""
+def apply_manual_universe(tickers: dict, manual: dict, scan_only_manual: bool = False) -> dict:
+    """Прилага ръчния include/exclude списък върху вече заредения универс.
+    Ако scan_only_manual е True, целият подаден tickers се игнорира и се
+    връща САМО ръчно добавеният ('include') списък."""
+    if scan_only_manual:
+        return {item["name"]: item["symbol"] for item in manual.get("include", [])}
     result = dict(tickers)
     for sym in manual.get("exclude", []):
         result = {n: s for n, s in result.items() if s != sym}
@@ -895,8 +905,8 @@ def render_daily_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
-    manual_universe = render_manual_universe_editor(key="daily")
-    tickers = apply_manual_universe(tickers, manual_universe)
+    manual_universe, scan_only_manual = render_manual_universe_editor(key="daily")
+    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="daily")
 
     with st.spinner("Синхронизиране и търсене на суинг възможности..."):
@@ -1369,8 +1379,8 @@ def render_sd_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
-    manual_universe = render_manual_universe_editor(key="sd")
-    tickers = apply_manual_universe(tickers, manual_universe)
+    manual_universe, scan_only_manual = render_manual_universe_editor(key="sd")
+    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="sd")
 
     if st.button("🔎 Сканирай пазара", type="primary", use_container_width=True, key="sd_scan_btn"):
@@ -1642,8 +1652,8 @@ def render_photon_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
-    manual_universe = render_manual_universe_editor(key="ph")
-    tickers = apply_manual_universe(tickers, manual_universe)
+    manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
+    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="ph")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
@@ -1755,8 +1765,8 @@ def render_mtf_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
-    manual_universe = render_manual_universe_editor(key="mtf")
-    tickers = apply_manual_universe(tickers, manual_universe)
+    manual_universe, scan_only_manual = render_manual_universe_editor(key="mtf")
+    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="mtf")
 
     if st.button("🔍 Сканирай пазара", type="primary"):
