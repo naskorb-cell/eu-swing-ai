@@ -707,6 +707,176 @@ def render_universe_search(key: str):
                 st.info("Няма съвпадение в целия универс (провери дали правописът/името е различно в T212).")
 
 
+MANUAL_UNIVERSE_FILE = "manual_universe.json"
+
+
+def github_get_file(path: str, github_token: str):
+    """Чете файл от GitHub Contents API. Връща (decoded_text, sha) или
+    (None, None), ако файлът не съществува/грешка."""
+    import base64
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/{path}"
+    headers = {"Authorization": f"Bearer {github_token}", "Accept": "application/vnd.github+json"}
+    try:
+        resp = requests.get(url, headers=headers, params={"ref": GITHUB_REF}, timeout=15)
+    except requests.RequestException:
+        return None, None
+    if resp.status_code != 200:
+        return None, None
+    data = resp.json()
+    try:
+        content = base64.b64decode(data["content"]).decode("utf-8")
+    except Exception:
+        return None, None
+    return content, data.get("sha")
+
+
+def github_write_file(path: str, content_str: str, github_token: str, message: str):
+    """Записва (create/update) файл в repo-то през GitHub Contents API.
+    Връща (success, съобщение)."""
+    import base64
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/{path}"
+    headers = {"Authorization": f"Bearer {github_token}", "Accept": "application/vnd.github+json"}
+    _, sha = github_get_file(path, github_token)
+    payload = {
+        "message": message,
+        "content": base64.b64encode(content_str.encode("utf-8")).decode("utf-8"),
+        "branch": GITHUB_REF,
+    }
+    if sha:
+        payload["sha"] = sha
+    try:
+        resp = requests.put(url, headers=headers, json=payload, timeout=15)
+    except requests.RequestException as e:
+        return False, f"Грешка при връзка с GitHub: {e}"
+    if resp.status_code in (200, 201):
+        return True, "Записано в repo-то."
+    if resp.status_code == 403:
+        return False, "403 - токенът няма 'Contents: Read and write' право за repo-то."
+    if resp.status_code == 401:
+        return False, "401 - невалиден или изтекъл GitHub token."
+    return False, f"GitHub върна {resp.status_code}: {resp.text[:200]}"
+
+
+def load_manual_universe():
+    """Чете manual_universe.json от локалния checkout (същия начин като
+    curated_universe.json) - бързо, без GitHub API извикване, за да не
+    хаби бюджет на всяко презареждане на страницата."""
+    path = Path(MANUAL_UNIVERSE_FILE)
+    if not path.exists():
+        return {"include": [], "exclude": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {"include": data.get("include", []), "exclude": data.get("exclude", [])}
+    except (json.JSONDecodeError, OSError):
+        return {"include": [], "exclude": []}
+
+
+def render_manual_universe_editor(key: str):
+    """Трайно (записва се в repo-то) ръчно добавяне/премахване на конкретни
+    активи от универса - алтернатива на CSV upload-а, когато просто искаш
+    да добавиш/махнеш няколко имена. Промените остават и след presetart на
+    приложението, за разлика от качения CSV файл, който важи само за
+    текущата сесия."""
+    manual = load_manual_universe()
+    github_token = st.secrets.get("GITHUB_TOKEN", None)
+
+    with st.expander("✏️ Ръчно добавяне/премахване на активи (трайно)", expanded=False):
+        if not github_token:
+            github_token = st.text_input(
+                "GitHub token (за запис)", type="password", key=f"{key}_manual_gh_token",
+                help="Същият token, ползван за макро бутона, но с добавено право 'Contents: Read and write'.",
+            )
+
+        def _save(new_manual, action_desc):
+            content_str = json.dumps(new_manual, ensure_ascii=False, indent=2)
+            ok, msg = github_write_file(MANUAL_UNIVERSE_FILE, content_str, github_token, action_desc)
+            (st.success if ok else st.error)(msg if ok else f"{msg} (промяната НЕ е записана трайно)")
+            if ok:
+                st.session_state["manual_universe_cache"] = new_manual
+                st.rerun()
+
+        st.markdown("**➕ Винаги включвай:**")
+        if manual["include"]:
+            for item in list(manual["include"]):
+                col1, col2 = st.columns([5, 1])
+                col1.write(f"{item['name']} → `{item['symbol']}`")
+                if col2.button("🗑️", key=f"{key}_rm_inc_{item['symbol']}"):
+                    if not github_token:
+                        st.error("Липсва GitHub token - не мога да запиша промяната.")
+                    else:
+                        new_manual = {
+                            "include": [x for x in manual["include"] if x["symbol"] != item["symbol"]],
+                            "exclude": manual["exclude"],
+                        }
+                        _save(new_manual, f"Manual universe: remove include {item['symbol']}")
+        else:
+            st.caption("Няма ръчно добавени активи.")
+
+        add_query = st.text_input("Търси по име, за да добавиш:", key=f"{key}_manual_add_search")
+        if add_query:
+            full = load_full_universe_for_search()
+            matches = {n: s for n, s in full.items() if add_query.lower() in n.lower()}
+            for name, sym in list(matches.items())[:10]:
+                already_in = any(x["symbol"] == sym for x in manual["include"])
+                if st.button(f"➕ {name}" + (" (вече добавен)" if already_in else ""), key=f"{key}_add_inc_{sym}", disabled=already_in):
+                    if not github_token:
+                        st.error("Липсва GitHub token - не мога да запиша промяната.")
+                    else:
+                        new_manual = {
+                            "include": manual["include"] + [{"name": name, "symbol": sym}],
+                            "exclude": manual["exclude"],
+                        }
+                        _save(new_manual, f"Manual universe: add include {sym}")
+
+        st.divider()
+        st.markdown("**🚫 Никога не сканирай:**")
+        if manual["exclude"]:
+            for sym in list(manual["exclude"]):
+                col1, col2 = st.columns([5, 1])
+                col1.write(f"`{sym}`")
+                if col2.button("🗑️", key=f"{key}_rm_exc_{sym}"):
+                    if not github_token:
+                        st.error("Липсва GitHub token - не мога да запиша промяната.")
+                    else:
+                        new_manual = {
+                            "include": manual["include"],
+                            "exclude": [x for x in manual["exclude"] if x != sym],
+                        }
+                        _save(new_manual, f"Manual universe: remove exclude {sym}")
+        else:
+            st.caption("Няма изключени активи.")
+
+        exc_query = st.text_input("Търси по име, за да изключиш:", key=f"{key}_manual_exc_search")
+        if exc_query:
+            full = load_full_universe_for_search()
+            matches = {n: s for n, s in full.items() if exc_query.lower() in n.lower()}
+            for name, sym in list(matches.items())[:10]:
+                already_out = sym in manual["exclude"]
+                if st.button(f"🚫 {name}" + (" (вече изключен)" if already_out else ""), key=f"{key}_add_exc_{sym}", disabled=already_out):
+                    if not github_token:
+                        st.error("Липсва GitHub token - не мога да запиша промяната.")
+                    else:
+                        new_manual = {
+                            "include": manual["include"],
+                            "exclude": manual["exclude"] + [sym],
+                        }
+                        _save(new_manual, f"Manual universe: add exclude {sym}")
+
+    return manual
+
+
+def apply_manual_universe(tickers: dict, manual: dict) -> dict:
+    """Прилага ръчния include/exclude списък върху вече заредения универс."""
+    result = dict(tickers)
+    for sym in manual.get("exclude", []):
+        result = {n: s for n, s in result.items() if s != sym}
+    for item in manual.get("include", []):
+        result[item["name"]] = item["symbol"]
+    return result
+
+
 def render_daily_strategy():
     with st.expander("⚙️ Настройки на скрининга", expanded=False):
         max_instr = st.slider("Максимален брой инструменти", 20, 500, 150, step=20, key="daily_max")
@@ -725,6 +895,8 @@ def render_daily_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
+    manual_universe = render_manual_universe_editor(key="daily")
+    tickers = apply_manual_universe(tickers, manual_universe)
     render_universe_search(key="daily")
 
     with st.spinner("Синхронизиране и търсене на суинг възможности..."):
@@ -1197,6 +1369,8 @@ def render_sd_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
+    manual_universe = render_manual_universe_editor(key="sd")
+    tickers = apply_manual_universe(tickers, manual_universe)
     render_universe_search(key="sd")
 
     if st.button("🔎 Сканирай пазара", type="primary", use_container_width=True, key="sd_scan_btn"):
@@ -1468,6 +1642,8 @@ def render_photon_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
+    manual_universe = render_manual_universe_editor(key="ph")
+    tickers = apply_manual_universe(tickers, manual_universe)
     render_universe_search(key="ph")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
@@ -1579,6 +1755,8 @@ def render_mtf_strategy():
     else:
         tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
         st.caption(f"Универс: {len(tickers)} инструмента")
+    manual_universe = render_manual_universe_editor(key="mtf")
+    tickers = apply_manual_universe(tickers, manual_universe)
     render_universe_search(key="mtf")
 
     if st.button("🔍 Сканирай пазара", type="primary"):
