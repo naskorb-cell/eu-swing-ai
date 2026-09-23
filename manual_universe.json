@@ -11,6 +11,10 @@
     {
       "name": "SAF (Safran)",
       "symbol": "SAF.PA"
+    },
+    {
+      "name": "SAP (SAP)",
+      "symbol": "SAP.DE"
     }
   ],
   "exclude": []
