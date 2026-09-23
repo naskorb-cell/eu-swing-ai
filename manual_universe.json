@@ -3,6 +3,10 @@
     {
       "name": "ADB (Adobe)",
       "symbol": "ADB.DE"
+    },
+    {
+      "name": "AMZ (Amazon)",
+      "symbol": "AMZ.DE"
     }
   ],
   "exclude": []
