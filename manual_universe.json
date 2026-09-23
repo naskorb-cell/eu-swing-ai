@@ -1,0 +1,9 @@
+{
+  "include": [
+    {
+      "name": "ADB (Adobe)",
+      "symbol": "ADB.DE"
+    }
+  ],
+  "exclude": []
+}
