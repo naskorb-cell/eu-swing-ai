@@ -2112,11 +2112,8 @@ st.markdown(
 )
 
 strategy = st.radio(
-    "Избери стратегия за скрининг:",
+    "Избери секция:",
     [
-        "📅 Дневна (Pullback / Потвърдено обръщане)",
-        "🎯 Multi-Timeframe (Седмичен → Дневен → 4ч)",
-        "📦 Supply & Demand (Седм. → Дневен → 4ч, до 3 седмици)",
         "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
         "💼 Портфолио & P&L",
     ],
@@ -2126,13 +2123,7 @@ strategy = st.radio(
 
 st.divider()
 
-if strategy.startswith("📅"):
-    render_daily_strategy()
-elif strategy.startswith("🎯"):
-    render_mtf_strategy()
-elif strategy.startswith("📦"):
-    render_sd_strategy()
-elif strategy.startswith("🧭"):
+if strategy.startswith("🧭"):
     render_photon_strategy()
 else:
     render_portfolio_section()
