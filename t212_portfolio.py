@@ -71,23 +71,36 @@ def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
 
 
 def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20) -> list:
-    """GET /equity/history/orders, страница по страница (cursor pagination).
-    Връща суровия списък от order-и (filled/cancelled/всякакви статуси),
-    филтрирането по дата/статус става после в pandas."""
+    """GET /equity/history/orders, страница по страница.
+    T212 връща 'nextPagePath' - ГОТОВ относителен път с вече вграден в него
+    cursor query-параметър (напр. '/api/v0/equity/history/orders?cursor=...&limit=50').
+    Той трябва да се използва КАКТО Е - да не се увива втори път в нов 'cursor'
+    параметър (това причиняваше 400 Bad Request с двойно екраниран URL)."""
+    from urllib.parse import urlsplit, parse_qs
+
     all_items = []
-    cursor = None
+    path = "/equity/history/orders"
+    params = {"limit": 50}
+
     for _ in range(max_pages):
-        params = {"limit": 50}
-        if cursor:
-            params["cursor"] = cursor
-        data = _get(base_url, "/equity/history/orders", auth_header, params=params)
+        data = _get(base_url, path, auth_header, params=params)
         items = data.get("items", []) if isinstance(data, dict) else data
         if not items:
             break
         all_items.extend(items)
-        cursor = data.get("nextPagePath") or data.get("cursor") if isinstance(data, dict) else None
-        if not cursor:
+
+        next_page_path = data.get("nextPagePath") if isinstance(data, dict) else None
+        if not next_page_path:
             break
+
+        # base_url вече завършва на /api/v0 - маха се, ако nextPagePath го повтаря
+        if next_page_path.startswith("/api/v0"):
+            next_page_path = next_page_path[len("/api/v0"):]
+
+        split = urlsplit(next_page_path)
+        path = split.path
+        params = {k: v[0] for k, v in parse_qs(split.query).items()}
+
         time.sleep(0.3)  # блага пауза - History лимитът е 6/мин
     return all_items
 
