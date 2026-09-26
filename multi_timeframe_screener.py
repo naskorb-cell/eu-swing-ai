@@ -2026,6 +2026,7 @@ def render_portfolio_section():
                     df_closed_all = t212.orders_to_dataframe(raw_orders)
                 st.session_state["t212_open"] = df_open
                 st.session_state["t212_closed_all"] = df_closed_all
+                st.session_state["t212_raw_orders"] = raw_orders
                 st.session_state["t212_loaded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             except PermissionError as e:
                 st.error(str(e))
@@ -2040,6 +2041,16 @@ def render_portfolio_section():
         return
 
     st.caption(f"Последно заредено: {st.session_state.get('t212_loaded_at', '?')}")
+
+    raw_orders_debug = st.session_state.get("t212_raw_orders")
+    if raw_orders_debug:
+        with st.expander("🔍 Технически детайли (суров JSON от T212 - за диагностика)", expanded=False):
+            st.caption(
+                f"Общо {len(raw_orders_debug)} записа заредени. По-долу са първите 3 - "
+                "ако реализираните P&L не съвпадат с реалните ти сделки, изпрати ми това, "
+                "за да коригирам разчитането на полетата."
+            )
+            st.json(raw_orders_debug[:3])
 
     section_header("📌 Отворени позиции", status="watch")
     if df_open.empty:
