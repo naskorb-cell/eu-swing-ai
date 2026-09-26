@@ -28,17 +28,27 @@ def build_auth_header(api_key: str, api_secret: str) -> str:
     return f"Basic {token}"
 
 
-def _get(base_url: str, path: str, auth_header: str, params: dict = None, timeout: int = 20):
+def _get(base_url: str, path: str, auth_header: str, params: dict = None, timeout: int = 20, max_retries: int = 4):
+    """GET с автоматичен retry при 429 (T212 - History лимитът е само 6/мин).
+    Уважава 'Retry-After' хедъра, ако е върнат, иначе expon. backoff."""
     url = f"{base_url}{path}"
-    resp = requests.get(url, headers={"Authorization": auth_header}, params=params or {}, timeout=timeout)
-    if resp.status_code == 401:
-        raise PermissionError(
-            "401 - невалиден ключ/секрет, или ключът няма права за Portfolio/History."
-        )
-    if resp.status_code == 429:
-        raise RuntimeError("429 - твърде много заявки към Trading 212, изчакай малко и опитай пак.")
-    resp.raise_for_status()
-    return resp.json()
+    attempt = 0
+    while True:
+        resp = requests.get(url, headers={"Authorization": auth_header}, params=params or {}, timeout=timeout)
+        if resp.status_code == 401:
+            raise PermissionError(
+                "401 - невалиден ключ/секрет, или ключът няма права за Portfolio/History."
+            )
+        if resp.status_code == 429:
+            attempt += 1
+            if attempt > max_retries:
+                raise RuntimeError("429 - твърде много заявки към Trading 212 дори след изчакване. Опитай пак след минута.")
+            wait_s = resp.headers.get("Retry-After")
+            wait_s = float(wait_s) if wait_s else 11.0 * attempt
+            time.sleep(wait_s)
+            continue
+        resp.raise_for_status()
+        return resp.json()
 
 
 def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
@@ -101,7 +111,7 @@ def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20) ->
         path = split.path
         params = {k: v[0] for k, v in parse_qs(split.query).items()}
 
-        time.sleep(0.3)  # блага пауза - History лимитът е 6/мин
+        time.sleep(11)  # History лимитът е 6/мин (~1 заявка на 10 сек) - пазим резерв
     return all_items
 
 
