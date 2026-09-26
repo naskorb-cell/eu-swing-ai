@@ -8,6 +8,9 @@ import json
 import time
 import requests
 from pathlib import Path
+from datetime import date, datetime, timedelta
+
+import t212_portfolio as t212
 
 st.set_page_config(
     page_title="Swing Screener AI",
@@ -1881,6 +1884,213 @@ def render_mtf_strategy():
 
 
 # ============================================================================
+# ПОРТФОЛИО: Trading 212 отворени позиции + P&L анализ (READ-ONLY)
+# ============================================================================
+# ВАЖНО - сигурност: ключът/секретът, използвани тук, трябва да имат
+# ЕДИНСТВЕНО права за четене на Portfolio + History (никога Orders/write).
+# Trading 212 API няма endpoint за прехвърляне на пари, така че дори при
+# изтичане на този ключ, щетата е ограничена до преглед на данни.
+
+PERIOD_PRESETS = {
+    "Тази седмица": 7,
+    "Последните 30 дни": 30,
+    "Последните 90 дни": 90,
+    "Тази година": 365,
+}
+
+
+def _period_bounds(preset_label: str, custom_range=None):
+    today = date.today()
+    if preset_label == "Персонализиран период" and custom_range:
+        start, end = custom_range
+        return start, end
+    if preset_label == "Този месец":
+        return today.replace(day=1), today
+    days = PERIOD_PRESETS.get(preset_label, 30)
+    return today - timedelta(days=days), today
+
+
+def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_label: str, api_key: str) -> str:
+    client = Anthropic(api_key=api_key)
+
+    open_text = (
+        open_df.to_string(index=False) if not open_df.empty
+        else "НЯМА текущо отворени позиции."
+    )
+    closed_text = (
+        closed_df.drop(columns=[]).to_string(index=False) if not closed_df.empty
+        else "НЯМА затворени сделки в избрания период."
+    )
+
+    prompt = f"""
+    Ти си професионален суинг търговец, който прави преглед на резултатите на
+    друг търговец за периода "{period_label}". Използвай СТРИКТНО само данните
+    по-долу - те идват директно от Trading 212 API (реални изпълнени сделки и
+    текущи позиции), не предполагай нищо извън тях.
+
+    === ОТВОРЕНИ ПОЗИЦИИ В МОМЕНТА ===
+    {open_text}
+
+    === ЗАТВОРЕНИ СДЕЛКИ ЗА ПЕРИОДА "{period_label}" ===
+    {closed_text}
+
+    === ОБОБЩЕНА СТАТИСТИКА ЗА ПЕРИОДА ===
+    Брой сделки: {summary.get('trades')}
+    Печеливши: {summary.get('wins')}, Губещи: {summary.get('losses')}
+    Win rate: {summary.get('win_rate')}%
+    Обща реализирана P&L: {summary.get('total_pl')} €
+    Средна печалба: {summary.get('avg_win')} €, Средна загуба: {summary.get('avg_loss')} €
+    Най-добра сделка: {summary.get('best')}, Най-лоша сделка: {summary.get('worst')}
+
+    ЗАДАЧА:
+    1. Кратко обобщение на представянето за периода (2-3 изречения).
+    2. Какво е минало добре и какво не, на база самите данни (без да гадаеш причини,
+       които не личат от данните - напр. не измисляй "лоша пазарна конюнктура",
+       ако няма индикация за това).
+    3. Кратък коментар за текущите отворени позиции - има ли концентрация в
+       един инструмент/сектор, голяма нереализирана загуба, която да следи.
+    4. 2-3 конкретни, практични препоръки за следващия период (без финансови
+       съвети от рода "купи/продай точно това", а по-скоро дисциплина/риск
+       мениджмънт наблюдения на база самите числа).
+
+    Бъди кратък и конкретен, удобен за преглед на телефон. Не давай дисклеймъри
+    за инвестиционни съвети по-дълги от едно изречение, ако изобщо е нужно.
+    """
+    response = client.messages.create(
+        model="claude-sonnet-5", max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in response.content if block.type == "text")
+    if not text.strip():
+        raise ValueError(f"Claude върна празен отговор (stop_reason: {response.stop_reason}). Опитай пак.")
+    return text
+
+
+def render_portfolio_section():
+    section_header(
+        "💼 Портфолио & P&L (Trading 212)",
+        status="info",
+        subtitle="Само за четене - Portfolio + History. Никога не се използват права за поръчки/прехвърляния.",
+    )
+
+    with st.expander("⚙️ Достъп до Trading 212 (read-only)", expanded=False):
+        t212_env = st.radio(
+            "Среда", ["live", "demo"], horizontal=True, key="t212_env",
+            help="'live' е реалната ти сметка. Ползвай 'demo', ако тестваш с demo профил.",
+        )
+        t212_key = st.secrets.get("T212_API_KEY", None)
+        t212_secret = st.secrets.get("T212_API_SECRET", None)
+        if not t212_key:
+            t212_key = st.text_input("T212 API Key", type="password", key="t212_key_input")
+        if not t212_secret:
+            t212_secret = st.text_input("T212 API Secret", type="password", key="t212_secret_input")
+        st.caption(
+            "⚠️ Ключът трябва да има ЕДИНСТВЕНО права за 'Portfolio' и 'History' (read). "
+            "НЕ добавяй 'Orders' (write) права на ключа, който ползваш тук - за преглед "
+            "на P&L не са нужни, а ограничават риска при евентуално изтичане на ключа. "
+            "По-добре запиши ключа/секрета трайно в Streamlit Secrets (T212_API_KEY / "
+            "T212_API_SECRET), вместо да ги въвеждаш всеки път тук."
+        )
+
+    col_preset, col_range = st.columns([1, 1.4])
+    with col_preset:
+        preset = st.selectbox(
+            "Период за анализ на затворените сделки:",
+            ["Този месец", "Тази седмица", "Последните 30 дни", "Последните 90 дни", "Тази година", "Персонализиран период"],
+            index=0, key="t212_period_preset",
+        )
+    custom_range = None
+    if preset == "Персонализиран период":
+        with col_range:
+            custom_range = st.date_input(
+                "От - До", value=(date.today() - timedelta(days=30), date.today()),
+                key="t212_custom_range",
+            )
+            if isinstance(custom_range, (tuple, list)) and len(custom_range) != 2:
+                custom_range = None
+
+    period_start, period_end = _period_bounds(preset, custom_range)
+    st.caption(f"Избран период: {period_start} → {period_end}")
+
+    if st.button("🔄 Зареди портфолио и история", type="primary"):
+        if not t212_key or not t212_secret:
+            st.error("Липсва T212 API Key/Secret!")
+        else:
+            base_url = t212.T212_ENV_TO_BASE_URL[t212_env]
+            auth_header = t212.build_auth_header(t212_key, t212_secret)
+            try:
+                with st.spinner("Зареждам отворени позиции..."):
+                    df_open = t212.fetch_open_positions(base_url, auth_header)
+                with st.spinner("Зареждам история на сделките (може да отнеме малко време заради лимитите на T212)..."):
+                    raw_orders = t212.fetch_order_history(base_url, auth_header)
+                    df_closed_all = t212.orders_to_dataframe(raw_orders)
+                st.session_state["t212_open"] = df_open
+                st.session_state["t212_closed_all"] = df_closed_all
+                st.session_state["t212_loaded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            except PermissionError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"Грешка при връзка с Trading 212: {e}")
+
+    df_open = st.session_state.get("t212_open")
+    df_closed_all = st.session_state.get("t212_closed_all")
+
+    if df_open is None or df_closed_all is None:
+        st.info("Натисни 'Зареди портфолио и история', за да видиш данните.")
+        return
+
+    st.caption(f"Последно заредено: {st.session_state.get('t212_loaded_at', '?')}")
+
+    section_header("📌 Отворени позиции", status="watch")
+    if df_open.empty:
+        st.info("Нямаш текущо отворени позиции.")
+    else:
+        total_pl = df_open["P&L (€)"].sum()
+        total_invested = df_open["Инвестирано (€)"].sum()
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Брой позиции", len(df_open))
+        col2.metric("Общо инвестирано (€)", round(total_invested, 2))
+        col3.metric("Нереализирана P&L (€)", round(total_pl, 2), delta=round(total_pl, 2))
+        st.dataframe(df_open, use_container_width=True, hide_index=True)
+
+    df_period = t212.filter_by_period(df_closed_all, period_start, period_end)
+    summary = t212.summarize_closed_trades(df_period)
+
+    section_header("📊 Затворени сделки (избран период)", status="go", subtitle=preset)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Сделки", summary["trades"])
+    col2.metric("Win rate", f"{summary['win_rate']}%" if summary["win_rate"] is not None else "—")
+    col3.metric("Реализирана P&L (€)", summary["total_pl"])
+    col4.metric(
+        "Най-добра / Най-лоша",
+        f"{summary['best'][0]}" if summary["best"] else "—",
+        f"{summary['best'][1]} € / {summary['worst'][1]} €" if summary["best"] and summary["worst"] else None,
+    )
+    if df_period.empty:
+        st.info("Няма затворени сделки в избрания период.")
+    else:
+        st.dataframe(df_period, use_container_width=True, hide_index=True)
+
+    st.divider()
+    section_header("🤖 AI Анализ на представянето", status="info")
+    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    if not anthropic_api_key:
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="t212_ai_key")
+
+    if st.button("Генерирай AI анализ на портфолиото", type="primary"):
+        if not anthropic_api_key:
+            st.error("Липсва Anthropic API ключ!")
+        else:
+            with st.spinner("Claude анализира представянето..."):
+                try:
+                    st.markdown(
+                        generate_ai_analysis_portfolio(df_open, df_period, summary, preset, anthropic_api_key)
+                    )
+                except Exception as e:
+                    st.error(f"Грешка: {e}")
+
+
+# ============================================================================
 # ИНТЕРФЕЙС: избор на стратегия
 # ============================================================================
 
@@ -1897,6 +2107,7 @@ strategy = st.radio(
         "🎯 Multi-Timeframe (Седмичен → Дневен → 4ч)",
         "📦 Supply & Demand (Седм. → Дневен → 4ч, до 3 седмици)",
         "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
+        "💼 Портфолио & P&L",
     ],
     horizontal=True,
     label_visibility="collapsed",
@@ -1910,5 +2121,7 @@ elif strategy.startswith("🎯"):
     render_mtf_strategy()
 elif strategy.startswith("📦"):
     render_sd_strategy()
-else:
+elif strategy.startswith("🧭"):
     render_photon_strategy()
+else:
+    render_portfolio_section()
