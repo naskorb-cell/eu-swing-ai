@@ -115,38 +115,130 @@ def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20) ->
     return all_items
 
 
+def _pick(d: dict, *candidates, default=None):
+    """Връща първата налична стойност (не-None) от списък възможни имена
+    на ключове - T212's публично API не документира изрично всяко поле,
+    затова се пробват няколко варианта."""
+    for c in candidates:
+        v = d.get(c)
+        if v is not None:
+            return v
+    return default
+
+
+def _extract_order_fields(item: dict):
+    """Плоско извлича полетата от един суров запис - работи както с
+    вложена форма ({'order': {...}, 'fill': {...}}), така и с плоска форма
+    (полетата директно в item), защото не сме сигурни коя точно връща
+    текущата версия на T212 API."""
+    order = item.get("order") if isinstance(item.get("order"), dict) else item
+    fill = item.get("fill") if isinstance(item.get("fill"), dict) else {}
+
+    status = _pick(order, "status", "orderStatus", default="")
+    ticker = _pick(order, "ticker", "instrumentCode", "symbol", default="?")
+
+    qty_raw = _pick(fill, "quantity", default=None)
+    if qty_raw is None:
+        qty_raw = _pick(order, "filledQuantity", "quantity", default=None)
+
+    price = _pick(fill, "price", default=None)
+    if price is None:
+        price = _pick(order, "fillPrice", "averagePrice", "limitPrice", "stopPrice", default=None)
+
+    filled_value = _pick(order, "filledValue", "filledCost", "value", default=None)
+
+    side = _pick(order, "side", default=None)  # може изобщо да липсва
+
+    date_val = _pick(fill, "filledAt", default=None)
+    if date_val is None:
+        date_val = _pick(order, "dateExecuted", "dateModified", "dateCreated", "createdAt", default=None)
+
+    return {
+        "status": status, "ticker": ticker, "qty_raw": qty_raw,
+        "price": price, "filled_value": filled_value, "side": side, "date": date_val,
+    }
+
+
 def orders_to_dataframe(raw_orders: list) -> pd.DataFrame:
-    """Превръща суровите order записи в плосък DataFrame, само за FILLED
-    (реално изпълнени) поръчки с реализирана P&L от walletImpact."""
-    rows = []
+    """Превръща суровите order записи в плосък DataFrame на РЕАЛИЗИРАНИ P&L
+    сделки, изчислени сами по среднопретеглена себестойност (average cost),
+    защото T212's публично /equity/history/orders API НЕ връща готово поле
+    за реализирана печалба на поръчка (за разлика от по-ранен допуск).
+
+    Логика: сортираме всички FILLED поръчки хронологично (най-старата
+    първо). За всеки тикер пазим текущо количество + обща себестойност.
+    BUY увеличава позицията. SELL реализира P&L спрямо средната цена на
+    придобиване към момента на продажбата и намалява позицията."""
+    parsed = []
     for item in raw_orders:
-        order = item.get("order", item)
-        fill = item.get("fill", {})
-        wallet = item.get("walletImpact", {})
+        f = _extract_order_fields(item)
+        if f["status"] and str(f["status"]).upper() not in ("FILLED", "EXECUTED", "FILLED_FULLY", "COMPLETED"):
+            continue
+        if f["date"] is None:
+            continue
+        parsed.append(f)
 
-        status = order.get("status", "")
-        if status and status.upper() not in ("FILLED", "EXECUTED"):
+    if not parsed:
+        return pd.DataFrame()
+
+    for f in parsed:
+        f["date_ts"] = pd.to_datetime(f["date"], errors="coerce", utc=True)
+    parsed = [f for f in parsed if pd.notna(f["date_ts"])]
+    parsed.sort(key=lambda f: f["date_ts"])
+
+    positions: dict[str, dict] = {}
+    closed_rows = []
+
+    for f in parsed:
+        ticker = f["ticker"]
+        qty_raw = f["qty_raw"]
+        price = f["price"]
+        filled_value = f["filled_value"]
+
+        # Определяне на количество и цена, ако липсва някое от двете
+        if qty_raw is None and filled_value is not None and price:
+            qty_raw = filled_value / price if price else 0
+        if price is None and filled_value is not None and qty_raw:
+            price = abs(filled_value) / abs(qty_raw) if qty_raw else 0
+        if qty_raw is None or price is None:
             continue
 
-        realised_pl = wallet.get("realisedProfitLoss")
-        if realised_pl is None:
-            # някои по-стари order записи може да нямат това поле, пропускаме ги
-            continue
+        # Определяне на страна (BUY/SELL): по explicit 'side', иначе по
+        # знака на количеството/сумата (отрицателно = продажба в T212 API).
+        side = (f["side"] or "").upper()
+        if side not in ("BUY", "SELL"):
+            signed = qty_raw if qty_raw else filled_value
+            side = "SELL" if (signed is not None and signed < 0) else "BUY"
 
-        filled_at = fill.get("filledAt") or order.get("createdAt")
-        rows.append({
-            "Дата": filled_at,
-            "Тикер": order.get("ticker", "?"),
-            "Страна": order.get("side", "?"),
-            "Кол-во": fill.get("quantity", order.get("filledQuantity", 0)),
-            "Цена": fill.get("price"),
-            "Реализирана P&L (€)": realised_pl,
-        })
-    df = pd.DataFrame(rows)
+        qty = abs(qty_raw)
+        price = abs(price)
+        pos = positions.setdefault(ticker, {"qty": 0.0, "cost": 0.0})
+
+        if side == "BUY":
+            pos["qty"] += qty
+            pos["cost"] += qty * price
+        else:  # SELL
+            if pos["qty"] > 0:
+                avg_cost = pos["cost"] / pos["qty"]
+            else:
+                avg_cost = price  # нямаме предишна позиция (напр. история преди периода на API достъп) - P&L=0
+            sell_qty = min(qty, pos["qty"]) if pos["qty"] > 0 else qty
+            realized = (price - avg_cost) * sell_qty
+            pos["qty"] = max(pos["qty"] - qty, 0.0)
+            pos["cost"] = max(pos["cost"] - avg_cost * sell_qty, 0.0)
+            closed_rows.append({
+                "Дата": f["date_ts"],
+                "Тикер": ticker,
+                "Страна": "SELL",
+                "Кол-во": round(qty, 4),
+                "Цена": round(price, 4),
+                "Реализирана P&L (€)": round(realized, 2),
+            })
+
+    df = pd.DataFrame(closed_rows)
     if df.empty:
         return df
-    df["Дата"] = pd.to_datetime(df["Дата"], errors="coerce", utc=True)
-    df = df.dropna(subset=["Дата"]).sort_values(by="Дата", ascending=False).reset_index(drop=True)
+    df = df.sort_values(by="Дата", ascending=False).reset_index(drop=True)
     return df
 
 
