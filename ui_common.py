@@ -131,7 +131,7 @@ def section_header(title: str, status: str = "info", subtitle: str = ""):
 
 def format_eur(value: float) -> str:
     if value >= 1e9:
-        return f"{value / 1e9:g} млрд. €"
+        return f"{value / 1e9:.3g} млрд. €"
     if value >= 1e6:
-        return f"{value / 1e6:g} млн. €"
-    return f"{value / 1e3:g} хил. €"
+        return f"{value / 1e6:.3g} млн. €"
+    return f"{value / 1e3:.3g} хил. €"

@@ -352,6 +352,20 @@ def render_universe_refresh(key: str):
                     f"ETF AUM ≥ {format_eur(c.get('etf_min_aum', 0))}, оборот ≥ {format_eur(c.get('etf_min_turnover', 0))}/ден; "
                     "без ливъриджнати/short ETP."
                 )
+                rejected = data.get("rejected", [])
+                if rejected:
+                    with st.expander(f"Отпаднали при месечния подбор ({len(rejected)}) - по данни на Yahoo"):
+                        st.caption(
+                            "Минали са прага за оборот, но са отпаднали на капитализация/AUM. Ако числата "
+                            "изглеждат грешни (Yahoo понякога греши при европейските листвания), добави "
+                            "инструмента ръчно в ✏️."
+                        )
+                        st.dataframe(pd.DataFrame([{
+                            "Инструмент": r["name"], "Символ": r["symbol"], "Причина": r["reason"],
+                            "Оборот/ден": format_eur(r["avg_dollar_volume"] or 0),
+                            "Капитализация": format_eur(r["market_cap"]) if r.get("market_cap") else "-",
+                            "AUM": format_eur(r["aum"]) if r.get("aum") else "-",
+                        } for r in rejected]), hide_index=True, width="stretch")
             else:
                 st.warning(
                     "Селекцията е в стар формат (само по оборот, без капитализация/AUM). "
