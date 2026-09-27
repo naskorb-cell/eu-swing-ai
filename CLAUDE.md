@@ -28,6 +28,7 @@
 - Индикатори: EMA50, SMA200, RSI, ATR, MACD, swing points; твърди трендови филтри
 - Цени: yfinance. AI интерпретация: Anthropic API (проектът остава само на Claude)
 - FMP free tier връща 402 за EU тикери → fundamentals enrichment е премахнат; FMP се ползва само за макро
+- Gettex (`.MU`) листванията нямат използваеми данни в Yahoo → месечният скрипт намира по ISIN основното листване (US/`.ST`/`.HE`...) и сканира него (`t212_symbol` пази оригинала); оборот/капитализация/AUM се превръщат в € преди праговете, в резултатите има колона „Валута“
 
 ## Secrets (никога в кода)
 - Streamlit secrets: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` (за запис на `manual_universe.json` и workflow dispatch), `T212_API_KEY` / `T212_API_SECRET`, `T212_API_KEY_WIFE` / `T212_API_SECRET_WIFE`

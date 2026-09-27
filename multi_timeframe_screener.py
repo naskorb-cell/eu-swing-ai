@@ -202,7 +202,10 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: t
     if full_path.exists():
         full_instruments = json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
 
-        if pinned_keywords_lower:
+        # при liquidity (Photon) закачените НЕ се добавят от пълния списък - иначе
+        # широки макро думи ("Europe", "Dividend") вкарват стотици нисколиквидни;
+        # ликвидните така или иначе са в curated файла
+        if pinned_keywords_lower and liquidity is None:
             for inst in full_instruments:
                 name_field = inst.get("name", "")
                 if not any(kw in name_field.lower() for kw in pinned_keywords_lower):
@@ -522,9 +525,10 @@ def render_universe_refresh(key: str):
         st.caption("Автоматично се обновява всяко 1-во число от месеца.")
 
 
-def render_macro_section(key: str):
+def render_macro_section(key: str, allow_autopin: bool = True):
     """Показва дневното макро резюме + бутон за принудително сканиране.
-    Връща (auto_pin_enabled, macro_keywords)."""
+    Връща (auto_pin_enabled, macro_keywords). allow_autopin=False скрива
+    опцията за автоматично добавяне (темите само се маркират с 📰)."""
     signal = load_daily_macro_signal()
     themes = signal.get("themes", []) if signal else []
     macro_keywords = sorted({kw for t in themes for kw in t.get("keywords", [])})
@@ -539,11 +543,15 @@ def render_macro_section(key: str):
                 kws = ", ".join(t.get("keywords", []))
                 st.markdown(f"- **{t.get('theme', '')}** ({kws}) — {t.get('reasoning_bg', '')}")
 
-        auto_pin = st.checkbox(
-            "Автоматично добавяй тези активи към скрининга за деня",
-            value=True,
-            key=f"{key}_macro_autopin",
-        )
+        if allow_autopin:
+            auto_pin = st.checkbox(
+                "Автоматично добавяй тези активи към скрининга за деня",
+                value=True,
+                key=f"{key}_macro_autopin",
+            )
+        else:
+            auto_pin = False
+            st.caption("Инструментите, свързани с тези теми, се маркират с 📰 в резултатите.")
 
         st.divider()
         github_token = st.secrets.get("GITHUB_TOKEN", None)
@@ -820,6 +828,20 @@ def generate_ai_analysis_daily(df_data: pd.DataFrame, api_key: str) -> str:
 
 
 @st.cache_data(ttl=6 * 3600)
+@st.cache_data(ttl=6 * 3600)
+def load_curated_symbol_info(curated_mtime: float = 0):
+    """От curated_universe.json: ({symbol: валута}, {оригинален T212 .MU символ:
+    основно листване}) - за Gettex акциите се сканира основното листване
+    (US/SE/...), защото Yahoo няма използваеми данни за .MU."""
+    path = Path(CURATED_FILE)
+    if not path.exists():
+        return {}, {}
+    instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
+    currencies = {x["symbol"]: x.get("currency", "EUR") for x in instruments}
+    resolved = {x["t212_symbol"]: x["symbol"] for x in instruments if x.get("t212_symbol")}
+    return currencies, resolved
+
+
 def load_full_universe_for_search():
     """Отделна функция само за търсене - винаги чете суровия eu_instruments.json
     в пълен размер, независимо от месечната curated_universe.json селекция, за
@@ -829,6 +851,7 @@ def load_full_universe_for_search():
     if not path.exists():
         return {}
     instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
+    _, resolved = load_curated_symbol_info(curated_file_mtime())
     mapped = {}
     for inst in instruments:
         suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
@@ -836,7 +859,7 @@ def load_full_universe_for_search():
             continue
         yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
         label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
-        mapped[label] = yahoo_ticker
+        mapped[label] = resolved.get(yahoo_ticker, yahoo_ticker)
     return mapped
 
 
@@ -1904,7 +1927,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
         note = f"Чакаме 4ч CHoCH над {events['choch_level']:.2f}"
 
     return {
-        "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
+        "Име": name, "Тикер": symbol, "Цена": round(current_price, 2), "Валута": "EUR",
         "Фаза": f"{phase} ({'Pro' if phase == 'A' else 'Counter'} Internal)",
         "Зона": "Над съпротивата (BOS)" if above_resistance else ("Discount" if in_discount else "Premium"),
         "Позиция в диапазона (%)": range_pos,
@@ -1919,7 +1942,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
     }, None
 
 
-def run_photon_scan(tickers: dict, p: dict, progress):
+def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     """Целият скан: пакетно теглене на дневни данни за всички, стъпка 1,
     после пакетно 60m данни САМО за оцелелите и стъпка 2.
     Връща (готови, watchlist, фуния {етап/причина: брой})."""
@@ -1958,6 +1981,7 @@ def run_photon_scan(tickers: dict, p: dict, progress):
         if res is None:
             reject(why)
         else:
+            res["Валута"] = (currencies or {}).get(symbol, "EUR")
             (results if res["Готов за вход"] else watch_list).append(res)
     funnel["Watchlist"] = len(watch_list)
     funnel["Готови за вход"] = len(results)
@@ -2042,10 +2066,6 @@ def render_photon_strategy():
                 "ETF: мин. оборот/ден", options=[250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
                 value=rules.ETF_MIN_TURNOVER, format_func=format_eur, key="ph_etf_turn",
             )
-        pinned_input = st.text_input(
-            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="ph_pinned",
-            help="Тези инструменти винаги влизат в сканирането, независимо от оборота.",
-        )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
         min_range_atr = st.slider(
@@ -2071,9 +2091,7 @@ def render_photon_strategy():
             help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
         )
         uploaded_universe = render_universe_uploader(key="ph")
-    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
-    auto_pin, macro_keywords = render_macro_section(key="ph")
-    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
+    _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
     if uploaded_universe:
         tickers = uploaded_universe
@@ -2081,7 +2099,7 @@ def render_photon_strategy():
     else:
         liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
         tickers = load_universe(
-            max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity,
+            max_instruments=None, liquidity=liquidity,
             curated_mtime=curated_file_mtime(),
         )
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
@@ -2094,6 +2112,9 @@ def render_photon_strategy():
             st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
+    # ръчно добавени Gettex (.MU) акции -> основното им листване (ако е намерено)
+    _, resolved_symbols = load_curated_symbol_info(curated_file_mtime())
+    tickers = {n: resolved_symbols.get(s, s) for n, s in tickers.items()}
     render_universe_search(key="ph")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
@@ -2104,7 +2125,8 @@ def render_photon_strategy():
             "stop_atr_buffer": stop_atr_buffer, "min_rr": min_rr,
         }
         progress = st.progress(0.0, text="Търсене на Phase A/B сетъпи...")
-        results, watch_list, funnel, rejects = run_photon_scan(tickers, params, progress)
+        currencies, _ = load_curated_symbol_info(curated_file_mtime())
+        results, watch_list, funnel, rejects = run_photon_scan(tickers, params, progress, currencies)
         progress.empty()
         st.session_state["photon_results"] = results
         st.session_state["photon_watchlist"] = watch_list
