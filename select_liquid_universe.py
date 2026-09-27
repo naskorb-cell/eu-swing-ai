@@ -56,18 +56,8 @@ PRIMARY_SUFFIX_BY_COUNTRY = {
     "IE": (".IR", ".L", ""), "AU": (".AX",), "HK": (".HK",), "IL": (".TA", ""),
 }
 
-EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
-    ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
-    ("PARIS", ".PA"), ("AMSTERDAM", ".AS"), ("MILAN", ".MI"), ("BORSA ITALIANA", ".MI"),
-]
-
-
-def exchange_to_yahoo_suffix(exchange_name: str):
-    name_upper = (exchange_name or "").upper()
-    for keyword, suffix in EXCHANGE_NAME_TO_YAHOO_SUFFIX:
-        if keyword in name_upper:
-            return suffix
-    return None
+EXCHANGE_NAME_TO_YAHOO_SUFFIX = rules.EXCHANGE_NAME_TO_YAHOO_SUFFIX
+exchange_to_yahoo_suffix = rules.exchange_to_yahoo_suffix
 
 
 def normalize_company_name(name: str) -> str:
