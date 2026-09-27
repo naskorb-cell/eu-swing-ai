@@ -5,13 +5,13 @@ import numpy as np
 import plotly.graph_objects as go
 from anthropic import Anthropic
 import json
-import re
 import time
 import requests
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
 import t212_portfolio as t212
+import universe_rules as rules
 
 st.set_page_config(
     page_title="Swing Screener AI",
@@ -179,15 +179,16 @@ FALLBACK_TICKERS = {
 
 
 @st.cache_data(ttl=6 * 3600)
-def load_universe(max_instruments=500, pinned_keywords: tuple = (), min_turnover: float = 0):
+def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: tuple = None):
     """Зарежда универса за сканиране. Приоритет:
     1) закачени (pinned_keywords) инструменти - винаги от ПЪЛНИЯ eu_instruments.json,
        за да не пропуснем нищо, дори ако не са в месечната селекция;
     2) curated_universe.json (месечна селекция по ликвидност+моментум+медиен buzz),
        ако съществува;
     3) fallback - суровият ред от eu_instruments.json, ако все още няма curated файл.
-    max_instruments=None = без лимит; min_turnover = мин. среден дневен оборот (€)
-    за инструментите от curated файла (закачените винаги влизат)."""
+    max_instruments=None = без лимит; liquidity = (мин. капитализация на акция,
+    мин. оборот на акция, мин. AUM на ETF, мин. оборот на ETF) - допълнително
+    стесняване на curated файла (закачените винаги влизат)."""
     if max_instruments is None:
         max_instruments = float("inf")
     pinned_keywords_lower = [kw.lower() for kw in pinned_keywords if kw.strip()]
@@ -219,13 +220,10 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), min_turnover
             label = item["name"]
             if label in mapped:
                 continue
-            if item.get("avg_dollar_volume", 0) < min_turnover:
+            # стар формат на файла (без type) - не филтрираме, докато месечният workflow не го обнови
+            if liquidity and "type" in item and not rules.passes_liquidity(item, *liquidity)[0]:
                 continue
             mapped[label] = item["symbol"]
-        st.caption(
-            f"📅 Универс от месечна селекция (обновена: {curated_data.get('generated_at', '?')}, "
-            f"медийно трендиращи: {curated_data.get('media_trending_count', 0)})"
-        )
         return mapped
 
     if full_instruments is not None:
@@ -373,12 +371,13 @@ def load_daily_macro_signal():
         return None
 
 
-def trigger_macro_workflow_dispatch(github_token: str):
-    """Праща workflow_dispatch към GitHub Actions, за да пусне daily_macro.yml
-    веднага, вместо да чака утрешния cron. Връща (success, съобщение)."""
+def trigger_macro_workflow_dispatch(github_token: str, workflow_file: str = GITHUB_WORKFLOW_FILE):
+    """Праща workflow_dispatch към GitHub Actions, за да пусне workflow-а
+    (по подразбиране daily_macro.yml) веднага, вместо да чака cron-а.
+    Връща (success, съобщение)."""
     url = (
         f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}"
-        f"/actions/workflows/{GITHUB_WORKFLOW_FILE}/dispatches"
+        f"/actions/workflows/{workflow_file}/dispatches"
     )
     headers = {
         "Authorization": f"Bearer {github_token}",
@@ -396,6 +395,66 @@ def trigger_macro_workflow_dispatch(github_token: str):
     if resp.status_code == 401:
         return False, "401 - невалиден или изтекъл GitHub token."
     return False, f"GitHub върна {resp.status_code}: {resp.text[:200]}"
+
+
+def format_eur(value: float) -> str:
+    if value >= 1e9:
+        return f"{value / 1e9:g} млрд. €"
+    if value >= 1e6:
+        return f"{value / 1e6:g} млн. €"
+    return f"{value / 1e3:g} хил. €"
+
+
+def render_universe_refresh(key: str):
+    """Инфо за месечната селекция (curated_universe.json) + бутон за ръчно
+    обновяване (пуска monthly_curate.yml в GitHub Actions)."""
+    curated_path = Path(CURATED_FILE)
+    data = json.loads(curated_path.read_text(encoding="utf-8")) if curated_path.exists() else {}
+    with st.expander("🗂️ Универс: месечна селекция по ликвидност", expanded=False):
+        if not data:
+            st.info("Още няма curated_universe.json - пусни обновяване.")
+        else:
+            st.caption(f"Обновена: {data.get('generated_at', '?')}")
+            if "stock_count" in data:
+                st.markdown(
+                    f"**{data.get('stock_count', 0)} акции + {data.get('etf_count', 0)} ETF/ETP** "
+                    f"(от {data.get('total_evaluated', '?')} оценени; медийно трендиращи: {data.get('media_trending_count', 0)})"
+                )
+                c = data.get("criteria", {})
+                st.caption(
+                    f"Критерии: акции капитализация ≥ {format_eur(c.get('stock_min_market_cap', 0))}, "
+                    f"оборот ≥ {format_eur(c.get('stock_min_turnover', 0))}/ден (родна борса); "
+                    f"ETF AUM ≥ {format_eur(c.get('etf_min_aum', 0))}, оборот ≥ {format_eur(c.get('etf_min_turnover', 0))}/ден; "
+                    "без ливъриджнати/short ETP."
+                )
+            else:
+                st.warning(
+                    "Селекцията е в стар формат (само по оборот, без капитализация/AUM). "
+                    "Пусни обновяване, за да се приложат новите критерии."
+                )
+
+        github_token = st.secrets.get("GITHUB_TOKEN", None)
+        if not github_token:
+            github_token = st.text_input("GitHub token (за ръчно пускане)", type="password", key=f"{key}_curate_token")
+
+        cooldown_key = "curate_trigger_last_ts"
+        seconds_left = int(300 - (time.time() - st.session_state.get(cooldown_key, 0)))
+        col_trigger, col_reload = st.columns(2)
+        with col_trigger:
+            if st.button("🔄 Обнови универса сега", key=f"{key}_curate_trigger", disabled=seconds_left > 0):
+                if not github_token:
+                    st.error("Липсва GitHub token!")
+                else:
+                    ok, msg = trigger_macro_workflow_dispatch(github_token, workflow_file="monthly_curate.yml")
+                    st.session_state[cooldown_key] = time.time()
+                    if ok:
+                        msg = "Пуснато! Обновяването отнема ~30-60 мин. (виж Actions таба в GitHub), после натисни 'Изчисти кеша'."
+                    (st.success if ok else st.error)(msg)
+        with col_reload:
+            if st.button("🧹 Изчисти кеша", key=f"{key}_curate_reload"):
+                load_universe.clear()
+                st.rerun()
+        st.caption("Автоматично се обновява всяко 1-во число от месеца.")
 
 
 def render_macro_section(key: str):
@@ -1501,15 +1560,6 @@ def render_sd_strategy():
             st.plotly_chart(fig, use_container_width=True)
 
 
-# Ливъриджнати/short/inverse ETP-та: short = залог надолу (противоречи на long-only),
-# daily leveraged губят стойност при държане повече от ден-два (volatility decay)
-LEVERAGED_ETP_PATTERN = re.compile(r"\b(short|leveraged?|ultra|bear|inverse|boost)\b|\b\d+(\.\d+)?x\b", re.IGNORECASE)
-
-
-def is_leveraged_or_short_etp(name: str) -> bool:
-    return bool(LEVERAGED_ETP_PATTERN.search(name))
-
-
 def alternating_swings(df_with_swings: pd.DataFrame):
     """Свежда swing точките до строго редуваща се поредица high/low/high/...
     Два поредни high-а (без low между тях) се сливат в по-високия, два поредни
@@ -1905,12 +1955,28 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
 
 def render_photon_strategy():
     with st.expander("⚙️ Настройки на скрининга", expanded=False):
-        min_turnover = st.select_slider(
-            "Мин. среден дневен оборот (€)", options=[0, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
-            value=250_000, format_func=lambda v: f"{v:,.0f} €".replace(",", " "), key="ph_min_turnover",
-            help="Сканират се ВСИЧКИ инструменти от месечната селекция с поне толкова оборот (средно за 20 дни). "
-                 "Нисколиквидните отпадат.",
-        )
+        st.markdown("**Ликвидност** - месечната селекция вече е филтрирана по тези прагове; тук може само да ги вдигнеш.")
+        liq_cols = st.columns(2)
+        with liq_cols[0]:
+            stock_min_cap = st.select_slider(
+                "Акции: мин. капитализация", options=[2_000_000_000, 5_000_000_000, 10_000_000_000, 20_000_000_000, 50_000_000_000],
+                value=rules.STOCK_MIN_MARKET_CAP, format_func=format_eur, key="ph_stock_cap",
+            )
+            stock_min_turnover = st.select_slider(
+                "Акции: мин. оборот/ден", options=[5_000_000, 10_000_000, 20_000_000, 50_000_000],
+                value=rules.STOCK_MIN_TURNOVER, format_func=format_eur, key="ph_stock_turn",
+                help="Само за акции на родна (ЕС/ЕИП) борса. US/CH/UK акции на Xetra/Gettex се гледат само по капитализация.",
+            )
+        with liq_cols[1]:
+            etf_min_aum = st.select_slider(
+                "ETF: мин. AUM", options=[100_000_000, 250_000_000, 500_000_000, 1_000_000_000, 5_000_000_000],
+                value=rules.ETF_MIN_AUM, format_func=format_eur, key="ph_etf_aum",
+                help="ETF-и без данни за AUM в Yahoo не отпадат - проверяват се само по оборот.",
+            )
+            etf_min_turnover = st.select_slider(
+                "ETF: мин. оборот/ден", options=[250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
+                value=rules.ETF_MIN_TURNOVER, format_func=format_eur, key="ph_etf_turn",
+            )
         pinned_input = st.text_input(
             "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="ph_pinned",
             help="Тези инструменти винаги влизат в сканирането, независимо от оборота.",
@@ -1948,13 +2014,15 @@ def render_photon_strategy():
         tickers = uploaded_universe
         st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
     else:
-        tickers = load_universe(max_instruments=None, pinned_keywords=pinned_keywords, min_turnover=min_turnover)
+        liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
+        tickers = load_universe(max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity)
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
+    render_universe_refresh(key="ph")
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="ph")
     if exclude_leveraged:
-        excluded = [n for n in tickers if is_leveraged_or_short_etp(n)]
+        excluded = [n for n in tickers if rules.is_leveraged_or_short_etp(n)]
         tickers = {n: s for n, s in tickers.items() if n not in excluded}
         if excluded:
             st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
