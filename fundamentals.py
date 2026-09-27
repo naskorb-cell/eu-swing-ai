@@ -14,8 +14,6 @@ from datetime import date, datetime, timezone
 import streamlit as st
 import yfinance as yf
 from anthropic import Anthropic
-from google import genai
-from google.genai import types as genai_types
 
 from ai_client import CLAUDE_MODEL
 
@@ -162,6 +160,10 @@ def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, mod
     """Една компания: Gemini с Google Search grounding. Източниците са от
     grounding метаданните (реално намерените страници), не от текста на модела."""
     try:
+        # импортът е тук, а не най-горе: без инсталиран google-genai приложението
+        # трябва да работи (Gemini е само по избор)
+        from google import genai
+        from google.genai import types as genai_types
         response = genai.Client(api_key=api_key).models.generate_content(
             model=model, contents=_build_prompt(name, symbol, is_etf),
             config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]),
