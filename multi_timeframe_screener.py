@@ -202,7 +202,10 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: t
     if full_path.exists():
         full_instruments = json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
 
-        if pinned_keywords_lower:
+        # при liquidity (Photon) закачените НЕ се добавят от пълния списък - иначе
+        # широки макро думи ("Europe", "Dividend") вкарват стотици нисколиквидни;
+        # ликвидните така или иначе са в curated файла
+        if pinned_keywords_lower and liquidity is None:
             for inst in full_instruments:
                 name_field = inst.get("name", "")
                 if not any(kw in name_field.lower() for kw in pinned_keywords_lower):
@@ -522,9 +525,10 @@ def render_universe_refresh(key: str):
         st.caption("Автоматично се обновява всяко 1-во число от месеца.")
 
 
-def render_macro_section(key: str):
+def render_macro_section(key: str, allow_autopin: bool = True):
     """Показва дневното макро резюме + бутон за принудително сканиране.
-    Връща (auto_pin_enabled, macro_keywords)."""
+    Връща (auto_pin_enabled, macro_keywords). allow_autopin=False скрива
+    опцията за автоматично добавяне (темите само се маркират с 📰)."""
     signal = load_daily_macro_signal()
     themes = signal.get("themes", []) if signal else []
     macro_keywords = sorted({kw for t in themes for kw in t.get("keywords", [])})
@@ -539,11 +543,15 @@ def render_macro_section(key: str):
                 kws = ", ".join(t.get("keywords", []))
                 st.markdown(f"- **{t.get('theme', '')}** ({kws}) — {t.get('reasoning_bg', '')}")
 
-        auto_pin = st.checkbox(
-            "Автоматично добавяй тези активи към скрининга за деня",
-            value=True,
-            key=f"{key}_macro_autopin",
-        )
+        if allow_autopin:
+            auto_pin = st.checkbox(
+                "Автоматично добавяй тези активи към скрининга за деня",
+                value=True,
+                key=f"{key}_macro_autopin",
+            )
+        else:
+            auto_pin = False
+            st.caption("Инструментите, свързани с тези теми, се маркират с 📰 в резултатите.")
 
         st.divider()
         github_token = st.secrets.get("GITHUB_TOKEN", None)
@@ -2042,10 +2050,6 @@ def render_photon_strategy():
                 "ETF: мин. оборот/ден", options=[250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
                 value=rules.ETF_MIN_TURNOVER, format_func=format_eur, key="ph_etf_turn",
             )
-        pinned_input = st.text_input(
-            "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="ph_pinned",
-            help="Тези инструменти винаги влизат в сканирането, независимо от оборота.",
-        )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
         min_range_atr = st.slider(
@@ -2071,9 +2075,7 @@ def render_photon_strategy():
             help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
         )
         uploaded_universe = render_universe_uploader(key="ph")
-    manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
-    auto_pin, macro_keywords = render_macro_section(key="ph")
-    pinned_keywords = tuple(dict.fromkeys(manual_keywords + tuple(macro_keywords))) if auto_pin else manual_keywords
+    _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
     if uploaded_universe:
         tickers = uploaded_universe
@@ -2081,7 +2083,7 @@ def render_photon_strategy():
     else:
         liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
         tickers = load_universe(
-            max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity,
+            max_instruments=None, liquidity=liquidity,
             curated_mtime=curated_file_mtime(),
         )
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
