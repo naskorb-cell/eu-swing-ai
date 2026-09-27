@@ -15,6 +15,26 @@
     {
       "name": "SAP (SAP)",
       "symbol": "SAP.DE"
+    },
+    {
+      "name": "WGLD (WisdomTree Core Physical Gold)",
+      "symbol": "WGLD.DE"
+    },
+    {
+      "name": "DSOL (WisdomTree Physical Solana)",
+      "symbol": "DSOL.DE"
+    },
+    {
+      "name": "SU (Schneider Electric)",
+      "symbol": "SU.PA"
+    },
+    {
+      "name": "ML (Cie Generale des Etablissements Michelin)",
+      "symbol": "ML.PA"
+    },
+    {
+      "name": "FRE (Fresenius)",
+      "symbol": "FRE.DE"
     }
   ],
   "exclude": []

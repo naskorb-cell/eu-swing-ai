@@ -20,7 +20,7 @@ from indicators import (
 from portfolio_ui import T212_ACCOUNTS
 from ui_common import format_eur, section_header
 from universe import (
-    INSTRUMENTS_FILE, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
+    INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
     flag_macro_signal, load_curated_symbol_info, load_universe, render_macro_section,
     render_manual_universe_editor, render_universe_refresh, render_universe_search,
     render_universe_uploader,
@@ -396,15 +396,41 @@ def render_photon_strategy():
         uploaded_universe = render_universe_uploader(key="ph")
     _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
+    liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
     if uploaded_universe:
-        tickers = uploaded_universe
-        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
-    else:
-        liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
-        tickers = load_universe(
-            max_instruments=None, liquidity=liquidity,
-            curated_mtime=curated_file_mtime(),
+        curated = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
+        curated_symbols = set(curated.values())
+        new_items = {n: s for n, s in uploaded_universe.items() if s not in curated_symbols}
+        st.caption(
+            f"От файла {len(uploaded_universe)} са в Trading 212: {len(uploaded_universe) - len(new_items)} "
+            f"вече са в универса, {len(new_items)} са нови."
         )
+        csv_mode = st.radio(
+            "Какво да сканирам с качения файл?", CSV_MODES, horizontal=True, key="ph_csv_mode",
+            help="По подразбиране файлът само допълва месечния списък с липсващите в него инструменти.",
+        )
+        if csv_mode == CSV_MODES[0]:
+            tickers = {**curated, **new_items}
+        elif csv_mode == CSV_MODES[1]:
+            _, _, curated_types = load_curated_symbol_info(curated_file_mtime())
+            tickers = {**{n: s for n, s in curated.items() if curated_types.get(s) == "ETF"}, **uploaded_universe}
+        else:
+            tickers = dict(uploaded_universe)
+        if new_items:
+            with st.expander(f"Новите от файла ({len(new_items)})"):
+                st.dataframe(pd.DataFrame({"Инструмент": list(new_items), "Символ": list(new_items.values())}),
+                             hide_index=True, width="stretch")
+                github_token = st.secrets.get("GITHUB_TOKEN", None)
+                if st.button(f"💾 Запази новите {len(new_items)} трайно в ръчния списък", key="ph_csv_save",
+                             help="Ще се сканират винаги, без да качваш файла отново."):
+                    if not github_token:
+                        st.error("Липсва GITHUB_TOKEN в Streamlit Secrets.")
+                    else:
+                        ok, msg = add_to_manual_universe(new_items, github_token)
+                        (st.success if ok else st.error)(msg)
+        st.caption(f"Универс за скана: {len(tickers)} инструмента")
+    else:
+        tickers = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     render_universe_refresh(key="ph")
     # филтрите са ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
@@ -516,6 +542,7 @@ def render_photon_strategy():
 
 
 FAR_ABOVE_RANGE_PCT = 120
+CSV_MODES = ["Допълни месечния списък с липсващите от файла", "Акциите от файла + ETF от месечния списък", "Само файла"]
 
 
 @st.cache_data(ttl=300, show_spinner=False)

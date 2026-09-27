@@ -2,6 +2,7 @@
 CSV/Excel upload, търсене, макро сигналът и GitHub интеграцията (workflow dispatch, запис)."""
 
 import json
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -124,11 +125,18 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: t
     return FALLBACK_TICKERS
 
 
+CSV_COLUMNS = {
+    "isin": ["ISIN"],
+    "symbol": ["Symbol", "Ticker"],
+    "name": ["Name", "Company", "Company Name", "Instrument"],
+}
+
+
 def parse_uploaded_ticker_list(uploaded_file):
-    """Чете CSV/XLSX (напр. износ от InvestingPro screener) и връща списък
-    от термини (имена/тикери на компании) за съпоставяне срещу нашия
-    универс. Търси колона 'Name'/'Symbol'/'Ticker'/'Company' (case-
-    insensitive), иначе взима първата колона."""
+    """Чете CSV/XLSX (напр. износ от InvestingPro screener) и връща редовете
+    като [{isin, symbol, name}] - от колоните ISIN / Symbol|Ticker /
+    Name|Company (без значение главни/малки букви). Ако няма нито една от тях,
+    първата колона се ползва като име."""
     try:
         if uploaded_file.name.lower().endswith(".csv"):
             df = pd.read_csv(uploaded_file)
@@ -139,59 +147,81 @@ def parse_uploaded_ticker_list(uploaded_file):
         return []
     if df.empty:
         return []
-    col = None
-    for candidate in ["Name", "Symbol", "Ticker", "Company", "Instrument"]:
-        for c in df.columns:
-            if str(c).strip().lower() == candidate.lower():
-                col = c
+    by_lower = {str(c).strip().lower(): c for c in df.columns}
+    found = {}
+    for field, candidates in CSV_COLUMNS.items():
+        for candidate in candidates:
+            if candidate.lower() in by_lower:
+                found[field] = by_lower[candidate.lower()]
                 break
-        if col:
-            break
-    if col is None:
-        col = df.columns[0]
-    terms = df[col].dropna().astype(str).str.strip()
-    return [t for t in terms if t and t.lower() != "nan"]
+    if not found:
+        found["name"] = df.columns[0]
+
+    def cell(row, field):
+        value = row.get(found[field]) if field in found else None
+        return str(value).strip() if value is not None and str(value).strip().lower() not in ("", "nan") else ""
+
+    rows = [{f: cell(r, f) for f in CSV_COLUMNS} for r in df.to_dict("records")]
+    return [r for r in rows if any(r.values())]
 
 
-def load_universe_from_terms(terms: list):
-    """Съпоставя списък от имена/тикери (напр. от InvestingPro export) срещу
-    ПЪЛНИЯ eu_instruments.json по подниз в името (case-insensitive) и връща
-    само намерените инструменти - без ограничение в брой, целият качен
-    списък е за сканиране. Термините без съвпадение обикновено са активи
-    извън твоя ЕС/ЕИП+EUR обхват (вече филтриран при fetch_eu_instruments.py)."""
+def contains_words(text: str, phrase: str) -> bool:
+    return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
+
+
+def load_universe_from_terms(rows: list):
+    """Съпоставя редовете от качения файл срещу ПЪЛНИЯ eu_instruments.json:
+    първо по ISIN (точно), после по тикер (точно, спрямо T212 shortName),
+    накрая по име (точно, иначе подниз). Gettex акциите се пренасочват към
+    основното им листване, ако е известно от месечната селекция.
+    Приема и стар формат - списък от низове (имена/тикери)."""
     full_path = Path(INSTRUMENTS_FILE)
     if not full_path.exists():
         st.error(f"Не намерих {INSTRUMENTS_FILE} - не мога да съпоставя качения списък.")
         return {}
-    full_instruments = json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
+    rows = [r if isinstance(r, dict) else {"isin": "", "symbol": "", "name": str(r)} for r in rows]
+    instruments = [i for i in json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
+                   if exchange_to_yahoo_suffix(i.get("exchangeName", "")) is not None]
+    by_isin = {i.get("isin", "").upper(): i for i in instruments if i.get("isin")}
+    by_short = {i.get("shortName", "").lower(): i for i in instruments if i.get("shortName")}
+    by_name = {i.get("name", "").lower(): i for i in instruments if i.get("name")}
+    _, resolved, _ = load_curated_symbol_info(curated_file_mtime())
 
-    mapped = {}
-    matched_terms = set()
-    terms_lower = [(t, t.lower()) for t in terms]
+    def find(row):
+        if row["isin"] and row["isin"].upper() in by_isin:
+            return by_isin[row["isin"].upper()]
+        if row["symbol"] and row["symbol"].lower() in by_short:
+            return by_short[row["symbol"].lower()]
+        name = row["name"].lower()
+        if name in by_name:
+            return by_name[name]
+        # по цели думи (иначе "onex" съвпада с "n-onex-istent"), само за имена от 4+ знака
+        if len(name) >= 4:
+            for inst in instruments:
+                inst_name = inst.get("name", "").lower()
+                if len(inst_name) >= 4 and (contains_words(inst_name, name) or contains_words(name, inst_name)):
+                    return inst
+        return None
 
-    for inst in full_instruments:
-        name_field = inst.get("name", "").lower()
-        short_field = inst.get("shortName", "").lower()
-        for original, term_lower in terms_lower:
-            if not term_lower:
-                continue
-            if term_lower in name_field or term_lower in short_field or (name_field and name_field in term_lower):
-                suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
-                if suffix is None:
-                    continue
-                yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
-                label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
-                mapped[label] = yahoo_ticker
-                matched_terms.add(original)
-                break
+    mapped, unmatched = {}, []
+    for row in rows:
+        inst = find(row)
+        if inst is None:
+            unmatched.append(row["name"] or row["symbol"] or row["isin"])
+            continue
+        yahoo_ticker = f"{inst.get('shortName', '')}{exchange_to_yahoo_suffix(inst.get('exchangeName', ''))}"
+        label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+        symbol = resolved.get(yahoo_ticker, yahoo_ticker)
+        if symbol.endswith(".MU") and inst.get("isin", "").startswith("US") and row["symbol"]:
+            symbol = row["symbol"].upper()  # Gettex US акция: тикерът от файла е основното US листване
+        mapped[label] = symbol
 
-    unmatched = [t for t in terms if t not in matched_terms]
     if unmatched:
         preview = ", ".join(unmatched[:8])
         more = f" (+{len(unmatched) - 8} още)" if len(unmatched) > 8 else ""
         st.warning(
-            f"{len(unmatched)} от {len(terms)} реда не намерих в ЕС/ЕИП+EUR универса "
-            f"(извън обхвата на проекта или разлика в изписването): {preview}{more}"
+            f"{len(unmatched)} от {len(rows)} реда не намерих в ЕС/ЕИП+EUR универса на T212 "
+            f"(извън обхвата или разлика в изписването): {preview}{more}"
         )
     return mapped
 
@@ -208,13 +238,13 @@ def render_universe_uploader(key: str):
     )
     if uploaded is None:
         return None
-    terms = parse_uploaded_ticker_list(uploaded)
-    if not terms:
+    rows = parse_uploaded_ticker_list(uploaded)
+    if not rows:
         st.error("Файлът изглежда празен или нечетим.")
         return None
-    mapped = load_universe_from_terms(terms)
+    mapped = load_universe_from_terms(rows)
     if mapped:
-        st.success(f"Качени {len(terms)} реда → {len(mapped)} съвпадения в ЕС/ЕИП+EUR универса.")
+        st.success(f"Качени {len(rows)} реда → {len(mapped)} съвпадения в ЕС/ЕИП+EUR универса.")
     return mapped or None
 
 
@@ -503,9 +533,11 @@ def load_curated_symbol_info(curated_mtime: float = 0):
     path = Path(CURATED_FILE)
     if not path.exists():
         return {}, {}, {}
-    instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
+    data = json.loads(path.read_text(encoding="utf-8"))
+    instruments = data.get("instruments", [])
     currencies = {x["symbol"]: x.get("currency", "EUR") for x in instruments}
-    resolved = {x["t212_symbol"]: x["symbol"] for x in instruments if x.get("t212_symbol")}
+    # основното листване на Gettex акциите - и за отпадналите при подбора (за CSV/ръчно добавени)
+    resolved = {x["t212_symbol"]: x["symbol"] for x in instruments + data.get("rejected", []) if x.get("t212_symbol")}
     types = {x["symbol"]: x.get("type") for x in instruments}
     return currencies, resolved, types
 
@@ -612,6 +644,30 @@ def load_manual_universe():
         return {"include": data.get("include", []), "exclude": data.get("exclude", [])}
     except (json.JSONDecodeError, OSError):
         return {"include": [], "exclude": []}
+
+
+def add_to_manual_universe(items: dict, github_token: str):
+    """Добавя {label: symbol} към "include" в manual_universe.json в repo-то
+    (без дубликати по символ). Чете актуалната версия от GitHub, за да не
+    презапише промени, направени междувременно. Връща (success, съобщение)."""
+    content, _ = github_get_file(MANUAL_UNIVERSE_FILE, github_token)
+    try:
+        manual = json.loads(content) if content else load_manual_universe()
+    except json.JSONDecodeError:
+        manual = load_manual_universe()
+    manual.setdefault("include", []); manual.setdefault("exclude", [])
+    have = {x["symbol"] for x in manual["include"]}
+    new = [{"name": n, "symbol": s} for n, s in items.items() if s not in have]
+    if not new:
+        return True, "Всички вече са в ръчния списък."
+    manual["include"] += new
+    ok, msg = github_write_file(
+        MANUAL_UNIVERSE_FILE, json.dumps(manual, ensure_ascii=False, indent=2), github_token,
+        f"Manual universe: add {len(new)} from uploaded file",
+    )
+    if ok:
+        msg = f"Добавени {len(new)} в ръчния списък. Streamlit ще се обнови след минута-две."
+    return ok, msg
 
 
 def render_manual_universe_editor(key: str):
