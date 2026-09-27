@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from anthropic import Anthropic
 import json
+import re
 import time
 import requests
 from pathlib import Path
@@ -1494,6 +1495,15 @@ def render_sd_strategy():
             st.plotly_chart(fig, use_container_width=True)
 
 
+# Ливъриджнати/short/inverse ETP-та: short = залог надолу (противоречи на long-only),
+# daily leveraged губят стойност при държане повече от ден-два (volatility decay)
+LEVERAGED_ETP_PATTERN = re.compile(r"\b(short|leveraged?|ultra|bear|inverse|boost)\b|\b\d+(\.\d+)?x\b", re.IGNORECASE)
+
+
+def is_leveraged_or_short_etp(name: str) -> bool:
+    return bool(LEVERAGED_ETP_PATTERN.search(name))
+
+
 def alternating_swings(df_with_swings: pd.DataFrame):
     """Свежда swing точките до строго редуваща се поредица high/low/high/...
     Два поредни high-а (без low между тях) се сливат в по-високия, два поредни
@@ -1648,7 +1658,10 @@ def analyze_instrument_photon(
         return None
     equilibrium = daily_support + daily_range / 2
     in_discount = current_price <= equilibrium
-    discount_pct = round(100 * (equilibrium - current_price) / (daily_range / 2), 1)
+    # позиция в дневния диапазон: 0% = подкрепа, 50% = equilibrium, 100% = съпротива;
+    # над 100% = цената е пробила съпротивата (BOS), нов swing high още не е потвърден
+    range_pos = round(100 * (current_price - daily_support) / daily_range, 1)
+    above_resistance = current_price > daily_resistance
 
     # --- Internal/LTF (4ч, подравнени към сесията): Pro/Counter Internal + CHoCH тригер ---
     events, atr_4h = None, None
@@ -1697,6 +1710,8 @@ def analyze_instrument_photon(
         note = "Вход на POI" if phase == "A" else f"CHoCH преди {events['choch_bars_ago']} свещи"
     elif setup_ok:
         note = f"R/R под {min_rr}"
+    elif above_resistance:
+        note = "Над дневната съпротива (BOS) - чакаме нов пулбек"
     elif not in_discount:
         note = "Premium - чакаме връщане под 50%"
     elif phase == "A":
@@ -1707,7 +1722,8 @@ def analyze_instrument_photon(
     return {
         "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
         "Фаза": f"{phase} ({'Pro' if phase == 'A' else 'Counter'} Internal)",
-        "Premium/Discount": f"{'Discount' if in_discount else 'Premium'} ({discount_pct}%)",
+        "Зона": "Над съпротивата (BOS)" if above_resistance else ("Discount" if in_discount else "Premium"),
+        "Позиция в диапазона (%)": range_pos,
         "4ч CHoCH сега": events["choch_bullish_now"],
         "Бележка": note,
         "Дневна подкрепа": round(daily_support, 2), "Дневна съпротива": round(daily_resistance, 2),
@@ -1792,6 +1808,10 @@ def render_photon_strategy():
         )
         stop_atr_buffer = st.slider("Stop буфер под reference low (x ATR 4ч)", 0.0, 1.0, 0.5, step=0.1, key="ph_stop_buf")
         min_rr = st.slider("Минимален R/R (до дневна съпротива)", 1.0, 4.0, 2.0, step=0.5, key="ph_min_rr")
+        exclude_leveraged = st.checkbox(
+            "Изключи ливъриджнати/short ETP", value=True, key="ph_excl_lev",
+            help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
+        )
         uploaded_universe = render_universe_uploader(key="ph")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="ph")
@@ -1806,6 +1826,11 @@ def render_photon_strategy():
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="ph")
+    if exclude_leveraged:
+        excluded = [n for n in tickers if is_leveraged_or_short_etp(n)]
+        tickers = {n: s for n, s in tickers.items() if n not in excluded}
+        if excluded:
+            st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
         results, watch_list = [], []
