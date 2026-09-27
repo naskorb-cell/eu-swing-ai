@@ -38,6 +38,12 @@ INSTRUMENTS_FILE = "eu_instruments.json"
 OUTPUT_FILE = "curated_universe.json"
 CHUNK_SIZE = 50
 INFO_WORKERS = 4  # паралелни заявки за капитализация/AUM (повече = риск от 429 от Yahoo)
+RETRY_PAUSES = (30, 90)  # сек. пауза преди повторното теглене на символите без данни
+RETRY_CHUNK_SIZE = 20
+CURRENCY_BY_SUFFIX = {
+    ".L": "GBp", ".T": "JPY", ".HK": "HKD", ".ST": "SEK", ".OL": "NOK", ".CO": "DKK", ".TO": "CAD",
+    ".V": "CAD", ".CN": "CAD", ".AX": "AUD", ".SW": "CHF", ".WA": "PLN", ".TA": "ILA",
+}
 
 # Gettex (.MU) листванията нямат използваеми данни в Yahoo - за тях търсим по ISIN
 # основното листване. Предпочитан суфикс на Yahoo символа по държава от ISIN
@@ -222,20 +228,38 @@ def convert_to_eur(items: list) -> list:
         if not rate:
             continue
         item["currency"] = cur
-        for field in ("avg_dollar_volume", "market_cap", "aum"):
+        if item.get("avg_dollar_volume"):
+            item["avg_dollar_volume"] = round(item["avg_dollar_volume"] / rate, 0)
+        # при котировка в пенсове (GBp) цената/оборотът са в пенсове, но
+        # капитализацията/AUM от Yahoo са в паунди
+        size_rate = rate / 100 if cur in ("GBp", "GBX") else rate
+        for field in ("market_cap", "aum"):
             if item.get(field):
-                item[field] = round(item[field] / rate, 0)
+                item[field] = round(item[field] / size_rate, 0)
         converted.append(item)
     return converted
 
 
 def score_in_batches(candidates: list) -> list:
-    scored = []
+    """Оборот и моментум за всички; символите без данни (Yahoo често връща
+    празно при много заявки) се теглят пак на по-малки порции след пауза."""
     by_symbol = {c["symbol"]: c for c in candidates}
-    symbols = list(by_symbol.keys())
+    scored = score_chunks(list(by_symbol.keys()), by_symbol, CHUNK_SIZE)
+    for attempt, pause in enumerate(RETRY_PAUSES, start=1):
+        done = {x["symbol"] for x in scored}
+        missing = [sym for sym in by_symbol if sym not in done]
+        if not missing:
+            break
+        print(f"  Повторен опит {attempt}: {len(missing)} символа без данни, пауза {pause} сек.")
+        time.sleep(pause)
+        scored += score_chunks(missing, by_symbol, RETRY_CHUNK_SIZE)
+    return scored
 
-    for i in range(0, len(symbols), CHUNK_SIZE):
-        chunk = symbols[i : i + CHUNK_SIZE]
+
+def score_chunks(symbols: list, by_symbol: dict, chunk_size: int) -> list:
+    scored = []
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i : i + chunk_size]
         try:
             df = yf.download(
                 chunk, period="3mo", interval="1d", group_by="ticker",
@@ -266,7 +290,7 @@ def score_in_batches(candidates: list) -> list:
             except Exception:
                 continue
 
-        print(f"  обработени {min(i + CHUNK_SIZE, len(symbols))}/{len(symbols)} ...")
+        print(f"  обработени {min(i + chunk_size, len(symbols))}/{len(symbols)} ...")
 
     return scored
 
@@ -279,21 +303,69 @@ def min_possible_turnover(item: dict) -> float:
     return rules.STOCK_MIN_TURNOVER if rules.is_home_listing(item["isin"]) else rules.STOCK_FOREIGN_MIN_TURNOVER
 
 
+def guess_currency(symbol: str) -> str:
+    """Валута по суфикса на Yahoo символа - резерва, ако Yahoo не я върне."""
+    suffix = "." + symbol.rsplit(".", 1)[1] if "." in symbol else ""
+    return CURRENCY_BY_SUFFIX.get(suffix, "EUR" if suffix else "USD")
+
+
 def fetch_size(item: dict) -> dict:
-    """Капитализация (акции) или AUM (ETF) от Yahoo .info; None при липса/грешка.
-    До 3 опита с пауза при rate limit."""
-    for attempt in range(3):
+    """Капитализация (акции) или AUM (ETF) от Yahoo. .info понякога връща празно
+    при много заявки (без грешка) - тогава опитваме пак, а за акциите и
+    fast_info (капитализация = брой акции x цена). None, ако няма нищо."""
+    info = {}
+    for attempt in range(4):
+        ticker = yf.Ticker(item["symbol"])
         try:
-            info = yf.Ticker(item["symbol"]).info or {}
-            item["currency"] = info.get("currency") or "EUR"
-            if item["type"] == "STOCK":
-                item["market_cap"] = info.get("marketCap")
-            else:
-                item["aum"] = info.get("totalAssets") or info.get("netAssets")
-            return item
+            info = ticker.info or {}
         except Exception:
-            time.sleep(2 * (attempt + 1))
+            info = {}
+        if item["type"] == "STOCK":
+            value = info.get("marketCap")
+            if not value:
+                try:
+                    value = ticker.fast_info["market_cap"]
+                except Exception:
+                    value = None
+            item["market_cap"] = value or None
+            got_answer = bool(value)
+        else:
+            item["aum"] = info.get("totalAssets") or info.get("netAssets")
+            got_answer = bool(info)  # ETF може законно да няма AUM в Yahoo
+        if got_answer:
+            break
+        time.sleep(3 * (attempt + 1))
+    item["currency"] = info.get("currency") or guess_currency(item["symbol"])
     return item
+
+
+def apply_previous_month(liquid_candidates: list, scored_symbols: set, candidates: list) -> tuple:
+    """Памет от предишния curated_universe.json: (1) липсваща капитализация/AUM
+    се допълва от миналия месец; (2) инструмент, който е бил в списъка, но
+    този път Yahoo изобщо не е върнал данни за него, остава с предишния запис.
+    Връща (допълнени, пренесени)."""
+    path = Path(OUTPUT_FILE)
+    if not path.exists():
+        return 0, []
+    try:
+        previous = {x["symbol"]: x for x in json.loads(path.read_text(encoding="utf-8")).get("instruments", [])}
+    except (json.JSONDecodeError, OSError):
+        return 0, []
+    filled = 0
+    for item in liquid_candidates:
+        prev = previous.get(item["symbol"])
+        if not prev:
+            continue
+        field = "market_cap" if item["type"] == "STOCK" else "aum"
+        if not item.get(field) and prev.get(field):
+            item[field] = prev[field]
+            filled += 1
+    candidate_symbols = {c["symbol"] for c in candidates}
+    carried = [
+        {**prev, "carried_over": True} for sym, prev in previous.items()
+        if sym not in scored_symbols and sym in candidate_symbols and "type" in prev
+    ]
+    return filled, carried
 
 
 def main():
@@ -325,6 +397,9 @@ def main():
     # еврото (USD, SEK, JPY...), той е по-хлабав, така че нищо валидно не отпада;
     # истинската проверка е след превръщането в €
     prefiltered = convert_to_eur(prefiltered)
+    filled, carried = apply_previous_month(prefiltered, {x["symbol"] for x in scored}, candidates)
+    if filled:
+        print(f"Капитализация/AUM от миналия месец (Yahoo не ги върна сега): {filled}")
 
     liquid_pool, reject_counts, rejected = [], {}, []
     for item in prefiltered:
@@ -339,6 +414,11 @@ def main():
                 "market_cap": item.get("market_cap"), "aum": item.get("aum"),
             })
     print(f"Минали критериите: {len(liquid_pool)}; отпаднали: {reject_counts}")
+    in_pool = {x["symbol"] for x in liquid_pool}
+    carried = [x for x in carried if x["symbol"] not in in_pool]
+    if carried:
+        print(f"Пренесени от миналия месец (Yahoo не върна цени сега): {len(carried)}")
+        liquid_pool += carried
     etf_no_aum = sum(1 for x in liquid_pool if x["type"] == "ETF" and not x.get("aum"))
     if etf_no_aum:
         print(f"  (от тях {etf_no_aum} ETF без данни за AUM в Yahoo - проверени само по оборот)")
@@ -367,8 +447,8 @@ def main():
 
     # Записваме всички ликвидни; редът (трендиращи първо, после по моментум)
     # има значение само за фалбек сценарии с лимит на броя в UI.
-    trending_matches.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
-    non_trending.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
+    trending_matches.sort(key=lambda x: x.get("momentum_3m_pct") or 0, reverse=True)
+    non_trending.sort(key=lambda x: x.get("momentum_3m_pct") or 0, reverse=True)
     top = trending_matches + non_trending
 
     result = {
@@ -378,6 +458,7 @@ def main():
         "stock_count": sum(1 for x in top if x["type"] == "STOCK"),
         "etf_count": sum(1 for x in top if x["type"] == "ETF"),
         "media_trending_count": len(trending_matches),
+        "carried_over_count": len(carried),
         # минали pre-filter-а по оборот, но отпаднали на капитализация/AUM - за
         # проверка в UI дали Yahoo не е дал грешни числа
         "rejected": sorted(rejected, key=lambda x: -(x["avg_dollar_volume"] or 0)),
