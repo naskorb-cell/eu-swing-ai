@@ -8,6 +8,7 @@
 
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
 
@@ -38,15 +39,29 @@ REC_LABELS = {"strong_buy": "Strong Buy", "buy": "Buy", "hold": "Hold", "underpe
 
 # ---------------------------------------------------------------- ниво 1: Yahoo
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def _yahoo_info(symbol: str) -> dict:
+    """Yahoo .info с кеш 6 ч. Празен отговор хвърля грешка - неуспехите НЕ се
+    кешират (иначе едно временно блокиране от Yahoo оставя "няма данни" за часове)."""
+    info = yf.Ticker(symbol).info or {}
+    if not info.get("quoteType"):
+        raise ValueError("Yahoo върна празен отговор")
+    return info
+
+
 def _analyst_info(symbol: str) -> dict:
-    """Анализаторските полета от Yahoo .info (2 опита - Yahoo понякога връща празно)."""
-    for _ in range(2):
+    """Анализаторските полета от Yahoo .info; до 3 опита с пауза (Yahoo
+    ограничава честите заявки). При неуспех - {"error": причина}."""
+    info, error = None, None
+    for attempt in range(3):
         try:
-            info = yf.Ticker(symbol).info or {}
-        except Exception:
-            info = {}
-        if info.get("quoteType"):
+            info = _yahoo_info(symbol)
             break
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"
+            time.sleep(1.5 * (attempt + 1))
+    if info is None:
+        return {"error": error}
     price = info.get("currentPrice") or info.get("regularMarketPrice")
     target = info.get("targetMeanPrice")
     fwd, trailing = info.get("forwardEps"), info.get("trailingEps")
@@ -62,15 +77,20 @@ def _analyst_info(symbol: str) -> dict:
     }
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
-def fetch_analyst_data(symbols: tuple) -> dict:
-    """{symbol: анализаторски данни} за всички символи (паралелно, кеш 6 ч.)."""
-    with ThreadPoolExecutor(max_workers=6) as pool:
+def fetch_analyst_data(symbols) -> dict:
+    """{symbol: анализаторски данни или {"error": ...}} - по 3 паралелно
+    (повече нишки = по-често блокиране от Yahoo)."""
+    symbols = list(symbols)
+    with ThreadPoolExecutor(max_workers=3) as pool:
         return dict(zip(symbols, pool.map(_analyst_info, symbols)))
 
 
+def failed_symbols(fund_data: dict) -> list:
+    return [s for s, d in fund_data.items() if "error" in d]
+
+
 def fundamental_verdict(data: dict | None) -> str:
-    if not data or data.get("quote_type") == "ETF":
+    if not data or "error" in data or data.get("quote_type") == "ETF":
         return FUND_NO_DATA
     rec, analysts, upside = data.get("rec"), data.get("analysts") or 0, data.get("upside")
     if not rec or rec == "none" or analysts == 0:
