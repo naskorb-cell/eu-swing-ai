@@ -35,6 +35,130 @@
     {
       "name": "FRE (Fresenius)",
       "symbol": "FRE.DE"
+    },
+    {
+      "name": "ABI (AB InBev)",
+      "symbol": "ABI.BR"
+    },
+    {
+      "name": "ASG (GENERALI)",
+      "symbol": "ASG.DE"
+    },
+    {
+      "name": "IES (Intesa Sanpaolo)",
+      "symbol": "IES.DE"
+    },
+    {
+      "name": "UMI (Umicore)",
+      "symbol": "UMI.BR"
+    },
+    {
+      "name": "OR (L'Oreal)",
+      "symbol": "OR.PA"
+    },
+    {
+      "name": "EBA (eBay)",
+      "symbol": "EBA.DE"
+    },
+    {
+      "name": "PAR (Parker-Hannifin)",
+      "symbol": "PH"
+    },
+    {
+      "name": "R66 (Phillips 66)",
+      "symbol": "R66.DE"
+    },
+    {
+      "name": "1170 (Arista Networks)",
+      "symbol": "1170.DE"
+    },
+    {
+      "name": "3E1 (Elastic)",
+      "symbol": "3E1.DE"
+    },
+    {
+      "name": "SOT (Southern)",
+      "symbol": "SOT.DE"
+    },
+    {
+      "name": "WB2 (Westinghouse Air Brake Technologies)",
+      "symbol": "WAB"
+    },
+    {
+      "name": "ILT (Illinois Tool Works)",
+      "symbol": "ITW"
+    },
+    {
+      "name": "FAS (Fastenal)",
+      "symbol": "FAS.DE"
+    },
+    {
+      "name": "0OK (Okta)",
+      "symbol": "OKTA"
+    },
+    {
+      "name": "ATS (AT&S Austria Technologie & Systemtechnik)",
+      "symbol": "ATS.VI"
+    },
+    {
+      "name": "KP5 (Kitron)",
+      "symbol": "KIT.OL"
+    },
+    {
+      "name": "UNP (Union Pacific)",
+      "symbol": "UNP.DE"
+    },
+    {
+      "name": "D8V (Credicorp)",
+      "symbol": "D8V.MU"
+    },
+    {
+      "name": "12DA (Dell Technologies)",
+      "symbol": "12DA.DE"
+    },
+    {
+      "name": "NTA (NetApp)",
+      "symbol": "NTA.DE"
+    },
+    {
+      "name": "DS3 (DocuSign)",
+      "symbol": "DOCU"
+    },
+    {
+      "name": "TOW (Tower Semiconductor)",
+      "symbol": "TOW.MU"
+    },
+    {
+      "name": "RSO (Ross Stores)",
+      "symbol": "RSO.DE"
+    },
+    {
+      "name": "1IG (AutoStore)",
+      "symbol": "1IG.MU"
+    },
+    {
+      "name": "UU2 (BlackRock)",
+      "symbol": "UU2.DE"
+    },
+    {
+      "name": "EWL (Edwards Lifesciences)",
+      "symbol": "EWL.DE"
+    },
+    {
+      "name": "MS51 (Super Micro Computer)",
+      "symbol": "MS51.DE"
+    },
+    {
+      "name": "IC2 (Intercontinental Exchange)",
+      "symbol": "IC2.DE"
+    },
+    {
+      "name": "AES (AES)",
+      "symbol": "AES"
+    },
+    {
+      "name": "NUO (Nucor)",
+      "symbol": "NUO.DE"
     }
   ],
   "exclude": []
