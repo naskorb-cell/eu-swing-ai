@@ -592,9 +592,9 @@ def flag_macro_signal(df: pd.DataFrame, macro_keywords, name_col="Име", ticke
 @st.cache_data(ttl=6 * 3600)
 @st.cache_data(ttl=6 * 3600)
 def load_curated_symbol_info(curated_mtime: float = 0):
-    """От curated_universe.json: ({symbol: валута}, {оригинален T212 .MU символ:
-    основно листване}, {symbol: тип STOCK/ETF}) - за Gettex акциите се сканира
-    основното листване (US/SE/...), защото Yahoo няма използваеми данни за .MU."""
+    """От curated_universe.json: ({symbol: валута}, {оригинален T212 символ:
+    основно листване}, {symbol: тип STOCK/ETF}) - за Gettex и чуждите акции на
+    европейски борси (напр. US акция на Xetra) се сканира основното листване."""
     path = Path(CURATED_FILE)
     if not path.exists():
         return {}, {}, {}
@@ -602,7 +602,8 @@ def load_curated_symbol_info(curated_mtime: float = 0):
     instruments = data.get("instruments", [])
     currencies = {x["symbol"]: x.get("currency", "EUR") for x in instruments}
     # основното листване на Gettex акциите - и за отпадналите при подбора (за CSV/ръчно добавени)
-    resolved = {x["t212_symbol"]: x["symbol"] for x in instruments + data.get("rejected", []) if x.get("t212_symbol")}
+    resolved = {**data.get("resolved_aliases", {}),
+                **{x["t212_symbol"]: x["symbol"] for x in instruments + data.get("rejected", []) if x.get("t212_symbol")}}
     types = {x["symbol"]: x.get("type") for x in instruments}
     return currencies, resolved, types
 

@@ -176,20 +176,50 @@ def pick_primary_symbol(quotes: list, isin: str):
     return no_suffix[0] if no_suffix else symbols[0]
 
 
-def resolve_primary_symbol(item: dict) -> dict:
-    """За Gettex инструмент: търси по ISIN основното листване в Yahoo и подменя
-    symbol-а (оригиналът остава в t212_symbol). При неуспех оставя .MU."""
+def search_primary_symbol(isin: str):
+    """Основното листване по ISIN от Yahoo search (None при неуспех)."""
     for attempt in range(3):
         try:
-            quotes = yf.Search(item["isin"], max_results=10, news_count=0).quotes
-            primary = pick_primary_symbol(quotes, item["isin"])
-            if primary:
-                item["t212_symbol"] = item["symbol"]
-                item["symbol"] = primary
-            return item
+            quotes = yf.Search(isin, max_results=10, news_count=0).quotes
+            return pick_primary_symbol(quotes, isin)
         except Exception:
             time.sleep(2 * (attempt + 1))
-    return item
+    return None
+
+
+def needs_primary_listing(item: dict) -> bool:
+    """Gettex (Yahoo няма използваеми данни) и чуждите акции на европейска борса
+    (напр. US акция на Xetra: малък обем, непълна сесия, без анализатори в Yahoo) -
+    анализът е по основното листване, търгува се пак в T212."""
+    if item["symbol"].endswith(GETTEX_SUFFIX):
+        return True
+    return item["type"] == "STOCK" and bool(item.get("isin")) and not rules.is_home_listing(item["isin"])
+
+
+def resolve_primary_listings(candidates: list) -> tuple:
+    """Подменя symbol-а с основното листване (оригиналът остава в t212_symbol) и
+    маха дубликатите (една акция на Xetra и Gettex -> един запис, за предпочитане
+    не-Gettex). Връща (кандидати, {t212 символ: основно листване} за всички)."""
+    to_resolve = [c for c in candidates if needs_primary_listing(c) and c.get("isin")]
+    isins = sorted({c["isin"] for c in to_resolve})
+    with ThreadPoolExecutor(max_workers=INFO_WORKERS) as pool:
+        primary_by_isin = dict(zip(isins, pool.map(search_primary_symbol, isins)))
+    aliases = {}
+    for c in to_resolve:
+        primary = primary_by_isin.get(c["isin"])
+        if primary and primary != c["symbol"]:
+            aliases[c["symbol"]] = primary
+            c["t212_symbol"], c["symbol"] = c["symbol"], primary
+    print(f"Основно листване: намерено за {len(aliases)}/{len(to_resolve)} "
+          f"(Gettex + чужди акции на европейски борси, {len(isins)} уникални ISIN)")
+    seen, unique = set(), []
+    for c in sorted(candidates, key=lambda c: c.get("t212_symbol", c["symbol"]).endswith(GETTEX_SUFFIX)):
+        if c["symbol"] not in seen:
+            seen.add(c["symbol"])
+            unique.append(c)
+    if len(unique) < len(candidates):
+        print(f"Премахнати дубликати (една акция на няколко борси): {len(candidates) - len(unique)}")
+    return unique, aliases
 
 
 def eur_rates(currencies: set) -> dict:
@@ -362,14 +392,11 @@ def main():
     candidates = build_candidate_list()
     print(f"Общо кандидати за оценка: {len(candidates)}")
 
-    gettex = [c for c in candidates if c["symbol"].endswith(GETTEX_SUFFIX)]
-    if gettex and not hasattr(yf, "Search"):
-        print("Предупреждение: yfinance няма yf.Search - Gettex инструментите остават с .MU")
-    elif gettex:
-        with ThreadPoolExecutor(max_workers=INFO_WORKERS) as pool:
-            list(pool.map(resolve_primary_symbol, gettex))
-        resolved = sum(1 for c in gettex if "t212_symbol" in c)
-        print(f"Gettex: намерено основно листване за {resolved}/{len(gettex)}")
+    aliases = {}
+    if not hasattr(yf, "Search"):
+        print("Предупреждение: yfinance няма yf.Search - Gettex/чуждите акции остават с листването в T212")
+    else:
+        candidates, aliases = resolve_primary_listings(candidates)
 
     scored = score_in_batches(candidates)
     print(f"Успешно оценени (с валидни данни): {len(scored)}")
@@ -452,6 +479,8 @@ def main():
         # минали pre-filter-а по оборот, но отпаднали на капитализация/AUM - за
         # проверка в UI дали Yahoo не е дал грешни числа
         "rejected": sorted(rejected, key=lambda x: -(x["avg_dollar_volume"] or 0)),
+        # T212 листване -> основно листване (за ръчно/CSV добавени и за позициите в T212)
+        "resolved_aliases": aliases,
         "criteria": {
             "stock_min_market_cap": rules.STOCK_MIN_MARKET_CAP,
             "stock_min_turnover": rules.STOCK_MIN_TURNOVER,
