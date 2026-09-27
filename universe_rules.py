@@ -17,6 +17,9 @@ STOCK_FOREIGN_MIN_TURNOVER = 50_000      # €/ден - чужди акции н
 ETF_MIN_AUM = 100_000_000                # € (или USD - Yahoo връща валутата на фонда)
 ETF_MIN_TURNOVER = 250_000               # €/ден - при ETF спредът зависи от маркет мейкъра и
                                          # базовите активи, затова по-нисък праг от акциите
+ETF_STRONG_TURNOVER = 1_000_000          # €/ден - над това ETF не отпада заради AUM: Yahoo често дава
+                                         # грешен/остарял AUM за европейски листвания (напр. iShares
+                                         # Bitcoin с 1.2 млрд. € реален AUM отпадаше като "малък")
 
 # ISIN държави от ЕС/ЕИП: акция с такъв ISIN се търгува основно на европейска борса
 # и оборотът ѝ в Yahoo е представителен. Иначе (US, CH, GB, CA...) листването в
@@ -57,7 +60,8 @@ def passes_liquidity(item: dict, stock_min_cap=STOCK_MIN_MARKET_CAP, stock_min_t
                      etf_min_aum=ETF_MIN_AUM, etf_min_turnover=ETF_MIN_TURNOVER):
     """Проверява инструмент (dict с type, isin, avg_dollar_volume, market_cap, aum)
     срещу критериите. Връща (True, None) или (False, причина).
-    ETF без данни за AUM в Yahoo НЕ отпада - проверява се само по оборот."""
+    ETF без данни за AUM в Yahoo НЕ отпада - проверява се само по оборот; ETF с
+    оборот >= ETF_STRONG_TURNOVER не отпада и при малък AUM по Yahoo."""
     turnover = item.get("avg_dollar_volume") or 0
     inst_type = item.get("type")
     if inst_type == "STOCK":
@@ -72,7 +76,7 @@ def passes_liquidity(item: dict, stock_min_cap=STOCK_MIN_MARKET_CAP, stock_min_t
         return True, None
     if inst_type == "ETF":
         aum = item.get("aum")
-        if aum and aum < etf_min_aum:
+        if aum and aum < etf_min_aum and turnover < max(ETF_STRONG_TURNOVER, etf_min_turnover):
             return False, "ETF: малък AUM"
         if turnover < etf_min_turnover:
             return False, "ETF: нисък оборот"

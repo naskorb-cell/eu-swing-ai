@@ -326,13 +326,18 @@ def main():
     # истинската проверка е след превръщането в €
     prefiltered = convert_to_eur(prefiltered)
 
-    liquid_pool, reject_counts = [], {}
+    liquid_pool, reject_counts, rejected = [], {}, []
     for item in prefiltered:
         ok, why = rules.passes_liquidity(item)
         if ok:
             liquid_pool.append(item)
         else:
             reject_counts[why] = reject_counts.get(why, 0) + 1
+            rejected.append({
+                "name": item["name"], "symbol": item["symbol"], "reason": why,
+                "avg_dollar_volume": item.get("avg_dollar_volume"),
+                "market_cap": item.get("market_cap"), "aum": item.get("aum"),
+            })
     print(f"Минали критериите: {len(liquid_pool)}; отпаднали: {reject_counts}")
     etf_no_aum = sum(1 for x in liquid_pool if x["type"] == "ETF" and not x.get("aum"))
     if etf_no_aum:
@@ -373,6 +378,9 @@ def main():
         "stock_count": sum(1 for x in top if x["type"] == "STOCK"),
         "etf_count": sum(1 for x in top if x["type"] == "ETF"),
         "media_trending_count": len(trending_matches),
+        # минали pre-filter-а по оборот, но отпаднали на капитализация/AUM - за
+        # проверка в UI дали Yahoo не е дал грешни числа
+        "rejected": sorted(rejected, key=lambda x: -(x["avg_dollar_volume"] or 0)),
         "criteria": {
             "stock_min_market_cap": rules.STOCK_MIN_MARKET_CAP,
             "stock_min_turnover": rules.STOCK_MIN_TURNOVER,
