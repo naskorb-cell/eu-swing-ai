@@ -60,6 +60,23 @@ CASH_BOND_FUND_PATTERN = re.compile(
 )
 
 
+# Yahoo суфикси на основни борси извън Европа и САЩ (Азия/Австралия, Канада, други).
+# В T212 тези акции се търгуват на Gettex в европейско време, когато основната им
+# борса е затворена: широк спред, цена от маркет мейкъра и гап спрямо сигнала,
+# изчислен върху свещите на основната борса.
+NON_EU_US_PRIMARY_SUFFIXES = {
+    ".T", ".HK", ".AX", ".NZ", ".SI", ".JK", ".KS", ".KQ", ".TW", ".TWO", ".SS", ".SZ", ".BO", ".NS",
+    ".TO", ".V", ".CN", ".NE", ".MX", ".SA", ".JO", ".TA",
+}
+
+
+def is_non_eu_us_listing(symbol: str) -> bool:
+    """True за символ на основна борса извън Европа и САЩ (напр. 7203.T, 0700.HK, SHOP.TO)."""
+    if "." not in (symbol or ""):
+        return False  # US листване без суфикс
+    return "." + symbol.rsplit(".", 1)[1].upper() in NON_EU_US_PRIMARY_SUFFIXES
+
+
 def is_cash_or_bond_fund(name: str) -> bool:
     return bool(CASH_BOND_FUND_PATTERN.search(name or ""))
 
