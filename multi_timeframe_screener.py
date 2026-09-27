@@ -9,6 +9,7 @@ import time
 import requests
 from pathlib import Path
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import t212_portfolio as t212
 import universe_rules as rules
@@ -179,7 +180,7 @@ FALLBACK_TICKERS = {
 
 
 @st.cache_data(ttl=6 * 3600)
-def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: tuple = None):
+def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: tuple = None, curated_mtime: float = 0):
     """Зарежда универса за сканиране. Приоритет:
     1) закачени (pinned_keywords) инструменти - винаги от ПЪЛНИЯ eu_instruments.json,
        за да не пропуснем нищо, дори ако не са в месечната селекция;
@@ -188,7 +189,9 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: t
     3) fallback - суровият ред от eu_instruments.json, ако все още няма curated файл.
     max_instruments=None = без лимит; liquidity = (мин. капитализация на акция,
     мин. оборот на акция, мин. AUM на ETF, мин. оборот на ETF) - допълнително
-    стесняване на curated файла (закачените винаги влизат)."""
+    стесняване на curated файла (закачените винаги влизат). curated_mtime не се
+    ползва в тялото - само е част от ключа на кеша, за да се презареди
+    автоматично, когато workflow-ът запише нов curated_universe.json."""
     if max_instruments is None:
         max_instruments = float("inf")
     pinned_keywords_lower = [kw.lower() for kw in pinned_keywords if kw.strip()]
@@ -405,12 +408,73 @@ def format_eur(value: float) -> str:
     return f"{value / 1e3:g} хил. €"
 
 
+CURATE_WORKFLOW_FILE = "monthly_curate.yml"
+
+
+def curated_file_mtime() -> float:
+    path = Path(CURATED_FILE)
+    return path.stat().st_mtime if path.exists() else 0
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_latest_workflow_run(workflow_file: str, github_token: str = None):
+    """Последното пускане на workflow-а от GitHub API (кеш 60 сек.).
+    Repo-то е публично, затова работи и без token (с по-нисък лимит).
+    Връща dict с status/conclusion/времена/линк или None при грешка."""
+    url = (
+        f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}"
+        f"/actions/workflows/{workflow_file}/runs"
+    )
+    headers = {"Accept": "application/vnd.github+json"}
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
+    try:
+        resp = requests.get(url, headers=headers, params={"per_page": 1}, timeout=10)
+        runs = resp.json().get("workflow_runs", []) if resp.status_code == 200 else []
+    except (requests.RequestException, ValueError):
+        return None
+    if not runs:
+        return None
+    run = runs[0]
+    return {
+        "status": run.get("status"), "conclusion": run.get("conclusion"),
+        "started": run.get("run_started_at") or run.get("created_at"),
+        "updated": run.get("updated_at"), "url": run.get("html_url"),
+    }
+
+
+def format_github_time(iso_ts: str) -> str:
+    """'2026-09-27T09:25:11Z' -> '27.09 12:25' (българско време)."""
+    if not iso_ts:
+        return "?"
+    dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+    return dt.astimezone(ZoneInfo("Europe/Sofia")).strftime("%d.%m %H:%M")
+
+
+def render_workflow_status(run: dict):
+    if run is None:
+        st.caption("Статусът на обновяването не е достъпен в момента.")
+        return
+    started = format_github_time(run["started"])
+    if run["status"] != "completed":
+        st.info(f"⏳ Обновяването върви (започнато {started}). Приложението ще вземе новия списък автоматично, щом приключи.")
+    elif run["conclusion"] == "success":
+        st.success(f"✅ Последното обновяване завърши успешно ({format_github_time(run['updated'])}).")
+    else:
+        st.error(f"❌ Последното обновяване завърши с грешка ({run['conclusion']}, {started}). [Виж лога в GitHub]({run['url']})")
+
+
 def render_universe_refresh(key: str):
     """Инфо за месечната селекция (curated_universe.json) + бутон за ръчно
     обновяване (пуска monthly_curate.yml в GitHub Actions)."""
     curated_path = Path(CURATED_FILE)
     data = json.loads(curated_path.read_text(encoding="utf-8")) if curated_path.exists() else {}
-    with st.expander("🗂️ Универс: месечна селекция по ликвидност", expanded=False):
+    github_token = st.secrets.get("GITHUB_TOKEN", None)
+    run = fetch_latest_workflow_run(CURATE_WORKFLOW_FILE, github_token)
+    running = run is not None and run["status"] != "completed"
+    title = "🗂️ Универс: месечна селекция по ликвидност" + (" · ⏳ обновява се" if running else "")
+    with st.expander(title, expanded=running):
+        render_workflow_status(run)
         if not data:
             st.info("Още няма curated_universe.json - пусни обновяване.")
         else:
@@ -433,7 +497,6 @@ def render_universe_refresh(key: str):
                     "Пусни обновяване, за да се приложат новите критерии."
                 )
 
-        github_token = st.secrets.get("GITHUB_TOKEN", None)
         if not github_token:
             github_token = st.text_input("GitHub token (за ръчно пускане)", type="password", key=f"{key}_curate_token")
 
@@ -441,18 +504,20 @@ def render_universe_refresh(key: str):
         seconds_left = int(300 - (time.time() - st.session_state.get(cooldown_key, 0)))
         col_trigger, col_reload = st.columns(2)
         with col_trigger:
-            if st.button("🔄 Обнови универса сега", key=f"{key}_curate_trigger", disabled=seconds_left > 0):
+            if st.button("🔄 Обнови универса сега", key=f"{key}_curate_trigger", disabled=seconds_left > 0 or running):
                 if not github_token:
                     st.error("Липсва GitHub token!")
                 else:
-                    ok, msg = trigger_macro_workflow_dispatch(github_token, workflow_file="monthly_curate.yml")
+                    ok, msg = trigger_macro_workflow_dispatch(github_token, workflow_file=CURATE_WORKFLOW_FILE)
                     st.session_state[cooldown_key] = time.time()
+                    fetch_latest_workflow_run.clear()
                     if ok:
-                        msg = "Пуснато! Обновяването отнема ~30-60 мин. (виж Actions таба в GitHub), после натисни 'Изчисти кеша'."
+                        msg = ("Пуснато! Обновяването отнема ~10-30 мин. Натисни 'Провери статуса' след малко - "
+                               "новият списък се зарежда автоматично, щом приключи.")
                     (st.success if ok else st.error)(msg)
         with col_reload:
-            if st.button("🧹 Изчисти кеша", key=f"{key}_curate_reload"):
-                load_universe.clear()
+            if st.button("🔁 Провери статуса", key=f"{key}_curate_status"):
+                fetch_latest_workflow_run.clear()
                 st.rerun()
         st.caption("Автоматично се обновява всяко 1-во число от месеца.")
 
@@ -2015,7 +2080,10 @@ def render_photon_strategy():
         st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
     else:
         liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
-        tickers = load_universe(max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity)
+        tickers = load_universe(
+            max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity,
+            curated_mtime=curated_file_mtime(),
+        )
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     render_universe_refresh(key="ph")
     # филтърът за ливъриджнати е ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
