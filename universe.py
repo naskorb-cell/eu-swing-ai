@@ -165,6 +165,24 @@ def parse_uploaded_ticker_list(uploaded_file):
     return [r for r in rows if any(r.values())]
 
 
+FUND_WORDS = re.compile(
+    r"\b(etf|etc|etn|etp|ucits|fund|index|ishares|xtrackers|vanguard|amundi|spdr|invesco|wisdomtree|"
+    r"lyxor|vaneck|global x|hsbc msci|21shares|bitwise|leverage shares|graniteshares)\b",
+    re.IGNORECASE,
+)
+NAME_STOPWORDS = {"the", "inc", "corp", "corporation", "co", "company", "plc", "se", "sa", "ag", "nv", "ab",
+                  "asa", "spa", "s.p.a", "group", "holding", "holdings", "ltd", "limited", "class", "de", "and", "&"}
+
+
+def name_tokens(name: str) -> set:
+    return {t for t in re.findall(r"[a-z0-9]+", name.lower()) if t not in NAME_STOPWORDS and len(t) > 1}
+
+
+def names_match(a: str, b: str) -> bool:
+    """Поне една значима обща дума в двете имена (без Inc/SE/Group/...)."""
+    return bool(name_tokens(a) & name_tokens(b))
+
+
 def contains_words(text: str, phrase: str) -> bool:
     return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
 
@@ -180,8 +198,10 @@ def load_universe_from_terms(rows: list):
         st.error(f"Не намерих {INSTRUMENTS_FILE} - не мога да съпоставя качения списък.")
         return {}
     rows = [r if isinstance(r, dict) else {"isin": "", "symbol": "", "name": str(r)} for r in rows]
+    # ливъриджнатите/short ETP-та никога не са целта (напр. "Leverage Shares 2x Long Super Micro")
     instruments = [i for i in json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
-                   if exchange_to_yahoo_suffix(i.get("exchangeName", "")) is not None]
+                   if exchange_to_yahoo_suffix(i.get("exchangeName", "")) is not None
+                   and not rules.is_leveraged_or_short_etp(i.get("name", ""))]
     by_isin = {i.get("isin", "").upper(): i for i in instruments if i.get("isin")}
     by_short = {i.get("shortName", "").lower(): i for i in instruments if i.get("shortName")}
     by_name = {i.get("name", "").lower(): i for i in instruments if i.get("name")}
@@ -190,8 +210,19 @@ def load_universe_from_terms(rows: list):
     def find(row):
         if row["isin"] and row["isin"].upper() in by_isin:
             return by_isin[row["isin"].upper()]
+        # ред, който изглежда като компания, не се свързва с фонд по тикер/подниз
+        # (в T212 има ETP-та с тикера/името на акцията, напр. SMCI)
+        row_is_fund = bool(FUND_WORDS.search(row["name"]))
+
+        def type_ok(inst):
+            return row_is_fund or inst.get("type") != "ETF"
+
+        # тикерът съвпада само ако и името пасва (InvestingPro дава тикера на основната
+        # борса - напр. US "ALV" е Autoliv, а в T212 "ALV" е Allianz)
         if row["symbol"] and row["symbol"].lower() in by_short:
-            return by_short[row["symbol"].lower()]
+            inst = by_short[row["symbol"].lower()]
+            if type_ok(inst) and (not row["name"] or names_match(row["name"], inst.get("name", ""))):
+                return inst
         name = row["name"].lower()
         if name in by_name:
             return by_name[name]
@@ -199,7 +230,9 @@ def load_universe_from_terms(rows: list):
         if len(name) >= 4:
             for inst in instruments:
                 inst_name = inst.get("name", "").lower()
-                if len(inst_name) >= 4 and (contains_words(inst_name, name) or contains_words(name, inst_name)):
+                if not type_ok(inst) or len(inst_name) < 4:
+                    continue
+                if contains_words(inst_name, name) or contains_words(name, inst_name):
                     return inst
         return None
 
