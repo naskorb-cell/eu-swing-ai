@@ -39,6 +39,17 @@ OUTPUT_FILE = "curated_universe.json"
 CHUNK_SIZE = 50
 INFO_WORKERS = 4  # паралелни заявки за капитализация/AUM (повече = риск от 429 от Yahoo)
 
+# Gettex (.MU) листванията нямат използваеми данни в Yahoo - за тях търсим по ISIN
+# основното листване. Предпочитан суфикс на Yahoo символа по държава от ISIN
+# ("" = US листване без суфикс).
+GETTEX_SUFFIX = ".MU"
+PRIMARY_SUFFIX_BY_COUNTRY = {
+    "US": ("",), "CA": (".TO", ".V", ".CN", ""), "SE": (".ST",), "NO": (".OL",), "FI": (".HE",),
+    "DK": (".CO",), "JP": (".T",), "GB": (".L",), "CH": (".SW",), "DE": (".DE",), "FR": (".PA",),
+    "NL": (".AS",), "IT": (".MI",), "ES": (".MC",), "BE": (".BR",), "AT": (".VI",), "PT": (".LS",),
+    "IE": (".IR", ".L", ""), "AU": (".AX",), "HK": (".HK",), "IL": (".TA", ""),
+}
+
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
     ("PARIS", ".PA"), ("AMSTERDAM", ".AS"), ("MILAN", ".MI"), ("BORSA ITALIANA", ".MI"),
@@ -156,6 +167,68 @@ def build_candidate_list():
     return candidates
 
 
+def pick_primary_symbol(quotes: list, isin: str):
+    """Избира основното листване от резултатите на Yahoo search по държавата от ISIN."""
+    symbols = [q.get("symbol", "") for q in quotes if q.get("quoteType") == "EQUITY" and q.get("symbol")]
+    if not symbols:
+        return None
+    for suffix in PRIMARY_SUFFIX_BY_COUNTRY.get(isin[:2].upper(), ("",)):
+        for sym in symbols:
+            if (suffix == "" and "." not in sym) or (suffix and sym.endswith(suffix)):
+                return sym
+    no_suffix = [sym for sym in symbols if "." not in sym]
+    return no_suffix[0] if no_suffix else symbols[0]
+
+
+def resolve_primary_symbol(item: dict) -> dict:
+    """За Gettex инструмент: търси по ISIN основното листване в Yahoo и подменя
+    symbol-а (оригиналът остава в t212_symbol). При неуспех оставя .MU."""
+    for attempt in range(3):
+        try:
+            quotes = yf.Search(item["isin"], max_results=10, news_count=0).quotes
+            primary = pick_primary_symbol(quotes, item["isin"])
+            if primary:
+                item["t212_symbol"] = item["symbol"]
+                item["symbol"] = primary
+            return item
+        except Exception:
+            time.sleep(2 * (attempt + 1))
+    return item
+
+
+def eur_rates(currencies: set) -> dict:
+    """Курс 1 EUR = X <валута> за всяка валута (GBp = пенсове)."""
+    rates = {"EUR": 1.0}
+    for cur in currencies - {"EUR", None}:
+        base, factor = ("GBP", 100) if cur in ("GBp", "GBX") else (cur, 1)
+        try:
+            df = yf.download(f"EUR{base}=X", period="5d", interval="1d", progress=False, auto_adjust=True)
+            close = df["Close"].dropna()
+            last = close.iloc[-1] if close.ndim == 1 else close.iloc[-1, 0]
+            rates[cur] = float(last) * factor
+        except Exception as e:
+            print(f"  Няма курс EUR/{cur}: {e}")
+    return rates
+
+
+def convert_to_eur(items: list) -> list:
+    """Оборотът и капитализацията/AUM са във валутата на листването - превръщаме
+    ги в €, за да важат праговете. Без курс инструментът отпада."""
+    rates = eur_rates({x.get("currency") or "EUR" for x in items})
+    converted = []
+    for item in items:
+        cur = item.get("currency") or "EUR"
+        rate = rates.get(cur)
+        if not rate:
+            continue
+        item["currency"] = cur
+        for field in ("avg_dollar_volume", "market_cap", "aum"):
+            if item.get(field):
+                item[field] = round(item[field] / rate, 0)
+        converted.append(item)
+    return converted
+
+
 def score_in_batches(candidates: list) -> list:
     scored = []
     by_symbol = {c["symbol"]: c for c in candidates}
@@ -212,6 +285,7 @@ def fetch_size(item: dict) -> dict:
     for attempt in range(3):
         try:
             info = yf.Ticker(item["symbol"]).info or {}
+            item["currency"] = info.get("currency") or "EUR"
             if item["type"] == "STOCK":
                 item["market_cap"] = info.get("marketCap")
             else:
@@ -226,6 +300,15 @@ def main():
     candidates = build_candidate_list()
     print(f"Общо кандидати за оценка: {len(candidates)}")
 
+    gettex = [c for c in candidates if c["symbol"].endswith(GETTEX_SUFFIX)]
+    if gettex and not hasattr(yf, "Search"):
+        print("Предупреждение: yfinance няма yf.Search - Gettex инструментите остават с .MU")
+    elif gettex:
+        with ThreadPoolExecutor(max_workers=INFO_WORKERS) as pool:
+            list(pool.map(resolve_primary_symbol, gettex))
+        resolved = sum(1 for c in gettex if "t212_symbol" in c)
+        print(f"Gettex: намерено основно листване за {resolved}/{len(gettex)}")
+
     scored = score_in_batches(candidates)
     print(f"Успешно оценени (с валидни данни): {len(scored)}")
 
@@ -238,6 +321,10 @@ def main():
     print(f"След pre-filter по оборот: {len(prefiltered)} - тегля капитализация/AUM...")
     with ThreadPoolExecutor(max_workers=INFO_WORKERS) as pool:
         prefiltered = list(pool.map(fetch_size, prefiltered))
+    # pre-filter-ът е по оборот във валутата на листването - за валути, по-слаби от
+    # еврото (USD, SEK, JPY...), той е по-хлабав, така че нищо валидно не отпада;
+    # истинската проверка е след превръщането в €
+    prefiltered = convert_to_eur(prefiltered)
 
     liquid_pool, reject_counts = [], {}
     for item in prefiltered:
