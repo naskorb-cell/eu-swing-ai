@@ -33,4 +33,10 @@ jobs:
           git config user.email "github-actions@github.com"
           git add daily_macro_signal.json
           git diff --staged --quiet || git commit -m "Daily macro scan: $(date -u +'%Y-%m-%d')"
-          git push
+          # main може да се е променил, докато job-ът е вървял (merge, друг workflow) -
+          # издърпваме последното и опитваме пак, вместо да губим резултата
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 5
+          done
+          exit 1
