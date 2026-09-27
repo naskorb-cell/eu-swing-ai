@@ -3,9 +3,10 @@ select_liquid_universe.py
 
 Месечен pre-screening на ЦЕЛИЯ eu_instruments.json универс: оценява
 ликвидност (среден дневен оборот) и моментум (3-месечна доходност),
-маха най-неликвидните, класира по моментум и записва топ N (по
-подразбиране 500) в curated_universe.json - това е файлът, който
-Streamlit приложението реално ползва за сканиране.
+взима капитализация (акции) / AUM (ETF) от Yahoo и записва в
+curated_universe.json ВСИЧКИ инструменти, които минават критериите от
+universe_rules.py (без ливъриджнати/short ETP). Това е файлът, който
+Streamlit приложението реално сканира; slider-ите там само стесняват още.
 
 Пуска се веднъж месечно от GitHub Actions (.github/workflows/monthly_curate.yml).
 Тежка операция (тегли данни за хиляди тикери) - затова НЕ се пуска на всеки
@@ -25,16 +26,18 @@ import os
 import time
 from pathlib import Path
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pandas as pd
 import yfinance as yf
 from anthropic import Anthropic
 
+import universe_rules as rules
+
 INSTRUMENTS_FILE = "eu_instruments.json"
 OUTPUT_FILE = "curated_universe.json"
-TOP_N = 500
-LIQUID_KEEP_FRACTION = 0.6
 CHUNK_SIZE = 50
-TRENDING_RESERVED_SLOTS = 80  # колко от TOP_N места пазим за медийно/аналитично "трендиращи" имена
+INFO_WORKERS = 4  # паралелни заявки за капитализация/AUM (повече = риск от 429 от Yahoo)
 
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
@@ -132,23 +135,31 @@ def build_candidate_list():
     data = json.loads(Path(INSTRUMENTS_FILE).read_text(encoding="utf-8"))
     instruments = data.get("instruments", [])
 
-    candidates = []
+    candidates, skipped_leveraged = [], 0
     for inst in instruments:
+        if inst.get("type") not in ("STOCK", "ETF"):
+            continue
         suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
         if suffix is None:
             continue
         symbol = f"{inst.get('shortName', '')}{suffix}"
         company_name = inst["name"]
         label = f"{inst.get('shortName', inst['ticker'])} ({company_name})"
-        candidates.append({"name": label, "company_name": company_name, "symbol": symbol})
+        if rules.is_leveraged_or_short_etp(label):
+            skipped_leveraged += 1
+            continue
+        candidates.append({
+            "name": label, "company_name": company_name, "symbol": symbol,
+            "type": inst["type"], "isin": inst.get("isin", ""),
+        })
+    print(f"Изключени ливъриджнати/short ETP: {skipped_leveraged}")
     return candidates
 
 
 def score_in_batches(candidates: list) -> list:
     scored = []
-    symbol_to_name = {c["symbol"]: c["name"] for c in candidates}
-    symbol_to_company = {c["symbol"]: c["company_name"] for c in candidates}
-    symbols = list(symbol_to_name.keys())
+    by_symbol = {c["symbol"]: c for c in candidates}
+    symbols = list(by_symbol.keys())
 
     for i in range(0, len(symbols), CHUNK_SIZE):
         chunk = symbols[i : i + CHUNK_SIZE]
@@ -175,9 +186,7 @@ def score_in_batches(candidates: list) -> list:
                     continue
 
                 scored.append({
-                    "name": symbol_to_name[symbol],
-                    "company_name": symbol_to_company.get(symbol, ""),
-                    "symbol": symbol,
+                    **by_symbol[symbol],
                     "avg_dollar_volume": round(avg_dollar_volume, 0),
                     "momentum_3m_pct": round(momentum_3m_pct, 2),
                 })
@@ -187,6 +196,30 @@ def score_in_batches(candidates: list) -> list:
         print(f"  обработени {min(i + CHUNK_SIZE, len(symbols))}/{len(symbols)} ...")
 
     return scored
+
+
+def min_possible_turnover(item: dict) -> float:
+    """Най-ниският праг за оборот, който инструментът изобщо може да мине -
+    ползва се за евтин pre-filter преди бавните заявки за капитализация/AUM."""
+    if item["type"] == "ETF":
+        return rules.ETF_MIN_TURNOVER
+    return rules.STOCK_MIN_TURNOVER if rules.is_home_listing(item["isin"]) else rules.STOCK_FOREIGN_MIN_TURNOVER
+
+
+def fetch_size(item: dict) -> dict:
+    """Капитализация (акции) или AUM (ETF) от Yahoo .info; None при липса/грешка.
+    До 3 опита с пауза при rate limit."""
+    for attempt in range(3):
+        try:
+            info = yf.Ticker(item["symbol"]).info or {}
+            if item["type"] == "STOCK":
+                item["market_cap"] = info.get("marketCap")
+            else:
+                item["aum"] = info.get("totalAssets") or info.get("netAssets")
+            return item
+        except Exception:
+            time.sleep(2 * (attempt + 1))
+    return item
 
 
 def main():
@@ -200,11 +233,23 @@ def main():
         print("Няма оценени инструменти - прекратявам без запис.")
         return
 
-    # Ликвиден филтър: пазим само топ 60% по среден дневен оборот
-    scored.sort(key=lambda x: x["avg_dollar_volume"], reverse=True)
-    liquid_cutoff = max(int(len(scored) * LIQUID_KEEP_FRACTION), TOP_N)
-    liquid_pool = scored[:liquid_cutoff]
-    print(f"След ликвиден филтър: {len(liquid_pool)}")
+    # 1) евтин pre-filter по оборот, 2) капитализация/AUM само за минелите, 3) пълните критерии
+    prefiltered = [x for x in scored if x["avg_dollar_volume"] >= min_possible_turnover(x)]
+    print(f"След pre-filter по оборот: {len(prefiltered)} - тегля капитализация/AUM...")
+    with ThreadPoolExecutor(max_workers=INFO_WORKERS) as pool:
+        prefiltered = list(pool.map(fetch_size, prefiltered))
+
+    liquid_pool, reject_counts = [], {}
+    for item in prefiltered:
+        ok, why = rules.passes_liquidity(item)
+        if ok:
+            liquid_pool.append(item)
+        else:
+            reject_counts[why] = reject_counts.get(why, 0) + 1
+    print(f"Минали критериите: {len(liquid_pool)}; отпаднали: {reject_counts}")
+    etf_no_aum = sum(1 for x in liquid_pool if x["type"] == "ETF" and not x.get("aum"))
+    if etf_no_aum:
+        print(f"  (от тях {etf_no_aum} ETF без данни за AUM в Yahoo - проверени само по оборот)")
 
     # --- Медиен/аналитичен "buzz" сигнал (мека добавка) ---
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -228,27 +273,31 @@ def main():
     non_trending = [x for x in liquid_pool if not x["media_trending"]]
     print(f"Съвпадения с медийно трендиращи имена: {len(trending_matches)}")
 
-    # Класация по моментум във всяка от двете групи поотделно
+    # Записваме всички ликвидни; редът (трендиращи първо, после по моментум)
+    # има значение само за фалбек сценарии с лимит на броя в UI.
     trending_matches.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
     non_trending.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
-
-    # Запазваме до TRENDING_RESERVED_SLOTS места за трендиращи (ако толкова има),
-    # остатъкът от TOP_N се запълва по чист моментум от останалите ликвидни.
-    reserved = trending_matches[:TRENDING_RESERVED_SLOTS]
-    remaining_slots = TOP_N - len(reserved)
-    fill = non_trending[:remaining_slots]
-    top = reserved + fill
+    top = trending_matches + non_trending
 
     result = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "total_evaluated": len(scored),
         "count": len(top),
-        "media_trending_count": len(reserved),
+        "stock_count": sum(1 for x in top if x["type"] == "STOCK"),
+        "etf_count": sum(1 for x in top if x["type"] == "ETF"),
+        "media_trending_count": len(trending_matches),
+        "criteria": {
+            "stock_min_market_cap": rules.STOCK_MIN_MARKET_CAP,
+            "stock_min_turnover": rules.STOCK_MIN_TURNOVER,
+            "stock_foreign_min_turnover": rules.STOCK_FOREIGN_MIN_TURNOVER,
+            "etf_min_aum": rules.ETF_MIN_AUM,
+            "etf_min_turnover": rules.ETF_MIN_TURNOVER,
+        },
         "instruments": top,
     }
 
     Path(OUTPUT_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи)")
+    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(trending_matches)} медийно трендиращи)")
 
 
 if __name__ == "__main__":
