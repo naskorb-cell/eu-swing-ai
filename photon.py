@@ -516,8 +516,7 @@ def render_photon_strategy():
         render_fund_coverage(fund_data)
         fund_data = st.session_state.get("photon_fund", {})
     news = today_news()
-    # потвърдените от анализаторите/новините - първи (подреждането е стабилно, т.е.
-    # в рамките на една оценка остава техническият ред: R/R / позиция в диапазона)
+    # по зона, после потвърдените от анализаторите/новините (виж sort_by_confirmation)
     results = sort_by_confirmation(results, fund_data, news)
     shown_order = sort_by_confirmation(watch_list, fund_data, {})
 
@@ -682,9 +681,18 @@ def today_news() -> dict:
     return stored["by_provider"].get(news_provider(), {})
 
 
+ZONE_ORDER = {"Discount": 0, "Premium": 1}  # "Над съпротивата (BOS)" и др. - последни
+
+
 def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
-    return sorted(setups, key=lambda x: -fund.confirmation_score(
-        fund.fundamental_verdict(fund_data.get(x.symbol)), (news.get(x.symbol) or {}).get("verdict")))
+    """Първо зоната (Discount преди Premium преди над съпротивата - техническата
+    близост до вход е водеща), вътре в нея - потвърдените от фундамента/новините;
+    при равенство остава техническият ред (сортирането е стабилно)."""
+    return sorted(setups, key=lambda x: (
+        ZONE_ORDER.get(x.zone, 2),
+        -fund.confirmation_score(fund.fundamental_verdict(fund_data.get(x.symbol)),
+                                 (news.get(x.symbol) or {}).get("verdict")),
+    ))
 
 
 def render_fund_coverage(fund_data: dict):
@@ -721,7 +729,8 @@ def render_news_section(targets: list, news: dict):
         if not api_key:
             st.error(f"Липсва {'GEMINI_API_KEY' if provider == 'Gemini' else 'ANTHROPIC_API_KEY'} в Streamlit Secrets.")
         else:
-            bar = st.progress(0.0, text="Търся новини и анализи...")
+            bar = st.progress(0.0, text=f"Търся новини и анализи за {len(missing)} инструмента - "
+                                        "обикновено 1-3 минути, всеки отнема 20-60 сек...")
             items = [(x.name, x.symbol, types.get(x.symbol) == "ETF") for x in missing]
             found = fund.research_news_many(
                 items, provider, api_key, gemini_model=st.secrets.get("GEMINI_MODEL", fund.GEMINI_DEFAULT_MODEL),

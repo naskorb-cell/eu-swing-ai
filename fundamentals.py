@@ -9,7 +9,7 @@
 import json
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 
 import streamlit as st
@@ -27,7 +27,7 @@ MIN_ANALYSTS = 5          # по-малко анализатори = консе�
 MIN_UPSIDE_PCT = 10       # мин. потенциал до средната целева цена за "потвърден"
 EARNINGS_WARN_DAYS = 14   # отчет до толкова дни = риск от гап
 NEWS_MAX_SEARCHES = 3     # web търсения на компания (всяко се таксува)
-NEWS_WORKERS = 4
+NEWS_WORKERS = 6
 NEWS_PROVIDERS = ["Claude", "Gemini"]
 GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
 
@@ -184,7 +184,10 @@ def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, mod
         # трябва да работи (Gemini е само по избор)
         from google import genai
         from google.genai import types as genai_types
-        response = genai.Client(api_key=api_key).models.generate_content(
+        # клиентът трябва да е в променлива: временен обект се затваря (garbage
+        # collection) още преди заявката -> "the client has been closed"
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
             model=model, contents=_build_prompt(name, symbol, is_etf),
             config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]),
         )
@@ -206,7 +209,8 @@ def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
     """Една компания: Claude с web search. Връща {verdict, summary, analyst_actions,
     next_earnings, sources, searches} или {error}. Линковете се пазят само ако са
     от реално намерените резултати (без измислени URL-и)."""
-    client = Anthropic(api_key=api_key)
+    # таймаут на заявка: web search отнема десетки секунди, но не бива да виси безкрай
+    client = Anthropic(api_key=api_key, timeout=150.0, max_retries=1)
     messages = [{"role": "user", "content": _build_prompt(name, symbol, is_etf)}]
     tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
     found_urls, searches, response = {}, 0, None
@@ -243,7 +247,7 @@ def research_news_many(items: list, provider: str, api_key: str, gemini_model: s
     out = {}
     with ThreadPoolExecutor(max_workers=NEWS_WORKERS) as pool:
         futures = {pool.submit(one, n, s, e): s for n, s, e in items}
-        for i, fut in enumerate(futures, 1):
+        for i, fut in enumerate(as_completed(futures), 1):  # прогресът расте с всеки готов
             out[futures[fut]] = fut.result()
             if on_done:
                 on_done(i, len(items))
