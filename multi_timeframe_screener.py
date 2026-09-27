@@ -1966,6 +1966,16 @@ def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_lab
     return text
 
 
+# Именувани T212 профили - всеки със свои Secrets ключове, за да могат
+# няколко човека (напр. Наско + съпругата му) да следят P&L отделно, без
+# ключовете им да се смесват. Добавяш нов профил, като добавиш ред тук и
+# съответните T212_API_KEY_<SUFFIX> / T212_API_SECRET_<SUFFIX> в Secrets.
+T212_ACCOUNTS = [
+    {"label": "N", "slug": "me", "key_secret_name": "T212_API_KEY", "secret_secret_name": "T212_API_SECRET"},
+    {"label": "T", "slug": "wife", "key_secret_name": "T212_API_KEY_WIFE", "secret_secret_name": "T212_API_SECRET_WIFE"},
+]
+
+
 def render_portfolio_section():
     section_header(
         "💼 Портфолио & P&L (Trading 212)",
@@ -1973,23 +1983,28 @@ def render_portfolio_section():
         subtitle="Само за четене - Portfolio + History. Никога не се използват права за поръчки/прехвърляния.",
     )
 
-    with st.expander("⚙️ Достъп до Trading 212 (read-only)", expanded=False):
+    account_labels = [a["label"] for a in T212_ACCOUNTS]
+    selected_label = st.radio("Сметка:", account_labels, horizontal=True, key="t212_account_select")
+    account = next(a for a in T212_ACCOUNTS if a["label"] == selected_label)
+    slug = account["slug"]
+
+    with st.expander(f"⚙️ Достъп до Trading 212 (read-only) — {selected_label}", expanded=False):
         t212_env = st.radio(
-            "Среда", ["live", "demo"], horizontal=True, key="t212_env",
-            help="'live' е реалната ти сметка. Ползвай 'demo', ако тестваш с demo профил.",
+            "Среда", ["live", "demo"], horizontal=True, key=f"t212_env_{slug}",
+            help="'live' е реалната сметка. Ползвай 'demo', ако тестваш с demo профил.",
         )
-        t212_key = st.secrets.get("T212_API_KEY", None)
-        t212_secret = st.secrets.get("T212_API_SECRET", None)
+        t212_key = st.secrets.get(account["key_secret_name"], None)
+        t212_secret = st.secrets.get(account["secret_secret_name"], None)
         if not t212_key:
-            t212_key = st.text_input("T212 API Key", type="password", key="t212_key_input")
+            t212_key = st.text_input("T212 API Key", type="password", key=f"t212_key_input_{slug}")
         if not t212_secret:
-            t212_secret = st.text_input("T212 API Secret", type="password", key="t212_secret_input")
+            t212_secret = st.text_input("T212 API Secret", type="password", key=f"t212_secret_input_{slug}")
         st.caption(
             "⚠️ Ключът трябва да има ЕДИНСТВЕНО права за 'Portfolio' и 'History' (read). "
             "НЕ добавяй 'Orders' (write) права на ключа, който ползваш тук - за преглед "
             "на P&L не са нужни, а ограничават риска при евентуално изтичане на ключа. "
-            "По-добре запиши ключа/секрета трайно в Streamlit Secrets (T212_API_KEY / "
-            "T212_API_SECRET), вместо да ги въвеждаш всеки път тук."
+            f"По-добре запиши ключа/секрета трайно в Streamlit Secrets ({account['key_secret_name']} / "
+            f"{account['secret_secret_name']}), вместо да ги въвеждаш всеки път тук."
         )
 
     col_preset, col_range = st.columns([1, 1.4])
@@ -1997,14 +2012,14 @@ def render_portfolio_section():
         preset = st.selectbox(
             "Период за анализ на затворените сделки:",
             ["Този месец", "Тази седмица", "Последните 30 дни", "Последните 90 дни", "Тази година", "Персонализиран период"],
-            index=0, key="t212_period_preset",
+            index=0, key=f"t212_period_preset_{slug}",
         )
     custom_range = None
     if preset == "Персонализиран период":
         with col_range:
             custom_range = st.date_input(
                 "От - До", value=(date.today() - timedelta(days=30), date.today()),
-                key="t212_custom_range",
+                key=f"t212_custom_range_{slug}",
             )
             if isinstance(custom_range, (tuple, list)) and len(custom_range) != 2:
                 custom_range = None
@@ -2012,7 +2027,7 @@ def render_portfolio_section():
     period_start, period_end = _period_bounds(preset, custom_range)
     st.caption(f"Избран период: {period_start} → {period_end}")
 
-    if st.button("🔄 Зареди портфолио и история", type="primary"):
+    if st.button("🔄 Зареди портфолио и история", type="primary", key=f"t212_load_btn_{slug}"):
         if not t212_key or not t212_secret:
             st.error("Липсва T212 API Key/Secret!")
         else:
@@ -2024,25 +2039,25 @@ def render_portfolio_section():
                 with st.spinner("Зареждам история на сделките (може да отнеме малко време заради лимитите на T212)..."):
                     raw_orders = t212.fetch_order_history(base_url, auth_header)
                     df_closed_all = t212.orders_to_dataframe(raw_orders)
-                st.session_state["t212_open"] = df_open
-                st.session_state["t212_closed_all"] = df_closed_all
-                st.session_state["t212_raw_orders"] = raw_orders
-                st.session_state["t212_loaded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.session_state[f"t212_open_{slug}"] = df_open
+                st.session_state[f"t212_closed_all_{slug}"] = df_closed_all
+                st.session_state[f"t212_raw_orders_{slug}"] = raw_orders
+                st.session_state[f"t212_loaded_at_{slug}"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             except PermissionError as e:
                 st.error(str(e))
             except Exception as e:
                 st.error(f"Грешка при връзка с Trading 212: {e}")
 
-    df_open = st.session_state.get("t212_open")
-    df_closed_all = st.session_state.get("t212_closed_all")
+    df_open = st.session_state.get(f"t212_open_{slug}")
+    df_closed_all = st.session_state.get(f"t212_closed_all_{slug}")
 
     if df_open is None or df_closed_all is None:
-        st.info("Натисни 'Зареди портфолио и история', за да видиш данните.")
+        st.info(f"Натисни 'Зареди портфолио и история', за да видиш данните на {selected_label}.")
         return
 
-    st.caption(f"Последно заредено: {st.session_state.get('t212_loaded_at', '?')}")
+    st.caption(f"Последно заредено ({selected_label}): {st.session_state.get(f't212_loaded_at_{slug}', '?')}")
 
-    raw_orders_debug = st.session_state.get("t212_raw_orders")
+    raw_orders_debug = st.session_state.get(f"t212_raw_orders_{slug}")
     if raw_orders_debug:
         with st.expander("🔍 Технически детайли (суров JSON от T212 - за диагностика)", expanded=False):
             st.caption(
@@ -2086,9 +2101,9 @@ def render_portfolio_section():
     section_header("🤖 AI Анализ на представянето", status="info")
     anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
     if not anthropic_api_key:
-        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="t212_ai_key")
+        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key=f"t212_ai_key_{slug}")
 
-    if st.button("Генерирай AI анализ на портфолиото", type="primary"):
+    if st.button("Генерирай AI анализ на портфолиото", type="primary", key=f"t212_ai_btn_{slug}"):
         if not anthropic_api_key:
             st.error("Липсва Anthropic API ключ!")
         else:
