@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-09-26 08:20:34",
+  "fetched_at": "2026-09-27 08:58:16",
   "total": 3784,
   "instruments": [
     {
@@ -666,19 +666,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "XWSCd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE000I9HGDZ3",
-      "currencyCode": "EUR",
-      "name": "Xtrackers MSCI World Screened (Acc)",
-      "shortName": "XWSC",
-      "maxOpenQuantity": 468484.0,
-      "extendedHours": false,
-      "addedOn": "2026-01-14T18:48:47.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "QSPAd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -689,6 +676,19 @@
       "maxOpenQuantity": 865151.0,
       "extendedHours": false,
       "addedOn": "2025-12-10T18:59:57.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "XWSCd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000I9HGDZ3",
+      "currencyCode": "EUR",
+      "name": "Xtrackers MSCI World Screened (Acc)",
+      "shortName": "XWSC",
+      "maxOpenQuantity": 468484.0,
+      "extendedHours": false,
+      "addedOn": "2026-01-14T18:48:47.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -2525,19 +2525,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "UIM4d_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "LU0147308422",
-      "currencyCode": "EUR",
-      "name": "UBS Core MSCI EMU (Dist)",
-      "shortName": "EMUEUA",
-      "maxOpenQuantity": 20845.0,
-      "extendedHours": false,
-      "addedOn": "2018-06-29T14:55:31.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "FLXUd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -2548,6 +2535,19 @@
       "maxOpenQuantity": 70323.0,
       "extendedHours": false,
       "addedOn": "2026-01-15T15:51:56.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "UIM4d_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "LU0147308422",
+      "currencyCode": "EUR",
+      "name": "UBS Core MSCI EMU (Dist)",
+      "shortName": "EMUEUA",
+      "maxOpenQuantity": 20845.0,
+      "extendedHours": false,
+      "addedOn": "2018-06-29T14:55:31.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -5879,19 +5879,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "TDVXd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE000QYDXKV5",
-      "currencyCode": "EUR",
-      "name": "VanEck Morningstar Developed Markets ex-US Dividend Leaders (Acc)",
-      "shortName": "TDVX",
-      "maxOpenQuantity": 290394.0,
-      "extendedHours": false,
-      "addedOn": "2026-06-16T16:41:03.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "LIGHTa_EQ",
       "type": "STOCK",
       "workingScheduleId": 57,
@@ -5903,6 +5890,19 @@
       "extendedHours": false,
       "addedOn": "2018-07-12T07:10:22.000+03:00",
       "exchangeName": "Euronext Amsterdam"
+    },
+    {
+      "ticker": "TDVXd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000QYDXKV5",
+      "currencyCode": "EUR",
+      "name": "VanEck Morningstar Developed Markets ex-US Dividend Leaders (Acc)",
+      "shortName": "TDVX",
+      "maxOpenQuantity": 290394.0,
+      "extendedHours": false,
+      "addedOn": "2026-06-16T16:41:03.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "CSYUd_EQ",
@@ -19581,19 +19581,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "IS3Rd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE00BP3QZ825",
-      "currencyCode": "EUR",
-      "name": "iShares Edge MSCI World Momentum Factor (Acc)",
-      "shortName": "IS3R",
-      "maxOpenQuantity": 47637.0,
-      "extendedHours": false,
-      "addedOn": "2021-04-05T20:24:16.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "3LPAp_EQ",
       "type": "ETF",
       "workingScheduleId": 75,
@@ -19605,6 +19592,19 @@
       "extendedHours": false,
       "addedOn": "2021-09-07T16:27:01.000+03:00",
       "exchangeName": "Borsa Italiana"
+    },
+    {
+      "ticker": "IS3Rd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE00BP3QZ825",
+      "currencyCode": "EUR",
+      "name": "iShares Edge MSCI World Momentum Factor (Acc)",
+      "shortName": "IS3R",
+      "maxOpenQuantity": 47637.0,
+      "extendedHours": false,
+      "addedOn": "2021-04-05T20:24:16.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "XCJDd_EQ",
@@ -29630,19 +29630,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "LITUm_EQ",
-      "type": "ETF",
-      "workingScheduleId": 75,
-      "isin": "IE00BLCHJN13",
-      "currencyCode": "EUR",
-      "name": "Global X Lithium & Battery Tech (Acc)",
-      "shortName": "LITU",
-      "maxOpenQuantity": 343088.0,
-      "extendedHours": false,
-      "addedOn": "2022-03-17T16:33:02.000+02:00",
-      "exchangeName": "Borsa Italiana"
-    },
-    {
       "ticker": "9GAGd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -29654,6 +29641,19 @@
       "extendedHours": false,
       "addedOn": "2023-10-04T11:41:22.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "LITUm_EQ",
+      "type": "ETF",
+      "workingScheduleId": 75,
+      "isin": "IE00BLCHJN13",
+      "currencyCode": "EUR",
+      "name": "Global X Lithium & Battery Tech (Acc)",
+      "shortName": "LITU",
+      "maxOpenQuantity": 343088.0,
+      "extendedHours": false,
+      "addedOn": "2022-03-17T16:33:02.000+02:00",
+      "exchangeName": "Borsa Italiana"
     },
     {
       "ticker": "FEUQd_EQ",
@@ -33491,19 +33491,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "ETDDd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "FR0012739431",
-      "currencyCode": "EUR",
-      "name": "BNP Paribas Easy EURO STOXX 50 (Acc)",
-      "shortName": "ETDD",
-      "maxOpenQuantity": 219260.0,
-      "extendedHours": false,
-      "addedOn": "2026-01-14T15:47:39.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "CVSd_EQ",
       "type": "STOCK",
       "workingScheduleId": 54,
@@ -33514,6 +33501,19 @@
       "maxOpenQuantity": 21.0,
       "extendedHours": false,
       "addedOn": "2024-06-26T15:40:05.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "ETDDd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "FR0012739431",
+      "currencyCode": "EUR",
+      "name": "BNP Paribas Easy EURO STOXX 50 (Acc)",
+      "shortName": "ETDD",
+      "maxOpenQuantity": 219260.0,
+      "extendedHours": false,
+      "addedOn": "2026-01-14T15:47:39.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
