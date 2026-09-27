@@ -1,0 +1,196 @@
+"""Фундаментално потвърждение на техническите сетъпи:
+- ниво 1 (автоматично, Yahoo): консенсус на анализаторите, потенциал до целевата
+  цена, очакван ръст на печалбата, дата на следващия отчет;
+- ниво 2 (с бутон, Claude + web search): свежи новини, рейтинг промени от
+  големите банки, отчети/guidance - оценка с линкове към източниците.
+Само потвърждава и подрежда - не филтрира."""
+
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timezone
+
+import streamlit as st
+import yfinance as yf
+from anthropic import Anthropic
+
+from ai_client import CLAUDE_MODEL
+
+FUND_CONFIRMED = "✅ Потвърден"
+FUND_NEUTRAL = "➖ Неутрален"
+FUND_AGAINST = "⚠️ Против"
+FUND_NO_DATA = "— няма данни"
+
+MIN_ANALYSTS = 5          # по-малко анализатори = консенсусът не е представителен
+MIN_UPSIDE_PCT = 10       # мин. потенциал до средната целева цена за "потвърден"
+EARNINGS_WARN_DAYS = 14   # отчет до толкова дни = риск от гап
+NEWS_MAX_SEARCHES = 3     # web търсения на компания (всяко се таксува)
+NEWS_WORKERS = 4
+
+BUY_KEYS = {"strong_buy", "buy"}
+SELL_KEYS = {"sell", "strong_sell", "underperform"}
+REC_LABELS = {"strong_buy": "Strong Buy", "buy": "Buy", "hold": "Hold", "underperform": "Underperform",
+              "sell": "Sell", "strong_sell": "Strong Sell"}
+
+
+# ---------------------------------------------------------------- ниво 1: Yahoo
+
+def _analyst_info(symbol: str) -> dict:
+    """Анализаторските полета от Yahoo .info (2 опита - Yahoo понякога връща празно)."""
+    for _ in range(2):
+        try:
+            info = yf.Ticker(symbol).info or {}
+        except Exception:
+            info = {}
+        if info.get("quoteType"):
+            break
+    price = info.get("currentPrice") or info.get("regularMarketPrice")
+    target = info.get("targetMeanPrice")
+    fwd, trailing = info.get("forwardEps"), info.get("trailingEps")
+    earnings_ts = info.get("earningsTimestampStart") or info.get("earningsTimestamp")
+    earnings = datetime.fromtimestamp(earnings_ts, tz=timezone.utc).date() if earnings_ts else None
+    return {
+        "quote_type": info.get("quoteType"),
+        "rec": info.get("recommendationKey"),
+        "analysts": info.get("numberOfAnalystOpinions") or 0,
+        "upside": round(100 * (target / price - 1), 1) if price and target else None,
+        "eps_growth": round(100 * (fwd / trailing - 1), 1) if fwd and trailing and trailing > 0 else None,
+        "earnings": earnings if earnings and earnings >= date.today() else None,
+    }
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def fetch_analyst_data(symbols: tuple) -> dict:
+    """{symbol: анализаторски данни} за всички символи (паралелно, кеш 6 ч.)."""
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        return dict(zip(symbols, pool.map(_analyst_info, symbols)))
+
+
+def fundamental_verdict(data: dict | None) -> str:
+    if not data or data.get("quote_type") == "ETF":
+        return FUND_NO_DATA
+    rec, analysts, upside = data.get("rec"), data.get("analysts") or 0, data.get("upside")
+    if not rec or rec == "none" or analysts == 0:
+        return FUND_NO_DATA
+    if rec in SELL_KEYS or (upside is not None and upside < 0):
+        return FUND_AGAINST
+    if rec in BUY_KEYS and analysts >= MIN_ANALYSTS and upside is not None and upside >= MIN_UPSIDE_PCT:
+        return FUND_CONFIRMED
+    return FUND_NEUTRAL
+
+
+def fundamental_columns(data: dict | None) -> dict:
+    """Колоните за таблиците на скрийнъра."""
+    data = data or {}
+    rec = data.get("rec")
+    earnings = data.get("earnings")
+    earnings_txt = ""
+    if earnings:
+        days = (earnings - date.today()).days
+        earnings_txt = ("⚠️ " if days <= EARNINGS_WARN_DAYS else "") + earnings.strftime("%d.%m")
+    return {
+        "📊 Фундамент": fundamental_verdict(data),
+        "Анализатори": f"{REC_LABELS.get(rec, rec)} ({data.get('analysts')})" if rec and rec != "none" and data.get("analysts") else "",
+        "Потенциал до целта (%)": data.get("upside"),
+        "Ръст EPS (%)": data.get("eps_growth"),
+        "Отчет": earnings_txt,
+    }
+
+
+# ---------------------------------------------------------------- ниво 2: новини (Claude + web search)
+
+NEWS_POSITIVE, NEWS_NEUTRAL, NEWS_NEGATIVE = "🟢 Положително", "⚪ Неутрално", "🔴 Отрицателно"
+_NEWS_LABELS = {"positive": NEWS_POSITIVE, "neutral": NEWS_NEUTRAL, "negative": NEWS_NEGATIVE}
+
+NEWS_PROMPT = """Ти си финансов анализатор. Трябва да провериш дали има фундаментално
+потвърждение за СУИНГ ПОКУПКА (long, държане дни до седмици) на:
+
+{kind}: {name} (Yahoo символ: {symbol})
+
+Потърси в интернет (най-много {max_searches} търсения) информация от последните ~30 дни:
+- промени в рейтинга / целевата цена от големи банки и анализаторски къщи
+  (Goldman Sachs, JPMorgan, Morgan Stanley, UBS, Deutsche Bank, BofA, Barclays,
+  Jefferies, Citi, BNP Paribas, Berenberg, Kepler Cheuvreux...);
+- последен отчет и guidance: над/под очакванията;
+- значими новини: поръчки, сделки, регулации, съдебни дела, смяна на ръководство;
+- дата на следващия отчет.
+{etf_hint}
+Използвай САМО намереното - не измисляй. Ако няма свежа информация, кажи го.
+
+Отговори САМО с JSON (без друг текст), на български:
+{{"verdict": "positive" | "neutral" | "negative",
+  "summary": "2-3 изречения защо",
+  "analyst_actions": "конкретни рейтинг промени (банка, рейтинг, цел) или празно",
+  "next_earnings": "ГГГГ-ММ-ДД или null",
+  "sources": [{{"title": "...", "url": "..."}}]}}"""
+
+ETF_HINT = """Това е ETF - вместо анализатори оцени сектора/темата/базовия актив
+(тенденции, макро фактори, потоци към фонда)."""
+
+
+def _extract_json(text: str) -> dict:
+    match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL) or re.search(r"(\{.*\})", text, re.DOTALL)
+    if not match:
+        raise ValueError("Claude не върна JSON")
+    return json.loads(match.group(1))
+
+
+def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
+    """Една компания: Claude с web search. Връща {verdict, summary, analyst_actions,
+    next_earnings, sources, searches} или {error}. Линковете се пазят само ако са
+    от реално намерените резултати (без измислени URL-и)."""
+    client = Anthropic(api_key=api_key)
+    prompt = NEWS_PROMPT.format(
+        kind="ETF" if is_etf else "Акция", name=name, symbol=symbol,
+        max_searches=NEWS_MAX_SEARCHES, etf_hint=ETF_HINT if is_etf else "",
+    )
+    messages = [{"role": "user", "content": prompt}]
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
+    found_urls, searches, response = {}, 0, None
+    try:
+        for _ in range(3):  # pause_turn: сървърът спира дълги търсения - продължаваме
+            response = client.messages.create(model=CLAUDE_MODEL, max_tokens=4096, tools=tools, messages=messages)
+            usage = getattr(response.usage, "server_tool_use", None)
+            searches += getattr(usage, "web_search_requests", 0) or 0
+            for block in response.content:
+                if block.type == "web_search_tool_result" and isinstance(block.content, list):
+                    for r in block.content:
+                        found_urls.setdefault(r.url, r.title)
+            if response.stop_reason != "pause_turn":
+                break
+            messages = [messages[0], {"role": "assistant", "content": response.content}]
+        text = "".join(b.text for b in response.content if b.type == "text")
+        data = _extract_json(text)
+    except Exception as e:
+        return {"error": str(e), "searches": searches}
+    sources = [s for s in data.get("sources") or [] if isinstance(s, dict) and s.get("url") in found_urls]
+    if not sources:
+        sources = [{"title": t, "url": u} for u, t in list(found_urls.items())[:3]]
+    return {
+        "verdict": _NEWS_LABELS.get(str(data.get("verdict", "")).lower(), NEWS_NEUTRAL),
+        "summary": data.get("summary") or "",
+        "analyst_actions": data.get("analyst_actions") or "",
+        "next_earnings": data.get("next_earnings"),
+        "sources": sources[:5],
+        "searches": searches,
+    }
+
+
+def research_news_many(items: list, api_key: str, on_done=None) -> dict:
+    """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS."""
+    out = {}
+    with ThreadPoolExecutor(max_workers=NEWS_WORKERS) as pool:
+        futures = {pool.submit(research_news, n, s, e, api_key): s for n, s, e in items}
+        for i, fut in enumerate(futures, 1):
+            out[futures[fut]] = fut.result()
+            if on_done:
+                on_done(i, len(items))
+    return out
+
+
+# ---------------------------------------------------------------- подреждане
+
+def confirmation_score(fund: str, news: str | None) -> int:
+    """По-високо = по-силно потвърждение; ползва се за подреждане на таблиците."""
+    score = {FUND_CONFIRMED: 2, FUND_NEUTRAL: 1, FUND_NO_DATA: 1, FUND_AGAINST: 0}.get(fund, 1)
+    return score + {NEWS_POSITIVE: 1, NEWS_NEGATIVE: -1}.get(news, 0)

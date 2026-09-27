@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
+import fundamentals as fund
 import t212_portfolio as t212
 import universe_rules as rules
 from ai_client import stream_claude
@@ -21,7 +22,7 @@ from portfolio_ui import T212_ACCOUNTS
 from ui_common import format_eur, section_header
 from universe import (
     INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
-    flag_macro_signal, load_curated_symbol_info, load_universe, render_macro_section,
+    load_curated_symbol_info, load_universe,
     render_manual_universe_editor, render_universe_refresh, render_universe_search,
     render_universe_uploader,
 )
@@ -320,6 +321,10 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
       позицията (stop, частична печалба), не нов вход.
     - Колоната "Валута": цените на някои акции са в USD/SEK/... (основното им
       листване) - пиши нивата в тази валута.
+    - Колоните "📊 Фундамент" (консенсус на анализаторите, потенциал до целевата
+      цена, ръст EPS), "📰 Новини" и "Отчет": фундаментално потвърждение.
+      Давай предимство на сетъпите, потвърдени и от фундамента (✅/⭐), и
+      предупреждавай при ⚠️ или отчет до дни (риск от гап).
 
     Използвай СТРИКТНО само данните по-долу.
 
@@ -400,7 +405,6 @@ def render_photon_strategy():
                  "спрямо сигнала. Ръчно добавените се сканират винаги.",
         )
         uploaded_universe = render_universe_uploader(key="ph")
-    _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
     liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
     if uploaded_universe:
@@ -479,6 +483,10 @@ def render_photon_strategy():
         st.session_state["photon_watchlist"] = watch_list
         st.session_state["photon_funnel"] = (funnel, rejects, datetime.now().strftime("%d.%m %H:%M"))
         st.session_state["photon_statuses"] = statuses
+        # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите)
+        stock_symbols = tuple(sorted({x.symbol for x in results + watch_list if types.get(x.symbol) != "ETF"}))
+        with st.spinner(f"Тегля анализаторски данни за {len(stock_symbols)} акции..."):
+            st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols) if stock_symbols else {}
 
     results = st.session_state.get("photon_results", [])
     watch_list = st.session_state.get("photon_watchlist", [])
@@ -498,10 +506,16 @@ def render_photon_strategy():
     positions = fetch_held_positions()
     held = held_symbols(positions)
     setups_by_name = {x.name: x for x in results + watch_list}
+    fund_data = st.session_state.get("photon_fund", {})
+    news = today_news()
+    # потвърдените от анализаторите/новините - първи (подреждането е стабилно, т.е.
+    # в рамките на една оценка остава техническият ред: R/R / позиция в диапазона)
+    results = sort_by_confirmation(results, fund_data, news)
+    shown_order = sort_by_confirmation(watch_list, fund_data, {})
 
     st.divider()
     section_header("✅ Готови за вход", status="go", subtitle="Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума")
-    df_ready = render_setup_table(results, "ph_ready_table", held, macro_keywords, tickers)
+    df_ready = render_setup_table(results, "ph_ready_table", held, tickers, fund_data, news)
     if df_ready.empty:
         st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента.")
 
@@ -511,12 +525,20 @@ def render_photon_strategy():
         f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
         help="Над съпротивата = след пробив нагоре; до вход има нужда от нов пулбек, често дълъг.",
     )
-    shown_watch = watch_list if show_far else [x for x in watch_list if x.range_pos <= FAR_ABOVE_RANGE_PCT]
+    shown_watch = shown_order if show_far else [x for x in shown_order if x.range_pos <= FAR_ABOVE_RANGE_PCT]
+    news_targets = results + shown_watch[:NEWS_WATCHLIST_TOP]  # ниво 2 - преди подреждането по новини
+    shown_watch = sort_by_confirmation(shown_watch, fund_data, news)
     if len(shown_watch) < len(watch_list):
         st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
-    df_watch = render_setup_table(shown_watch, "ph_watch_table", held, macro_keywords, tickers)
+    df_watch = render_setup_table(shown_watch, "ph_watch_table", held, tickers, fund_data, news)
     if df_watch.empty:
         st.info("Няма инструменти на watchlist в момента.")
+
+    if news_targets:
+        st.divider()
+        section_header("📰 Новини и анализи", status="info",
+                       subtitle=f"Готовите за вход + първите {NEWS_WATCHLIST_TOP} от Watchlist: рейтинг промени, отчети, значими новини")
+        render_news_section(news_targets, news)
 
     if positions is not None and "photon_statuses" in st.session_state:
         st.divider()
@@ -635,20 +657,103 @@ def t212_ticker_to_symbol() -> dict:
     return mapping
 
 
-def render_setup_table(setups: list, key: str, held: dict, macro_keywords, tickers: dict) -> pd.DataFrame:
+NEWS_WATCHLIST_TOP = 10
+STAR_LABEL = "⭐ Структура + фундамент"
+
+
+def today_news() -> dict:
+    """Резултатите от ниво 2 (новини) за днес - {symbol: резултат}; от вчера се нулират."""
+    stored = st.session_state.get("photon_news")
+    if not stored or stored.get("date") != datetime.now().date().isoformat():
+        return {}
+    return stored["items"]
+
+
+def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
+    return sorted(setups, key=lambda x: -fund.confirmation_score(
+        fund.fundamental_verdict(fund_data.get(x.symbol)), (news.get(x.symbol) or {}).get("verdict")))
+
+
+def render_news_section(targets: list, news: dict):
+    """Ниво 2: бутон за проверка с Claude + web search и резултатите по инструмент."""
+    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
+    _, _, types = load_curated_symbol_info(curated_file_mtime())
+    st.caption(
+        f"Всяка проверка търси в интернет (до {fund.NEWS_MAX_SEARCHES} търсения на инструмент - "
+        "таксуват се в Anthropic API). Резултатите се пазят до края на деня; проверяват се само липсващите."
+    )
+    if st.button(f"🔎 Провери новини и анализи ({len(missing)} инструмента)", key="ph_news_btn",
+                 disabled=not missing, width="stretch"):
+        if not api_key:
+            st.error("Липсва ANTHROPIC_API_KEY в Streamlit Secrets.")
+        else:
+            bar = st.progress(0.0, text="Търся новини и анализи...")
+            items = [(x.name, x.symbol, types.get(x.symbol) == "ETF") for x in missing]
+            found = fund.research_news_many(
+                items, api_key, on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
+            bar.empty()
+            news = {**news, **found}
+            st.session_state["photon_news"] = {"date": datetime.now().date().isoformat(), "items": news}
+            searches = sum(r.get("searches", 0) for r in found.values())
+            errors = sum(1 for r in found.values() if "error" in r)
+            st.success(f"Готово: {len(found) - errors} проверени, {searches} web търсения"
+                       + (f", {errors} с грешка (опитай пак)" if errors else "") + ".")
+            st.rerun()  # таблиците горе се подреждат наново с новите оценки
+    for x in targets:
+        r = news.get(x.symbol)
+        if not r:
+            continue
+        if "error" in r:
+            st.warning(f"{x.name}: грешка при проверката - {r['error']}")
+            continue
+        with st.expander(f"{r['verdict']} · {x.name}"):
+            st.markdown(r["summary"])
+            if r.get("analyst_actions"):
+                st.markdown(f"**Анализатори:** {r['analyst_actions']}")
+            if r.get("next_earnings"):
+                st.markdown(f"**Следващ отчет:** {r['next_earnings']}")
+            if r.get("sources"):
+                st.markdown("**Източници:** " + " · ".join(f"[{s.get('title') or s['url']}]({s['url']})" for s in r["sources"]))
+
+
+def render_setup_table(setups: list, key: str, held: dict, tickers: dict, fund_data: dict, news: dict) -> pd.DataFrame:
     """Таблица с PhotonSetup-и; клик по ред избира инструмента за графиката.
-    held = {symbol: 'N'/'T'/'N+T'} или None (няма T212 ключове - колоната се скрива)."""
+    held = {symbol: 'N'/'T'/'N+T'} или None (няма T212 ключове - колоната се скрива).
+    Колоните за фундамента (ниво 1) и новините (ниво 2) само подчертават - не филтрират."""
     if not setups:
         return pd.DataFrame()
-    df = pd.DataFrame([x.to_row((held or {}).get(x.symbol, "")) for x in setups])
+    rows = []
+    for x in setups:
+        row = x.to_row((held or {}).get(x.symbol, ""))
+        cols = fund.fundamental_columns(fund_data.get(x.symbol))
+        verdict = (news.get(x.symbol) or {}).get("verdict", "")
+        if cols["📊 Фундамент"] == fund.FUND_CONFIRMED and verdict == fund.NEWS_POSITIVE:
+            cols["📊 Фундамент"] = STAR_LABEL
+        rows.append({**row, **cols, "📰 Новини": verdict})
+    df = pd.DataFrame(rows)
+    # фундаментът веднага след името/тикера, за да се вижда без хоризонтален скрол
+    front = ["Име", "Тикер", "📊 Фундамент", "📰 Новини"]
+    df = df[front + [c for c in df.columns if c not in front]]
     if held is None:
         df = df.drop(columns=["💼 Държа"])
-    df = flag_macro_signal(df, macro_keywords)
-    st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу.")
+
+    def highlight(r):
+        confirmed = r["📊 Фундамент"] in (fund.FUND_CONFIRMED, STAR_LABEL) and r["📰 Новини"] != fund.NEWS_NEGATIVE
+        return ["background-color: rgba(61, 220, 151, 0.14)" if confirmed else ""] * len(r)
+
+    st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу. Зелен ред = структурата е потвърдена и от анализаторите.")
     event = st.dataframe(
-        df, width="stretch", hide_index=True,
+        df.style.apply(highlight, axis=1), width="stretch", hide_index=True,
         column_config={
-            "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
+            "📊 Фундамент": st.column_config.TextColumn(
+                "📊 Фундамент", help=f"✅ Buy/Strong Buy от поне {fund.MIN_ANALYSTS} анализатори и потенциал ≥ "
+                                    f"{fund.MIN_UPSIDE_PCT}% до средната целева цена; ⚠️ Sell или цел под цената; "
+                                    "⭐ = потвърден + положителни новини"),
+            "📰 Новини": st.column_config.TextColumn("📰 Новини", help="От бутона „Провери новини и анализи“ по-долу"),
+            "Потенциал до целта (%)": st.column_config.NumberColumn(format="%.1f"),
+            "Ръст EPS (%)": st.column_config.NumberColumn(help="Прогнозна спрямо последната годишна печалба на акция", format="%.1f"),
+            "Отчет": st.column_config.TextColumn(help=f"Следващ отчет; ⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап)"),
             "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
             "💼 Държа": st.column_config.TextColumn("💼 Държа", help="Отворена позиция в T212: N / T (акаунт)"),
         },
