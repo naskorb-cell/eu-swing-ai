@@ -8,7 +8,7 @@
 |---|---|
 | `multi_timeframe_screener.py` | **Входна точка** на Streamlit приложението (page config, CSS, избор на секция): `streamlit run multi_timeframe_screener.py` |
 | `photon.py` | Photon Phases стратегията: анализ (`PhotonSetup`), пакетен скан, таблици, дневна/4ч графика, „💼 Държа“ и „Моите позиции в скана“ (T212) |
-| `fundamentals.py` | Фундаментално потвърждение на сетъпите (само подчертава/подрежда, не филтрира): ниво 1 - анализатори от Yahoo `.info` (консенсус, потенциал до целта, ръст EPS, дата на отчет); ниво 2 - бутон „Провери новини и анализи“ (Claude + `web_search`, готовите + първите 10 от Watchlist, линкове само от реално намерени резултати) |
+| `fundamentals.py` | Фундаментално потвърждение на сетъпите (само подчертава/подрежда, не филтрира): ниво 1 - анализатори от Yahoo `.info` (консенсус, потенциал до целта, ръст EPS, дата на отчет); ниво 2 - бутон „Провери новини и анализи“ (Claude + `web_search` или Gemini + Google Search - избор в настройките, резултатите се пазят отделно за сравнение; готовите + първите 10 от Watchlist, линкове само от реално намерени резултати) |
 | `universe.py` | Универсът: curated/ръчен списък, CSV upload, търсене, макро сигнал, GitHub (dispatch/запис, статус на обновяването) |
 | `indicators.py` | Чисти изчисления: RSI/MACD/ATR, swing точки, структура, свещи (weekly/4ч по сесия) |
 | `portfolio_ui.py` | Секция Портфолио & P&L (`T212_ACCOUNTS`) |
@@ -34,13 +34,13 @@
 ## Филтри и данни
 - Универсум: `curated_universe.json` (+ `manual_universe.json`), или **CSV/Excel upload** (експорт от InvestingPro screener/Watchlist — планът е Pro, не Pro+); съпоставяне по ISIN → тикер → име (цели думи); режими: допълва месечния списък само с липсващите (по подразбиране) / акциите от файла + ETF / само файла; новите могат да се запишат трайно в `manual_universe.json` (бутон „💾 Запази“)
 - Индикатори: EMA50, SMA200, RSI, ATR, MACD, swing points; твърди трендови филтри
-- Цени: yfinance. AI интерпретация: Anthropic API (проектът остава само на Claude)
+- Цени: yfinance. AI интерпретация: Anthropic API (Claude е основният модел); Gemini (`google-genai`) е по избор само за новините в ниво 2 - решение на Наско за сравнение по цена/обхват
 - FMP free tier връща 402 за EU тикери → fundamentals enrichment е премахнат; FMP се ползва само за макро
 - Yahoo понякога връща празни данни при много заявки → месечният скрипт прави повторни опити (теглене + `.info`/`fast_info`) и пази паметта от миналия месец (липсваща капитализация/AUM се допълва; инструмент без данни сега остава с `carried_over`)
 - Gettex (`.MU`) листванията нямат използваеми данни в Yahoo → месечният скрипт намира по ISIN основното листване (US/`.ST`/`.HE`...) и сканира него (`t212_symbol` пази оригинала); оборот/капитализация/AUM се превръщат в € преди праговете, в резултатите има колона „Валута“
 
 ## Secrets (никога в кода)
-- Streamlit secrets: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` (за запис на `manual_universe.json` и workflow dispatch), `T212_API_KEY` / `T212_API_SECRET`, `T212_API_KEY_WIFE` / `T212_API_SECRET_WIFE`
+- Streamlit secrets: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` (за запис на `manual_universe.json` и workflow dispatch), `T212_API_KEY` / `T212_API_SECRET`, `T212_API_KEY_WIFE` / `T212_API_SECRET_WIFE`, `GEMINI_API_KEY` (по избор, за новините чрез Gemini), `GEMINI_MODEL` (по избор, по подразбиране `gemini-3.5-flash`)
 - GitHub Actions secrets: `ANTHROPIC_API_KEY`, `FMP_API_KEY`, `T212_API_KEY`, `T212_API_SECRET`
 - Няма `.gitignore` — при добавяне на `.env` или `.streamlit/secrets.toml` локално, първо добави `.gitignore`
 

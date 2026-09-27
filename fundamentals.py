@@ -1,8 +1,9 @@
 """Фундаментално потвърждение на техническите сетъпи:
 - ниво 1 (автоматично, Yahoo): консенсус на анализаторите, потенциал до целевата
   цена, очакван ръст на печалбата, дата на следващия отчет;
-- ниво 2 (с бутон, Claude + web search): свежи новини, рейтинг промени от
-  големите банки, отчети/guidance - оценка с линкове към източниците.
+- ниво 2 (с бутон, Claude + web search или Gemini + Google Search): свежи
+  новини, рейтинг промени от големите банки, отчети/guidance - оценка с
+  линкове към източниците.
 Само потвърждава и подрежда - не филтрира."""
 
 import json
@@ -13,6 +14,8 @@ from datetime import date, datetime, timezone
 import streamlit as st
 import yfinance as yf
 from anthropic import Anthropic
+from google import genai
+from google.genai import types as genai_types
 
 from ai_client import CLAUDE_MODEL
 
@@ -26,6 +29,8 @@ MIN_UPSIDE_PCT = 10       # мин. потенциал до средната ц�
 EARNINGS_WARN_DAYS = 14   # отчет до толкова дни = риск от гап
 NEWS_MAX_SEARCHES = 3     # web търсения на компания (всяко се таксува)
 NEWS_WORKERS = 4
+NEWS_PROVIDERS = ["Claude", "Gemini"]
+GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
 
 BUY_KEYS = {"strong_buy", "buy"}
 SELL_KEYS = {"sell", "strong_sell", "underperform"}
@@ -135,16 +140,52 @@ def _extract_json(text: str) -> dict:
     return json.loads(match.group(1))
 
 
+def _build_prompt(name: str, symbol: str, is_etf: bool) -> str:
+    return NEWS_PROMPT.format(
+        kind="ETF" if is_etf else "Акция", name=name, symbol=symbol,
+        max_searches=NEWS_MAX_SEARCHES, etf_hint=ETF_HINT if is_etf else "",
+    )
+
+
+def _news_result(data: dict, sources: list, searches: int) -> dict:
+    return {
+        "verdict": _NEWS_LABELS.get(str(data.get("verdict", "")).lower(), NEWS_NEUTRAL),
+        "summary": data.get("summary") or "",
+        "analyst_actions": data.get("analyst_actions") or "",
+        "next_earnings": data.get("next_earnings"),
+        "sources": sources[:5],
+        "searches": searches,
+    }
+
+
+def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, model: str = GEMINI_DEFAULT_MODEL) -> dict:
+    """Една компания: Gemini с Google Search grounding. Източниците са от
+    grounding метаданните (реално намерените страници), не от текста на модела."""
+    try:
+        response = genai.Client(api_key=api_key).models.generate_content(
+            model=model, contents=_build_prompt(name, symbol, is_etf),
+            config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]),
+        )
+        meta = response.candidates[0].grounding_metadata if response.candidates else None
+        data = _extract_json(response.text or "")
+    except Exception as e:
+        return {"error": str(e), "searches": 0}
+    sources, seen = [], set()
+    for chunk in (meta.grounding_chunks or []) if meta else []:
+        web = chunk.web
+        if web and web.uri and web.uri not in seen:
+            seen.add(web.uri)
+            sources.append({"title": web.title or web.domain or web.uri, "url": web.uri})
+    searches = len(meta.web_search_queries or []) if meta else 0
+    return _news_result(data, sources, searches)
+
+
 def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
     """Една компания: Claude с web search. Връща {verdict, summary, analyst_actions,
     next_earnings, sources, searches} или {error}. Линковете се пазят само ако са
     от реално намерените резултати (без измислени URL-и)."""
     client = Anthropic(api_key=api_key)
-    prompt = NEWS_PROMPT.format(
-        kind="ETF" if is_etf else "Акция", name=name, symbol=symbol,
-        max_searches=NEWS_MAX_SEARCHES, etf_hint=ETF_HINT if is_etf else "",
-    )
-    messages = [{"role": "user", "content": prompt}]
+    messages = [{"role": "user", "content": _build_prompt(name, symbol, is_etf)}]
     tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
     found_urls, searches, response = {}, 0, None
     try:
@@ -166,21 +207,20 @@ def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
     sources = [s for s in data.get("sources") or [] if isinstance(s, dict) and s.get("url") in found_urls]
     if not sources:
         sources = [{"title": t, "url": u} for u, t in list(found_urls.items())[:3]]
-    return {
-        "verdict": _NEWS_LABELS.get(str(data.get("verdict", "")).lower(), NEWS_NEUTRAL),
-        "summary": data.get("summary") or "",
-        "analyst_actions": data.get("analyst_actions") or "",
-        "next_earnings": data.get("next_earnings"),
-        "sources": sources[:5],
-        "searches": searches,
-    }
+    return _news_result(data, sources, searches)
 
 
-def research_news_many(items: list, api_key: str, on_done=None) -> dict:
-    """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS."""
+def research_news_many(items: list, provider: str, api_key: str, gemini_model: str = GEMINI_DEFAULT_MODEL, on_done=None) -> dict:
+    """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS.
+    provider = "Claude" или "Gemini" (api_key е ключът на съответния доставчик)."""
+    def one(name, symbol, is_etf):
+        if provider == "Gemini":
+            return research_news_gemini(name, symbol, is_etf, api_key, gemini_model)
+        return research_news(name, symbol, is_etf, api_key)
+
     out = {}
     with ThreadPoolExecutor(max_workers=NEWS_WORKERS) as pool:
-        futures = {pool.submit(research_news, n, s, e, api_key): s for n, s, e in items}
+        futures = {pool.submit(one, n, s, e): s for n, s, e in items}
         for i, fut in enumerate(futures, 1):
             out[futures[fut]] = fut.result()
             if on_done:

@@ -404,6 +404,11 @@ def render_photon_strategy():
                  "в T212 се търгуват на Gettex, когато основната им борса е затворена - широк спред и гап "
                  "спрямо сигнала. Ръчно добавените се сканират винаги.",
         )
+        st.radio(
+            "Новини и анализи (ниво 2) - чрез", fund.NEWS_PROVIDERS, horizontal=True, key="ph_news_provider",
+            help="Claude (web search) или Gemini (Google Search). Резултатите се пазят отделно за всеки, "
+                 "така че можеш да ги сравниш на едни и същи инструменти. Gemini иска GEMINI_API_KEY в Secrets.",
+        )
         uploaded_universe = render_universe_uploader(key="ph")
 
     liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
@@ -661,12 +666,17 @@ NEWS_WATCHLIST_TOP = 10
 STAR_LABEL = "⭐ Структура + фундамент"
 
 
+def news_provider() -> str:
+    return st.session_state.get("ph_news_provider", fund.NEWS_PROVIDERS[0])
+
+
 def today_news() -> dict:
-    """Резултатите от ниво 2 (новини) за днес - {symbol: резултат}; от вчера се нулират."""
+    """Резултатите от ниво 2 (новини) за днес от избрания доставчик - {symbol: резултат};
+    от вчера се нулират."""
     stored = st.session_state.get("photon_news")
     if not stored or stored.get("date") != datetime.now().date().isoformat():
         return {}
-    return stored["items"]
+    return stored["by_provider"].get(news_provider(), {})
 
 
 def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
@@ -676,25 +686,31 @@ def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
 
 def render_news_section(targets: list, news: dict):
     """Ниво 2: бутон за проверка с Claude + web search и резултатите по инструмент."""
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    provider = news_provider()
+    api_key = st.secrets.get("GEMINI_API_KEY" if provider == "Gemini" else "ANTHROPIC_API_KEY", None)
     missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
     _, _, types = load_curated_symbol_info(curated_file_mtime())
+    billing = "Google AI (Gemini API)" if provider == "Gemini" else "Anthropic API"
     st.caption(
-        f"Всяка проверка търси в интернет (до {fund.NEWS_MAX_SEARCHES} търсения на инструмент - "
-        "таксуват се в Anthropic API). Резултатите се пазят до края на деня; проверяват се само липсващите."
+        f"Чрез **{provider}** (сменя се в ⚙️ Настройки). Всяка проверка търси в интернет - таксува се в {billing}. "
+        "Резултатите се пазят до края на деня, отделно за всеки доставчик; проверяват се само липсващите."
     )
-    if st.button(f"🔎 Провери новини и анализи ({len(missing)} инструмента)", key="ph_news_btn",
+    if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key="ph_news_btn",
                  disabled=not missing, width="stretch"):
         if not api_key:
-            st.error("Липсва ANTHROPIC_API_KEY в Streamlit Secrets.")
+            st.error(f"Липсва {'GEMINI_API_KEY' if provider == 'Gemini' else 'ANTHROPIC_API_KEY'} в Streamlit Secrets.")
         else:
             bar = st.progress(0.0, text="Търся новини и анализи...")
             items = [(x.name, x.symbol, types.get(x.symbol) == "ETF") for x in missing]
             found = fund.research_news_many(
-                items, api_key, on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
+                items, provider, api_key, gemini_model=st.secrets.get("GEMINI_MODEL", fund.GEMINI_DEFAULT_MODEL),
+                on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
             bar.empty()
-            news = {**news, **found}
-            st.session_state["photon_news"] = {"date": datetime.now().date().isoformat(), "items": news}
+            today = datetime.now().date().isoformat()
+            stored = st.session_state.get("photon_news")
+            by_provider = stored["by_provider"] if stored and stored.get("date") == today else {}
+            by_provider[provider] = {**news, **found}
+            st.session_state["photon_news"] = {"date": today, "by_provider": by_provider}
             searches = sum(r.get("searches", 0) for r in found.values())
             errors = sum(1 for r in found.values() if "error" in r)
             st.success(f"Готово: {len(found) - errors} проверени, {searches} web търсения"
@@ -707,7 +723,7 @@ def render_news_section(targets: list, news: dict):
         if "error" in r:
             st.warning(f"{x.name}: грешка при проверката - {r['error']}")
             continue
-        with st.expander(f"{r['verdict']} · {x.name}"):
+        with st.expander(f"{r['verdict']} · {x.name} · {provider}"):
             st.markdown(r["summary"])
             if r.get("analyst_actions"):
                 st.markdown(f"**Анализатори:** {r['analyst_actions']}")
