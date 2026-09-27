@@ -1016,9 +1016,11 @@ def find_swing_points(df: pd.DataFrame, order: int = 2) -> pd.DataFrame:
     for i in range(order, n - order):
         window_h = highs[i - order: i + order + 1]
         window_l = lows[i - order: i + order + 1]
-        if highs[i] == window_h.max():
+        # argmax/argmin връщат първото срещане - при равни върхове/дъна в
+        # прозореца се маркира само най-левият, вместо две съседни swing точки
+        if window_h.argmax() == order:
             swing_high[i] = True
-        if lows[i] == window_l.min():
+        if window_l.argmin() == order:
             swing_low[i] = True
     df["SwingHigh"] = swing_high
     df["SwingLow"] = swing_low
@@ -1492,42 +1494,127 @@ def render_sd_strategy():
             st.plotly_chart(fig, use_container_width=True)
 
 
-def detect_structure_events(df_with_swings: pd.DataFrame):
-    """Photon Trading MTF Phases логика, приложена върху 4ч ('Internal'):
-    определя дали структурата в момента продължава по тренда (Pro Internal)
-    или тече пулбек (Counter Internal), и дали ТОЧНО СЕГА има бичи CHoCH
-    (Change of Character) - пробив над последния swing high след пулбек,
-    сигнал че пулбекът е приключил. Връща None, ако няма достатъчно swing
-    точки за преценка."""
-    highs = df_with_swings.loc[df_with_swings["SwingHigh"], "High"]
-    lows = df_with_swings.loc[df_with_swings["SwingLow"], "Low"]
+def alternating_swings(df_with_swings: pd.DataFrame):
+    """Свежда swing точките до строго редуваща се поредица high/low/high/...
+    Два поредни high-а (без low между тях) се сливат в по-високия, два поредни
+    low-а - в по-ниския. Без това сравнението "последни 2 highs vs последни 2
+    lows" лесно сравнява точки от едно и също движение. Връща списък от
+    (timestamp, "H"/"L", цена)."""
+    sub = df_with_swings[df_with_swings["SwingHigh"] | df_with_swings["SwingLow"]]
+    points = []
+    for ts, is_h, is_l, hi, lo in zip(sub.index, sub["SwingHigh"], sub["SwingLow"], sub["High"], sub["Low"]):
+        candidates = []
+        if is_h:
+            candidates.append(("H", float(hi)))
+        if is_l:
+            candidates.append(("L", float(lo)))
+        if len(candidates) == 2 and points and points[-1][1] == "H":
+            candidates.reverse()  # outside bar след high: първо low, после high
+        for kind, price in candidates:
+            if points and points[-1][1] == kind:
+                prev_price = points[-1][2]
+                if (kind == "H" and price > prev_price) or (kind == "L" and price < prev_price):
+                    points[-1] = (ts, kind, price)
+            else:
+                points.append((ts, kind, price))
+    return points
+
+
+def swing_structure(df_with_swings: pd.DataFrame):
+    """Структура по редуващи се swing точки: последните два high-а и два low-а
+    и дали имаме HH+HL (възходяща структура). None при недостатъчно точки."""
+    points = alternating_swings(df_with_swings)
+    highs = [p for p in points if p[1] == "H"]
+    lows = [p for p in points if p[1] == "L"]
     if len(highs) < 2 or len(lows) < 2:
         return None
+    return {
+        "prev_high": highs[-2][2], "last_high": highs[-1][2], "last_high_idx": highs[-1][0],
+        "prev_low": lows[-2][2], "last_low": lows[-1][2], "last_low_idx": lows[-1][0],
+        "uptrend": highs[-1][2] > highs[-2][2] and lows[-1][2] > lows[-2][2],
+    }
 
-    last_high_idx, prev_high_idx = highs.index[-1], highs.index[-2]
-    last_low_idx = lows.index[-1]
-    last_high, prev_high = float(highs.iloc[-1]), float(highs.iloc[-2])
-    last_low = float(lows.iloc[-1])
-    current_close = float(df_with_swings["Close"].iloc[-1])
 
-    most_recent_swing_is_low = last_low_idx > last_high_idx
+def resample_session_halves(intraday: pd.DataFrame) -> pd.DataFrame:
+    """'4ч' свещи, подравнени към търговската сесия: всеки ден се разделя на
+    две половини по брой часови свещи (за 09:00-17:30 -> 09-14 и 14-17:30).
+    resample("4h") групира от полунощ и за EU борсите дава разкъсани/непълни
+    свещи (напр. 16:00-17:30)."""
+    rows, stamps = [], []
+    for _, day_df in intraday.groupby(intraday.index.date):
+        split = (len(day_df) + 1) // 2
+        for part in (day_df.iloc[:split], day_df.iloc[split:]):
+            if part.empty:
+                continue
+            stamps.append(part.index[0])
+            rows.append({
+                "Open": float(part["Open"].iloc[0]), "High": float(part["High"].max()),
+                "Low": float(part["Low"].min()), "Close": float(part["Close"].iloc[-1]),
+                "Volume": float(part["Volume"].sum()),
+            })
+    return pd.DataFrame(rows, index=pd.DatetimeIndex(stamps))
 
-    if most_recent_swing_is_low:
-        # последно движение: high -> нов low = пулбек в ход (потенциален Counter Internal)
-        internal_state = "counter" if last_low < prev_high else "pro"
-        choch_bullish_now = current_close > last_high  # пробив над предишния high = CHoCH
-        reference_low = last_low
+
+def drop_incomplete_week(weekly: pd.DataFrame, daily_df: pd.DataFrame) -> pd.DataFrame:
+    """Маха текущата (незатворена) седмица. Седмицата се смята за затворена,
+    ако последната дневна свещ е петък и този петък вече е минал."""
+    last_date = daily_df.index[-1].date()
+    week_closed = last_date.weekday() == 4 and date.today() > last_date
+    return weekly if week_closed else weekly.iloc[:-1]
+
+
+def detect_structure_events(df_with_swings: pd.DataFrame, choch_max_age: int = 3):
+    """Photon Trading MTF Phases логика върху 4ч ('Internal'):
+      - Pro Internal: HH+HL и цената държи над последния internal low;
+      - Counter Internal: lower high, lower low или затваряне под последния
+        internal low (пулбекът срещу дневния тренд тече);
+      - бичи CHoCH: ПЪРВОТО затваряне над последния internal swing high.
+        Брои се за "сега", само ако е станало в последните choch_max_age свещи -
+        иначе входът вече е изпуснат.
+    Връща None, ако няма достатъчно swing точки за преценка."""
+    s = swing_structure(df_with_swings)
+    if s is None:
+        return None
+
+    closes = df_with_swings["Close"]
+    lows = df_with_swings["Low"]
+    current_close = float(closes.iloc[-1])
+
+    lower_high = s["last_high"] < s["prev_high"]
+    lower_low = s["last_low"] < s["prev_low"]
+    broke_last_low = current_close < s["last_low"]
+    internal_state = "counter" if (lower_high or lower_low or broke_last_low) else "pro"
+
+    # CHoCH ниво = последният internal swing high; търсим първото затваряне над него след формирането му
+    choch_level = s["last_high"]
+    after_high = closes.loc[closes.index > s["last_high_idx"]]
+    breaks = after_high[after_high > choch_level]
+    choch_bars_ago = None
+    if not breaks.empty:
+        choch_bars_ago = int(len(closes) - 1 - closes.index.get_loc(breaks.index[0]))
+    choch_bullish_now = choch_bars_ago is not None and choch_bars_ago < choch_max_age
+
+    if internal_state == "pro":
+        reference_low = s["last_low"]  # последният internal HL
     else:
-        # последно движение: продължение нагоре (нов high след предходен low) = Pro Internal
-        internal_state = "pro" if last_high > prev_high else "counter"
-        choch_bullish_now = False
-        reference_low = float(lows.iloc[-1])
+        # дъното на пулбека: най-ниското от последния swing high насам
+        # (може още да не е потвърдено като swing low)
+        pullback_lows = lows.loc[lows.index > s["last_high_idx"]]
+        reference_low = float(pullback_lows.min()) if not pullback_lows.empty else s["last_low"]
 
-    return {"internal_state": internal_state, "choch_bullish_now": choch_bullish_now, "reference_low": reference_low}
+    return {
+        "internal_state": internal_state, "choch_bullish_now": choch_bullish_now,
+        "choch_bars_ago": choch_bars_ago, "choch_level": choch_level,
+        "reference_low": reference_low, "internal_hl": s["last_low"],
+    }
 
 
 @st.cache_data(ttl=3600)
-def analyze_instrument_photon(name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int):
+def analyze_instrument_photon(
+    name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int,
+    closed_weeks_only: bool = True, choch_max_age: int = 3, poi_atr_mult: float = 1.0,
+    stop_atr_buffer: float = 0.5, min_rr: float = 2.0,
+):
     daily_df = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
     if daily_df.empty or len(daily_df) < 150:
         return None
@@ -1537,69 +1624,96 @@ def analyze_instrument_photon(name: str, symbol: str, swing_order_weekly: int, s
     weekly = (
         daily_df.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
     )
+    if closed_weeks_only:
+        weekly = drop_incomplete_week(weekly, daily_df)
     if len(weekly) < 20:
         return None
-    weekly = find_swing_points(weekly, order=swing_order_weekly)
-    weekly_uptrend, weekly_resistance, weekly_support = structure_trend(weekly)
-    if not weekly_uptrend:
+    weekly_s = swing_structure(find_swing_points(weekly, order=swing_order_weekly))
+    if weekly_s is None or not weekly_s["uptrend"]:
         return None
+    weekly_resistance = weekly_s["last_high"]
 
     # --- Swing/MTF (Дневен): трябва да е Pro Swing (нагоре) - Phase C/D извън обхват ---
-    daily_swings = find_swing_points(daily_df, order=swing_order_daily)
-    daily_uptrend, daily_resistance, daily_support = structure_trend(daily_swings)
-    if not daily_uptrend or daily_support is None or daily_resistance is None:
+    daily_s = swing_structure(find_swing_points(daily_df, order=swing_order_daily))
+    if daily_s is None or not daily_s["uptrend"]:
         return None
+    daily_support, daily_resistance = daily_s["last_low"], daily_s["last_high"]
     daily_range = daily_resistance - daily_support
     if daily_range <= 0:
         return None
 
     current_price = float(daily_df["Close"].iloc[-1])
+    # Затваряне под последния дневен HL = дневната структура е счупена (не е discount)
+    if current_price < daily_support:
+        return None
     equilibrium = daily_support + daily_range / 2
     in_discount = current_price <= equilibrium
-    discount_pct = round(100 * (equilibrium - current_price) / (daily_range / 2), 1) if daily_range > 0 else None
+    discount_pct = round(100 * (equilibrium - current_price) / (daily_range / 2), 1)
 
-    # --- Internal/LTF (4ч): Pro или Counter Internal + CHoCH тригер ---
-    internal_state, choch_now, reference_low = None, False, None
+    # --- Internal/LTF (4ч, подравнени към сесията): Pro/Counter Internal + CHoCH тригер ---
+    events, atr_4h = None, None
     try:
         intraday = yf.download(symbol, period="60d", interval="60m", progress=False, auto_adjust=True)
         if not intraday.empty:
             intraday = flatten_columns(intraday)
-            h4 = (
-                intraday.resample("4h").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
-            )
+            h4 = resample_session_halves(intraday)
             if len(h4) >= 10:
-                h4 = find_swing_points(h4, order=1)
-                events = detect_structure_events(h4)
-                if events:
-                    internal_state = events["internal_state"]
-                    choch_now = events["choch_bullish_now"]
-                    reference_low = events["reference_low"]
+                events = detect_structure_events(find_swing_points(h4, order=1), choch_max_age)
+                atr_4h = average_true_range(h4, period=14)
     except Exception:
         pass
-    if internal_state is None:
+    if events is None:
         return None
+    atr_daily = average_true_range(daily_df, period=14)
+    if not atr_4h:
+        atr_4h = atr_daily / 2 if atr_daily else None
 
     # --- Класификация на фазата (само A и B - long-only, консервативен обхват) ---
-    if internal_state == "pro":
+    if events["internal_state"] == "pro":
         phase = "A"
-        ready = in_discount or discount_pct is not None and discount_pct >= 0  # Phase A: не чакаме CHoCH, влизаме на POI
+        # POI = зоната точно над последния internal HL (до poi_atr_mult x ATR 4ч)
+        poi_low = events["internal_hl"]
+        poi_high = poi_low + poi_atr_mult * atr_4h if atr_4h else poi_low
+        at_poi = poi_low <= current_price <= poi_high
+        setup_ok = in_discount and at_poi
     else:
         phase = "B"
-        ready = choch_now and in_discount  # Phase B: чакаме CHoCH ТОЧНО СЕГА + discount зона
+        poi_low = poi_high = None
+        setup_ok = in_discount and events["choch_bullish_now"]
 
-    stop_ref = reference_low if reference_low else daily_support
-    risk = current_price - stop_ref
+    # --- Stop с ATR буфер под reference low; минимален риск 0.5 x дневен ATR ---
+    stop = events["reference_low"] - (stop_atr_buffer * atr_4h if atr_4h else 0)
+    if atr_daily:
+        stop = min(stop, current_price - 0.5 * atr_daily)
+    risk = current_price - stop
     reward = daily_resistance - current_price
-    rr = round(reward / risk, 2) if risk and risk > 0 and reward and reward > 0 else None
+    reward_weekly = weekly_resistance - current_price
+    rr = round(reward / risk, 2) if risk > 0 and reward > 0 else None
+    rr_weekly = round(reward_weekly / risk, 2) if risk > 0 and reward_weekly > 0 else None
+    rr_ok = rr is not None and rr >= min_rr
+    ready = setup_ok and rr_ok
+
+    if ready:
+        note = "Вход на POI" if phase == "A" else f"CHoCH преди {events['choch_bars_ago']} свещи"
+    elif setup_ok:
+        note = f"R/R под {min_rr}"
+    elif not in_discount:
+        note = "Premium - чакаме връщане под 50%"
+    elif phase == "A":
+        note = f"Чакаме цената в POI ({poi_low:.2f}-{poi_high:.2f})"
+    else:
+        note = f"Чакаме 4ч CHoCH над {events['choch_level']:.2f}"
 
     return {
         "Име": name, "Тикер": symbol, "Цена (€)": round(current_price, 2),
-        "Фаза": f"{phase} ({'Pro' if phase == 'A' else 'Pro Swing+Counter'} Internal)",
-        "Premium/Discount": f"{'Discount' if in_discount else 'Premium'} ({discount_pct}%)" if discount_pct is not None else "-",
-        "4ч CHoCH сега": choch_now,
+        "Фаза": f"{phase} ({'Pro' if phase == 'A' else 'Counter'} Internal)",
+        "Premium/Discount": f"{'Discount' if in_discount else 'Premium'} ({discount_pct}%)",
+        "4ч CHoCH сега": events["choch_bullish_now"],
+        "Бележка": note,
         "Дневна подкрепа": round(daily_support, 2), "Дневна съпротива": round(daily_resistance, 2),
-        "Reference Low (stop)": round(stop_ref, 2) if stop_ref else None,
+        "Stop": round(stop, 2),
         "R/R (до дневна съпротива)": rr,
+        "R/R (до седм. съпротива)": rr_weekly,
         "Готов за вход": ready,
     }
 
@@ -1619,11 +1733,14 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     - Седмичен тренд трябва да е Pro (възходящ) - твърд филтър.
     - Дневен Swing тренд трябва също да е Pro (възходящ) - твърд филтър.
       (Counter Swing фази C/D са изключени - твърде агресивни за системата.)
-    - Phase A (Pro Swing + Pro Internal): 4ч структурата продължава нагоре
-      без пулбек - може да се влиза направо на POI, без да чакаме CHoCH.
-    - Phase B (Pro Swing + Counter Internal): 4ч е в пулбек - влизаме ТОЧНО
-      на CHoCH (пробив над последния 4ч swing high), и само в discount зона
-      (цената под 50% от дневния диапазон).
+    - Phase A (Pro Swing + Pro Internal): 4ч структурата е HH+HL - влизаме
+      на POI (зоната точно над последния 4ч higher low), без да чакаме CHoCH.
+    - Phase B (Pro Swing + Counter Internal): 4ч е в пулбек (lower high/low) -
+      влизаме на СВЕЖ CHoCH (първо затваряне над последния 4ч swing high
+      преди най-много няколко свещи).
+    - И двете фази: само в discount зона (под 50% от дневния диапазон),
+      Stop под reference low с ATR буфер, минимален R/R спрямо дневната съпротива.
+    - Колоната "Бележка" казва какво чакаме за всеки инструмент от watchlist-а.
 
     Използвай СТРИКТНО само данните по-долу.
 
@@ -1636,9 +1753,10 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     ЖЕЛЕЗНИ ПРАВИЛА:
     - Избирай ЕДИНСТВЕНО измежду инструментите по-долу.
     - Ако категория е празна, кажи го ясно.
-    - За Watchlist Phase B обясни, че чакаме CHoCH на 4ч.
+    - За Watchlist ползвай колоната "Бележка" за конкретното условие, което чакаме.
 
-    За "ГОТОВИ ЗА ВХОД": обясни фазата, Stop на Reference Low, Target на дневна съпротива.
+    За "ГОТОВИ ЗА ВХОД": обясни фазата, Stop (колоната "Stop"), Target 1 на дневна
+    съпротива, Target 2 на седмична съпротива.
     Бъди кратък, удобен за телефон.
     """
     response = client.messages.create(
@@ -1660,6 +1778,20 @@ def render_photon_strategy():
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
+        closed_weeks_only = st.checkbox(
+            "Седмичен тренд само по затворени седмици", value=True, key="ph_closed_w",
+            help="Текущата незавършена седмица не участва в седмичните swing точки.",
+        )
+        choch_max_age = st.slider(
+            "Свежест на CHoCH (макс. 4ч свещи назад)", 1, 6, 3, key="ph_choch_age",
+            help="Phase B е 'готов' само ако пробивът над 4ч swing high е станал до толкова свещи назад.",
+        )
+        poi_atr_mult = st.slider(
+            "Ширина на POI зоната (x ATR 4ч)", 0.5, 2.0, 1.0, step=0.25, key="ph_poi_atr",
+            help="Phase A: цената трябва да е до толкова ATR над последния 4ч higher low.",
+        )
+        stop_atr_buffer = st.slider("Stop буфер под reference low (x ATR 4ч)", 0.0, 1.0, 0.5, step=0.1, key="ph_stop_buf")
+        min_rr = st.slider("Минимален R/R (до дневна съпротива)", 1.0, 4.0, 2.0, step=0.5, key="ph_min_rr")
         uploaded_universe = render_universe_uploader(key="ph")
     manual_keywords = tuple(k.strip() for k in pinned_input.split(",") if k.strip())
     auto_pin, macro_keywords = render_macro_section(key="ph")
@@ -1681,7 +1813,10 @@ def render_photon_strategy():
         items = list(tickers.items())
         for idx, (name, symbol) in enumerate(items):
             progress.progress((idx + 1) / len(items), text=f"Анализирам {name}...")
-            res = analyze_instrument_photon(name, symbol, swing_order_weekly, swing_order_daily)
+            res = analyze_instrument_photon(
+                name, symbol, swing_order_weekly, swing_order_daily,
+                closed_weeks_only, choch_max_age, poi_atr_mult, stop_atr_buffer, min_rr,
+            )
             if res is not None:
                 (results if res["Готов за вход"] else watch_list).append(res)
         progress.empty()
@@ -1692,7 +1827,7 @@ def render_photon_strategy():
     watch_list = st.session_state.get("photon_watchlist", [])
 
     st.divider()
-    section_header("✅ Готови за вход", status="go", subtitle="Phase A (Pro Internal, POI) или Phase B (CHoCH точно сега + discount)")
+    section_header("✅ Готови за вход", status="go", subtitle="Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума")
     if results:
         df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
         df_ready = flag_macro_signal(df_ready, macro_keywords)
@@ -1715,7 +1850,7 @@ def render_photon_strategy():
         st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента.")
 
     st.divider()
-    section_header("👀 Watchlist", status="watch", subtitle="Pro Swing потвърден, чакаме Phase A POI или Phase B CHoCH")
+    section_header("👀 Watchlist", status="watch", subtitle="Pro Swing потвърден - колоната 'Бележка' казва какво чакаме")
     if watch_list:
         df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход"])
         df_watch = flag_macro_signal(df_watch, macro_keywords)
@@ -1761,8 +1896,9 @@ def render_photon_strategy():
         daily = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
         if not daily.empty:
             daily = flatten_columns(daily)
-            daily_swings = find_swing_points(daily, order=3)
-            _, res_lvl, sup_lvl = structure_trend(daily_swings)
+            chart_s = swing_structure(find_swing_points(daily, order=swing_order_daily))
+            res_lvl = chart_s["last_high"] if chart_s else None
+            sup_lvl = chart_s["last_low"] if chart_s else None
 
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
