@@ -179,13 +179,17 @@ FALLBACK_TICKERS = {
 
 
 @st.cache_data(ttl=6 * 3600)
-def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
+def load_universe(max_instruments=500, pinned_keywords: tuple = (), min_turnover: float = 0):
     """Зарежда универса за сканиране. Приоритет:
     1) закачени (pinned_keywords) инструменти - винаги от ПЪЛНИЯ eu_instruments.json,
        за да не пропуснем нищо, дори ако не са в месечната селекция;
     2) curated_universe.json (месечна селекция по ликвидност+моментум+медиен buzz),
        ако съществува;
-    3) fallback - суровият ред от eu_instruments.json, ако все още няма curated файл."""
+    3) fallback - суровият ред от eu_instruments.json, ако все още няма curated файл.
+    max_instruments=None = без лимит; min_turnover = мин. среден дневен оборот (€)
+    за инструментите от curated файла (закачените винаги влизат)."""
+    if max_instruments is None:
+        max_instruments = float("inf")
     pinned_keywords_lower = [kw.lower() for kw in pinned_keywords if kw.strip()]
     mapped = {}
 
@@ -214,6 +218,8 @@ def load_universe(max_instruments: int = 500, pinned_keywords: tuple = ()):
                 break
             label = item["name"]
             if label in mapped:
+                continue
+            if item.get("avg_dollar_volume", 0) < min_turnover:
                 continue
             mapped[label] = item["symbol"]
         st.caption(
@@ -1619,74 +1625,137 @@ def detect_structure_events(df_with_swings: pd.DataFrame, choch_max_age: int = 3
     }
 
 
-@st.cache_data(ttl=3600)
-def analyze_instrument_photon(
-    name: str, symbol: str, swing_order_weekly: int, swing_order_daily: int,
-    closed_weeks_only: bool = True, choch_max_age: int = 3, poi_atr_mult: float = 1.0,
-    stop_atr_buffer: float = 0.5, min_rr: float = 2.0,
-):
-    daily_df = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
-    if daily_df.empty or len(daily_df) < 150:
-        return None
-    daily_df = flatten_columns(daily_df)
+OHLC_AGG = {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}
+PHOTON_BATCH_SIZE = 50
+
+# Причини за отпадане - ползват се във фунията на скана
+REJECT_NO_DATA = "Няма/малко ценови данни"
+REJECT_WEEKLY = "Седмичният тренд не е Pro (HH+HL)"
+REJECT_DAILY = "Дневният тренд не е Pro (HH+HL)"
+REJECT_SMALL_RANGE = "Дневният диапазон е твърде тесен (под мин. x ATR)"
+REJECT_BROKEN = "Цена под дневната подкрепа (счупена структура)"
+REJECT_NO_4H = "Няма 4ч данни/структура"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_ohlc_batch(symbols: tuple, period: str, interval: str) -> dict:
+    """Тегли OHLC за няколко тикера с ЕДНА заявка към yfinance (паралелно)
+    вместо по една заявка на тикер. Връща {symbol: DataFrame}; липсващите
+    тикери просто ги няма в резултата."""
+    out = {}
+    try:
+        df = yf.download(
+            list(symbols), period=period, interval=interval, group_by="ticker",
+            progress=False, auto_adjust=True, threads=True,
+        )
+    except Exception:
+        return out
+    if df is None or df.empty:
+        return out
+    for symbol in symbols:
+        try:
+            sub = df[symbol] if isinstance(df.columns, pd.MultiIndex) else df
+        except KeyError:
+            continue
+        sub = sub.dropna(subset=["Close"])
+        if not sub.empty:
+            out[symbol] = sub.copy()
+    return out
+
+
+def fetch_ohlc_many(symbols: list, period: str, interval: str, on_progress=None) -> dict:
+    """fetch_ohlc_batch на порции по PHOTON_BATCH_SIZE (сортирани, за да са
+    стабилни ключовете на кеша между сканирания)."""
+    symbols = sorted(set(symbols))
+    out = {}
+    for i in range(0, len(symbols), PHOTON_BATCH_SIZE):
+        out.update(fetch_ohlc_batch(tuple(symbols[i: i + PHOTON_BATCH_SIZE]), period, interval))
+        if on_progress:
+            on_progress(min(i + PHOTON_BATCH_SIZE, len(symbols)), len(symbols))
+    return out
+
+
+def significant_daily_structure(daily_df: pd.DataFrame, base_order: int, min_range_atr: float, atr_daily):
+    """Дневна структура с минимална ширина на диапазона: ако последните swing
+    high/low са по-близо от min_range_atr x дневния ATR (шум, не swing),
+    повишаваме чувствителността (order) до +4, докато намерим значим диапазон.
+    Връща (structure, order, None) или (None, None, причина за отпадане)."""
+    min_range = min_range_atr * atr_daily if atr_daily else 0
+    for order in range(base_order, base_order + 5):
+        s = swing_structure(find_swing_points(daily_df, order=order))
+        if s is None:
+            return None, None, REJECT_DAILY
+        if s["last_high"] - s["last_low"] >= min_range and s["last_high"] > s["last_low"]:
+            return s, order, None
+    return None, None, REJECT_SMALL_RANGE
+
+
+def analyze_photon_daily(daily_df: pd.DataFrame, p: dict):
+    """Стъпка 1 (без 4ч данни): седмичен и дневен тренд + дневен диапазон.
+    Връща (context, None) при успех или (None, причина за отпадане)."""
+    if daily_df is None or len(daily_df) < 150:
+        return None, REJECT_NO_DATA
 
     # --- HTF (Седмичен): задължителна посока, само LONG ---
-    weekly = (
-        daily_df.resample("W").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).dropna()
-    )
-    if closed_weeks_only:
+    weekly = daily_df.resample("W").agg(OHLC_AGG).dropna()
+    if p["closed_weeks_only"]:
         weekly = drop_incomplete_week(weekly, daily_df)
     if len(weekly) < 20:
-        return None
-    weekly_s = swing_structure(find_swing_points(weekly, order=swing_order_weekly))
+        return None, REJECT_NO_DATA
+    weekly_s = swing_structure(find_swing_points(weekly, order=p["swing_order_weekly"]))
     if weekly_s is None or not weekly_s["uptrend"]:
-        return None
-    weekly_resistance = weekly_s["last_high"]
+        return None, REJECT_WEEKLY
 
-    # --- Swing/MTF (Дневен): трябва да е Pro Swing (нагоре) - Phase C/D извън обхват ---
-    daily_s = swing_structure(find_swing_points(daily_df, order=swing_order_daily))
-    if daily_s is None or not daily_s["uptrend"]:
-        return None
-    daily_support, daily_resistance = daily_s["last_low"], daily_s["last_high"]
-    daily_range = daily_resistance - daily_support
-    if daily_range <= 0:
-        return None
+    # --- Swing/MTF (Дневен): Pro Swing (нагоре) със значим диапазон - Phase C/D извън обхват ---
+    atr_daily = average_true_range(daily_df, period=14)
+    daily_s, used_order, why = significant_daily_structure(daily_df, p["swing_order_daily"], p["min_range_atr"], atr_daily)
+    if daily_s is None:
+        return None, why
+    if not daily_s["uptrend"]:
+        return None, REJECT_DAILY
 
     current_price = float(daily_df["Close"].iloc[-1])
     # Затваряне под последния дневен HL = дневната структура е счупена (не е discount)
-    if current_price < daily_support:
-        return None
-    equilibrium = daily_support + daily_range / 2
-    in_discount = current_price <= equilibrium
+    if current_price < daily_s["last_low"]:
+        return None, REJECT_BROKEN
+
+    return {
+        "current_price": current_price, "atr_daily": atr_daily, "daily_order": used_order,
+        "daily_support": daily_s["last_low"], "daily_resistance": daily_s["last_high"],
+        "weekly_resistance": weekly_s["last_high"],
+    }, None
+
+
+def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.DataFrame, p: dict):
+    """Стъпка 2: 4ч Internal структура, фаза, stop и R/R.
+    Връща (резултат, None) или (None, причина за отпадане)."""
+    events, atr_4h = None, None
+    if intraday is not None and not intraday.empty:
+        h4 = resample_session_halves(intraday)
+        if len(h4) >= 10:
+            events = detect_structure_events(find_swing_points(h4, order=1), p["choch_max_age"])
+            atr_4h = average_true_range(h4, period=14)
+    if events is None:
+        return None, REJECT_NO_4H
+
+    current_price, atr_daily = ctx["current_price"], ctx["atr_daily"]
+    daily_support, daily_resistance = ctx["daily_support"], ctx["daily_resistance"]
+    daily_range = daily_resistance - daily_support
+    if not atr_4h:
+        atr_4h = atr_daily / 2 if atr_daily else None
+
+    in_discount = current_price <= daily_support + daily_range / 2
     # позиция в дневния диапазон: 0% = подкрепа, 50% = equilibrium, 100% = съпротива;
     # над 100% = цената е пробила съпротивата (BOS), нов swing high още не е потвърден
     range_pos = round(100 * (current_price - daily_support) / daily_range, 1)
     above_resistance = current_price > daily_resistance
-
-    # --- Internal/LTF (4ч, подравнени към сесията): Pro/Counter Internal + CHoCH тригер ---
-    events, atr_4h = None, None
-    try:
-        intraday = yf.download(symbol, period="60d", interval="60m", progress=False, auto_adjust=True)
-        if not intraday.empty:
-            intraday = flatten_columns(intraday)
-            h4 = resample_session_halves(intraday)
-            if len(h4) >= 10:
-                events = detect_structure_events(find_swing_points(h4, order=1), choch_max_age)
-                atr_4h = average_true_range(h4, period=14)
-    except Exception:
-        pass
-    if events is None:
-        return None
-    atr_daily = average_true_range(daily_df, period=14)
-    if not atr_4h:
-        atr_4h = atr_daily / 2 if atr_daily else None
 
     # --- Класификация на фазата (само A и B - long-only, консервативен обхват) ---
     if events["internal_state"] == "pro":
         phase = "A"
         # POI = зоната точно над последния internal HL (до poi_atr_mult x ATR 4ч)
         poi_low = events["internal_hl"]
-        poi_high = poi_low + poi_atr_mult * atr_4h if atr_4h else poi_low
+        poi_high = poi_low + p["poi_atr_mult"] * atr_4h if atr_4h else poi_low
         at_poi = poi_low <= current_price <= poi_high
         setup_ok = in_discount and at_poi
     else:
@@ -1695,21 +1764,21 @@ def analyze_instrument_photon(
         setup_ok = in_discount and events["choch_bullish_now"]
 
     # --- Stop с ATR буфер под reference low; минимален риск 0.5 x дневен ATR ---
-    stop = events["reference_low"] - (stop_atr_buffer * atr_4h if atr_4h else 0)
+    stop = events["reference_low"] - (p["stop_atr_buffer"] * atr_4h if atr_4h else 0)
     if atr_daily:
         stop = min(stop, current_price - 0.5 * atr_daily)
     risk = current_price - stop
     reward = daily_resistance - current_price
-    reward_weekly = weekly_resistance - current_price
+    reward_weekly = ctx["weekly_resistance"] - current_price
     rr = round(reward / risk, 2) if risk > 0 and reward > 0 else None
     rr_weekly = round(reward_weekly / risk, 2) if risk > 0 and reward_weekly > 0 else None
-    rr_ok = rr is not None and rr >= min_rr
+    rr_ok = rr is not None and rr >= p["min_rr"]
     ready = setup_ok and rr_ok
 
     if ready:
         note = "Вход на POI" if phase == "A" else f"CHoCH преди {events['choch_bars_ago']} свещи"
     elif setup_ok:
-        note = f"R/R под {min_rr}"
+        note = f"R/R под {p['min_rr']}"
     elif above_resistance:
         note = "Над дневната съпротива (BOS) - чакаме нов пулбек"
     elif not in_discount:
@@ -1727,11 +1796,60 @@ def analyze_instrument_photon(
         "4ч CHoCH сега": events["choch_bullish_now"],
         "Бележка": note,
         "Дневна подкрепа": round(daily_support, 2), "Дневна съпротива": round(daily_resistance, 2),
+        "Ширина (x ATR)": round(daily_range / atr_daily, 1) if atr_daily else None,
         "Stop": round(stop, 2),
         "R/R (до дневна съпротива)": rr,
         "R/R (до седм. съпротива)": rr_weekly,
         "Готов за вход": ready,
-    }
+    }, None
+
+
+def run_photon_scan(tickers: dict, p: dict, progress):
+    """Целият скан: пакетно теглене на дневни данни за всички, стъпка 1,
+    после пакетно 60m данни САМО за оцелелите и стъпка 2.
+    Връща (готови, watchlist, фуния {етап/причина: брой})."""
+    items = list(tickers.items())
+    funnel = {"Сканирани": len(items)}
+    rejects = {}
+
+    def reject(reason):
+        rejects[reason] = rejects.get(reason, 0) + 1
+
+    progress.progress(0.0, text="Тегля дневни данни...")
+    daily_data = fetch_ohlc_many(
+        [s for _, s in items], "2y", "1d",
+        on_progress=lambda done, total: progress.progress(0.5 * done / total, text=f"Дневни данни: {done}/{total}"),
+    )
+
+    survivors = []
+    for name, symbol in items:
+        ctx, why = analyze_photon_daily(daily_data.get(symbol), p)
+        if ctx is None:
+            reject(why)
+        else:
+            survivors.append((name, symbol, ctx))
+    funnel["Седмичен + дневен Pro тренд"] = len(survivors)
+
+    intraday_data = {}
+    if survivors:
+        intraday_data = fetch_ohlc_many(
+            [s for _, s, _ in survivors], "60d", "60m",
+            on_progress=lambda done, total: progress.progress(0.5 + 0.5 * done / total, text=f"4ч данни: {done}/{total}"),
+        )
+
+    results, watch_list = [], []
+    for name, symbol, ctx in survivors:
+        res, why = analyze_photon_intraday(name, symbol, ctx, intraday_data.get(symbol), p)
+        if res is None:
+            reject(why)
+        else:
+            (results if res["Готов за вход"] else watch_list).append(res)
+    funnel["Watchlist"] = len(watch_list)
+    funnel["Готови за вход"] = len(results)
+
+    results.sort(key=lambda r: r["R/R (до дневна съпротива)"] or 0, reverse=True)
+    watch_list.sort(key=lambda r: r["Позиция в диапазона (%)"])
+    return results, watch_list, funnel, rejects
 
 
 def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str) -> str:
@@ -1787,13 +1905,22 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
 
 def render_photon_strategy():
     with st.expander("⚙️ Настройки на скрининга", expanded=False):
-        max_instr = st.slider("Максимален брой инструменти", 20, 500, 250, step=20, key="ph_max")
+        min_turnover = st.select_slider(
+            "Мин. среден дневен оборот (€)", options=[0, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
+            value=250_000, format_func=lambda v: f"{v:,.0f} €".replace(",", " "), key="ph_min_turnover",
+            help="Сканират се ВСИЧКИ инструменти от месечната селекция с поне толкова оборот (средно за 20 дни). "
+                 "Нисколиквидните отпадат.",
+        )
         pinned_input = st.text_input(
             "Винаги включвай (имена, разделени със запетая)", value="Gold, Silver", key="ph_pinned",
-            help="Тези инструменти винаги влизат в сканирането, дори извън обичайния лимит по-горе.",
+            help="Тези инструменти винаги влизат в сканирането, независимо от оборота.",
         )
         swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
         swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
+        min_range_atr = st.slider(
+            "Мин. ширина на дневния диапазон (x дневен ATR)", 1.0, 6.0, 3.0, step=0.5, key="ph_min_range",
+            help="По-тесен диапазон е шум, не swing - тогава се търсят по-значими swing точки.",
+        )
         closed_weeks_only = st.checkbox(
             "Седмичен тренд само по затворени седмици", value=True, key="ph_closed_w",
             help="Текущата незавършена седмица не участва в седмичните swing точки.",
@@ -1821,8 +1948,8 @@ def render_photon_strategy():
         tickers = uploaded_universe
         st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
     else:
-        tickers = load_universe(max_instruments=max_instr, pinned_keywords=pinned_keywords)
-        st.caption(f"Универс: {len(tickers)} инструмента")
+        tickers = load_universe(max_instruments=None, pinned_keywords=pinned_keywords, min_turnover=min_turnover)
+        st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     render_universe_search(key="ph")
@@ -1833,23 +1960,33 @@ def render_photon_strategy():
             st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
-        results, watch_list = [], []
+        params = {
+            "swing_order_weekly": swing_order_weekly, "swing_order_daily": swing_order_daily,
+            "min_range_atr": min_range_atr, "closed_weeks_only": closed_weeks_only,
+            "choch_max_age": choch_max_age, "poi_atr_mult": poi_atr_mult,
+            "stop_atr_buffer": stop_atr_buffer, "min_rr": min_rr,
+        }
         progress = st.progress(0.0, text="Търсене на Phase A/B сетъпи...")
-        items = list(tickers.items())
-        for idx, (name, symbol) in enumerate(items):
-            progress.progress((idx + 1) / len(items), text=f"Анализирам {name}...")
-            res = analyze_instrument_photon(
-                name, symbol, swing_order_weekly, swing_order_daily,
-                closed_weeks_only, choch_max_age, poi_atr_mult, stop_atr_buffer, min_rr,
-            )
-            if res is not None:
-                (results if res["Готов за вход"] else watch_list).append(res)
+        results, watch_list, funnel, rejects = run_photon_scan(tickers, params, progress)
         progress.empty()
         st.session_state["photon_results"] = results
         st.session_state["photon_watchlist"] = watch_list
+        st.session_state["photon_funnel"] = (funnel, rejects, datetime.now().strftime("%d.%m %H:%M"))
 
     results = st.session_state.get("photon_results", [])
     watch_list = st.session_state.get("photon_watchlist", [])
+
+    if "photon_funnel" in st.session_state:
+        funnel, rejects, scanned_at = st.session_state["photon_funnel"]
+        cols = st.columns(len(funnel))
+        for col, (label, count) in zip(cols, funnel.items()):
+            col.metric(label, count)
+        if rejects:
+            with st.expander(f"📉 Защо отпаднаха инструментите (скан от {scanned_at})"):
+                st.dataframe(
+                    pd.DataFrame(sorted(rejects.items(), key=lambda kv: -kv[1]), columns=["Причина", "Брой"]),
+                    hide_index=True, use_container_width=True,
+                )
 
     st.divider()
     section_header("✅ Готови за вход", status="go", subtitle="Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума")
@@ -1918,10 +2055,11 @@ def render_photon_strategy():
     if tickers:
         selected_name = st.selectbox("Избери инструмент", list(tickers.keys()), key="ph_chart_select")
         symbol = tickers[selected_name]
-        daily = yf.download(symbol, period="2y", interval="1d", progress=False, auto_adjust=True)
-        if not daily.empty:
-            daily = flatten_columns(daily)
-            chart_s = swing_structure(find_swing_points(daily, order=swing_order_daily))
+        daily = fetch_ohlc_batch((symbol,), "2y", "1d").get(symbol)
+        if daily is not None and not daily.empty:
+            chart_s, _, _ = significant_daily_structure(
+                daily, swing_order_daily, min_range_atr, average_true_range(daily, period=14),
+            )
             res_lvl = chart_s["last_high"] if chart_s else None
             sup_lvl = chart_s["last_low"] if chart_s else None
 

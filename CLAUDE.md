@@ -9,7 +9,7 @@
 | `multi_timeframe_screener.py` | **Streamlit приложението** (един голям файл, ~2150 реда). Входна точка: `streamlit run multi_timeframe_screener.py` |
 | `t212_portfolio.py` | Trading 212 API клиент (Portfolio / History, Basic auth от key+secret) |
 | `fetch_eu_instruments.py` | Тегли всички T212 инструменти, филтрира EUR + ЕС/ЕИП борси → `eu_instruments.json` |
-| `select_liquid_universe.py` | Месечен pre-screen: ликвидност + 3м моментум → топ ~500 в `curated_universe.json` (това сканира приложението) |
+| `select_liquid_universe.py` | Месечен pre-screen: всички инструменти с оборот ≥ 50k €/ден (+ 3м моментум, медиен buzz) → `curated_universe.json`; приложението сканира всички над избрания в UI праг |
 | `daily_macro_scan.py` | Дневен макро скенер: FMP числа (Fed rate, CPI, 10y) + Claude с web search → `daily_macro_signal.json` |
 | `manual_universe.json` | Ръчно include/exclude на тикери (редактира се и от UI през GitHub API) |
 | `.github/workflows/` | `daily.yml` (03:00 UTC, instruments), `daily_macro.yml` (04:30 UTC), `monthly_curate.yml` (1-во число, 04:00 UTC). Всички commit-ват JSON резултата обратно в `main` |

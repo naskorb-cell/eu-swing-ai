@@ -3,9 +3,9 @@ select_liquid_universe.py
 
 Месечен pre-screening на ЦЕЛИЯ eu_instruments.json универс: оценява
 ликвидност (среден дневен оборот) и моментум (3-месечна доходност),
-маха най-неликвидните, класира по моментум и записва топ N (по
-подразбиране 500) в curated_universe.json - това е файлът, който
-Streamlit приложението реално ползва за сканиране.
+маха нисколиквидните (под MIN_TURNOVER_FLOOR) и записва ВСИЧКИ останали
+в curated_universe.json - това е файлът, който Streamlit приложението
+реално ползва за сканиране. По-строгият праг за оборот се избира в UI.
 
 Пуска се веднъж месечно от GitHub Actions (.github/workflows/monthly_curate.yml).
 Тежка операция (тегли данни за хиляди тикери) - затова НЕ се пуска на всеки
@@ -31,10 +31,8 @@ from anthropic import Anthropic
 
 INSTRUMENTS_FILE = "eu_instruments.json"
 OUTPUT_FILE = "curated_universe.json"
-TOP_N = 500
-LIQUID_KEEP_FRACTION = 0.6
+MIN_TURNOVER_FLOOR = 50_000  # € среден дневен оборот (20 дни); под това инструментът не се записва
 CHUNK_SIZE = 50
-TRENDING_RESERVED_SLOTS = 80  # колко от TOP_N места пазим за медийно/аналитично "трендиращи" имена
 
 EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
     ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
@@ -200,11 +198,9 @@ def main():
         print("Няма оценени инструменти - прекратявам без запис.")
         return
 
-    # Ликвиден филтър: пазим само топ 60% по среден дневен оборот
-    scored.sort(key=lambda x: x["avg_dollar_volume"], reverse=True)
-    liquid_cutoff = max(int(len(scored) * LIQUID_KEEP_FRACTION), TOP_N)
-    liquid_pool = scored[:liquid_cutoff]
-    print(f"След ликвиден филтър: {len(liquid_pool)}")
+    # Ликвиден филтър: абсолютен праг за среден дневен оборот (без лимит на броя)
+    liquid_pool = [x for x in scored if x["avg_dollar_volume"] >= MIN_TURNOVER_FLOOR]
+    print(f"След ликвиден филтър (>= {MIN_TURNOVER_FLOOR:,} €/ден): {len(liquid_pool)}")
 
     # --- Медиен/аналитичен "buzz" сигнал (мека добавка) ---
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -228,27 +224,22 @@ def main():
     non_trending = [x for x in liquid_pool if not x["media_trending"]]
     print(f"Съвпадения с медийно трендиращи имена: {len(trending_matches)}")
 
-    # Класация по моментум във всяка от двете групи поотделно
+    # Записваме всички ликвидни; редът (трендиращи първо, после по моментум)
+    # има значение само за фалбек сценарии с лимит на броя в UI.
     trending_matches.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
     non_trending.sort(key=lambda x: x["momentum_3m_pct"], reverse=True)
-
-    # Запазваме до TRENDING_RESERVED_SLOTS места за трендиращи (ако толкова има),
-    # остатъкът от TOP_N се запълва по чист моментум от останалите ликвидни.
-    reserved = trending_matches[:TRENDING_RESERVED_SLOTS]
-    remaining_slots = TOP_N - len(reserved)
-    fill = non_trending[:remaining_slots]
-    top = reserved + fill
+    top = trending_matches + non_trending
 
     result = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "total_evaluated": len(scored),
         "count": len(top),
-        "media_trending_count": len(reserved),
+        "media_trending_count": len(trending_matches),
         "instruments": top,
     }
 
     Path(OUTPUT_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(reserved)} медийно трендиращи)")
+    print(f"Записано {len(top)} инструмента в {OUTPUT_FILE} ({len(trending_matches)} медийно трендиращи)")
 
 
 if __name__ == "__main__":
