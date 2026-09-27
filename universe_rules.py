@@ -21,6 +21,22 @@ ETF_STRONG_TURNOVER = 1_000_000          # €/ден - над това ETF не
                                          # грешен/остарял AUM за европейски листвания (напр. iShares
                                          # Bitcoin с 1.2 млрд. € реален AUM отпадаше като "малък")
 
+# Име на борсата в T212 -> суфикс на Yahoo символа (първото съвпадение печели)
+EXCHANGE_NAME_TO_YAHOO_SUFFIX = [
+    ("XETRA", ".DE"), ("FRANKFURT", ".DE"), ("DEUTSCHE", ".DE"), ("GETTEX", ".MU"),
+    ("PARIS", ".PA"), ("AMSTERDAM", ".AS"), ("MILAN", ".MI"), ("BORSA ITALIANA", ".MI"),
+    ("BRUSSELS", ".BR"), ("MADRID", ".MC"), ("WIENER", ".VI"), ("VIENNA", ".VI"), ("LISBON", ".LS"),
+]
+
+
+def exchange_to_yahoo_suffix(exchange_name: str):
+    name_upper = (exchange_name or "").upper()
+    for keyword, suffix in EXCHANGE_NAME_TO_YAHOO_SUFFIX:
+        if keyword in name_upper:
+            return suffix
+    return None
+
+
 # ISIN държави от ЕС/ЕИП: акция с такъв ISIN се търгува основно на европейска борса
 # и оборотът ѝ в Yahoo е представителен. Иначе (US, CH, GB, CA...) листването в
 # T212 е вторично и се гледа само капитализацията.
