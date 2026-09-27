@@ -491,7 +491,7 @@ def render_photon_strategy():
         # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите)
         stock_symbols = tuple(sorted({x.symbol for x in results + watch_list if types.get(x.symbol) != "ETF"}))
         with st.spinner(f"Тегля анализаторски данни за {len(stock_symbols)} акции..."):
-            st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols) if stock_symbols else {}
+            st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols)
 
     results = st.session_state.get("photon_results", [])
     watch_list = st.session_state.get("photon_watchlist", [])
@@ -512,6 +512,9 @@ def render_photon_strategy():
     held = held_symbols(positions)
     setups_by_name = {x.name: x for x in results + watch_list}
     fund_data = st.session_state.get("photon_fund", {})
+    if fund_data:
+        render_fund_coverage(fund_data)
+        fund_data = st.session_state.get("photon_fund", {})
     news = today_news()
     # потвърдените от анализаторите/новините - първи (подреждането е стабилно, т.е.
     # в рамките на една оценка остава техническият ред: R/R / позиция в диапазона)
@@ -684,6 +687,24 @@ def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
         fund.fundamental_verdict(fund_data.get(x.symbol)), (news.get(x.symbol) or {}).get("verdict")))
 
 
+def render_fund_coverage(fund_data: dict):
+    """Колко акции имат анализаторски данни; бутон за дотегляне на неуспелите."""
+    failed = fund.failed_symbols(fund_data)
+    got = len(fund_data) - len(failed)
+    covered = sum(1 for d in fund_data.values() if fund.fundamental_verdict(d) != fund.FUND_NO_DATA)
+    st.caption(f"📊 Анализаторски данни от Yahoo: изтеглени за {got} от {len(fund_data)} акции, "
+               f"{covered} с анализаторско покритие.")
+    if not failed:
+        return
+    first_error = next(fund_data[s]["error"] for s in failed)
+    st.warning(f"Yahoo не върна данни за {len(failed)} акции (най-често временно ограничение на заявките). "
+               f"Пример: {first_error}")
+    if st.button(f"🔄 Дотегли липсващите ({len(failed)})", key="ph_fund_retry"):
+        with st.spinner("Дотеглям..."):
+            st.session_state["photon_fund"] = {**fund_data, **fund.fetch_analyst_data(failed)}
+        st.rerun()
+
+
 def render_news_section(targets: list, news: dict):
     """Ниво 2: бутон за проверка с Claude + web search и резултатите по инструмент."""
     provider = news_provider()
@@ -760,7 +781,7 @@ def render_setup_table(setups: list, key: str, held: dict, tickers: dict, fund_d
 
     st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу. Зелен ред = структурата е потвърдена и от анализаторите.")
     event = st.dataframe(
-        df.style.apply(highlight, axis=1), width="stretch", hide_index=True,
+        df.style.apply(highlight, axis=1).format(precision=2), width="stretch", hide_index=True,
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
                 "📊 Фундамент", help=f"✅ Buy/Strong Buy от поне {fund.MIN_ANALYSTS} анализатори и потенциал ≥ "
