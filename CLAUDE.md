@@ -31,7 +31,7 @@
 **Мъртъв код:** `legacy_strategies.py` — `render_daily_strategy`, `render_mtf_strategy`, `render_sd_strategy` (Supply & Demand) и свързаните им `analyze_*` / `generate_ai_analysis_*`. Не се вика от UI. Не го трий без изрично съгласие.
 
 ## Филтри и данни
-- Универсум: `curated_universe.json` (+ `manual_universe.json`), или **CSV/Excel upload** (експорт от InvestingPro screener/Watchlist — планът е Pro, не Pro+); съпоставяне по ISIN → тикер → име (цели думи); режими: акциите от файла + ETF от месечния списък (по подразбиране) / само файла / файла + целия списък
+- Универсум: `curated_universe.json` (+ `manual_universe.json`), или **CSV/Excel upload** (експорт от InvestingPro screener/Watchlist — планът е Pro, не Pro+); съпоставяне по ISIN → тикер → име (цели думи); режими: допълва месечния списък само с липсващите (по подразбиране) / акциите от файла + ETF / само файла; новите могат да се запишат трайно в `manual_universe.json` (бутон „💾 Запази“)
 - Индикатори: EMA50, SMA200, RSI, ATR, MACD, swing points; твърди трендови филтри
 - Цени: yfinance. AI интерпретация: Anthropic API (проектът остава само на Claude)
 - FMP free tier връща 402 за EU тикери → fundamentals enrichment е премахнат; FMP се ползва само за макро

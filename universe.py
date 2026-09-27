@@ -646,6 +646,30 @@ def load_manual_universe():
         return {"include": [], "exclude": []}
 
 
+def add_to_manual_universe(items: dict, github_token: str):
+    """Добавя {label: symbol} към "include" в manual_universe.json в repo-то
+    (без дубликати по символ). Чете актуалната версия от GitHub, за да не
+    презапише промени, направени междувременно. Връща (success, съобщение)."""
+    content, _ = github_get_file(MANUAL_UNIVERSE_FILE, github_token)
+    try:
+        manual = json.loads(content) if content else load_manual_universe()
+    except json.JSONDecodeError:
+        manual = load_manual_universe()
+    manual.setdefault("include", []); manual.setdefault("exclude", [])
+    have = {x["symbol"] for x in manual["include"]}
+    new = [{"name": n, "symbol": s} for n, s in items.items() if s not in have]
+    if not new:
+        return True, "Всички вече са в ръчния списък."
+    manual["include"] += new
+    ok, msg = github_write_file(
+        MANUAL_UNIVERSE_FILE, json.dumps(manual, ensure_ascii=False, indent=2), github_token,
+        f"Manual universe: add {len(new)} from uploaded file",
+    )
+    if ok:
+        msg = f"Добавени {len(new)} в ръчния списък. Streamlit ще се обнови след минута-две."
+    return ok, msg
+
+
 def render_manual_universe_editor(key: str):
     """Трайно (записва се в repo-то) ръчно добавяне/премахване на конкретни
     активи от универса - алтернатива на CSV upload-а, когато просто искаш
