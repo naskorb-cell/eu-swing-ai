@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from types import SimpleNamespace
 from pathlib import Path
 
 import pandas as pd
@@ -488,8 +489,11 @@ def render_photon_strategy():
         st.session_state["photon_watchlist"] = watch_list
         st.session_state["photon_funnel"] = (funnel, rejects, datetime.now().strftime("%d.%m %H:%M"))
         st.session_state["photon_statuses"] = statuses
-        # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите)
-        stock_symbols = tuple(sorted({x.symbol for x in results + watch_list if types.get(x.symbol) != "ETF"}))
+        # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите) -
+        # за сетъпите от скана и за отворените позиции в T212
+        held_now = [p["symbol"] for p in fetch_held_positions() or [] if p["symbol"]]
+        stock_symbols = tuple(sorted({s for s in [x.symbol for x in results + watch_list] + held_now
+                                      if types.get(s) != "ETF"}))
         with st.spinner(f"Тегля анализаторски данни за {len(stock_symbols)} акции..."):
             st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols)
 
@@ -545,13 +549,18 @@ def render_photon_strategy():
         st.divider()
         section_header("📰 Новини и анализи", status="info",
                        subtitle=f"Готовите за вход + първите {NEWS_WATCHLIST_TOP} от Watchlist: рейтинг промени, отчети, значими новини")
-        render_news_section(news_targets, news)
+        render_news_section([SimpleNamespace(name=x.name, symbol=x.symbol) for x in news_targets], news, key="ph_news")
 
     if positions is not None and "photon_statuses" in st.session_state:
         st.divider()
         section_header("💼 Моите позиции в скана", status="info",
                        subtitle="Къде е всяка отворена позиция в T212 спрямо последния скан")
-        render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out)
+        render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out,
+                                fund_data, news)
+        held_targets = [SimpleNamespace(name=p["name"], symbol=p["symbol"]) for p in positions if p["symbol"]]
+        if held_targets:
+            st.markdown("**📰 Новини и анализи за позициите ми**")
+            render_news_section(held_targets, news, key="ph_news_pos")
 
     st.divider()
     section_header("🤖 AI Анализ", status="info")
@@ -621,8 +630,11 @@ def held_symbols(positions):
     return {p["symbol"]: p["accounts"] for p in positions if p["symbol"]}
 
 
-def render_positions_status(positions: list, statuses: dict, scanned_symbols: set, filtered_out: dict):
-    """Таблица: всяка отворена позиция и къде е спрямо последния скан."""
+def render_positions_status(positions: list, statuses: dict, scanned_symbols: set, filtered_out: dict,
+                            fund_data: dict = None, news: dict = None):
+    """Таблица: всяка отворена позиция, къде е спрямо последния скан и какво
+    казват анализаторите (ниво 1) и новините (ниво 2) - както за сетъпите."""
+    fund_data, news = fund_data or {}, news or {}
     if not positions:
         st.info("Няма отворени позиции в T212.")
         return
@@ -639,10 +651,22 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
             status = "Не е сканиран още - пусни скан"
         else:
             status = "Извън универса (не минава критериите за ликвидност) - добави го ръчно, за да се сканира"
-        rows.append({"Позиция": p["name"], "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-",
-                     "Акаунт": p["accounts"], "Статус": status})
+        cols = fund.fundamental_columns(fund_data.get(symbol))
+        rows.append({"Позиция": p["name"], "📊 Фундамент": cols["📊 Фундамент"],
+                     "📰 Новини": (news.get(symbol) or {}).get("verdict", ""), "Статус": status,
+                     "Анализатори": cols["Анализатори"], "Потенциал до целта (%)": cols["Потенциал до целта (%)"],
+                     "Отчет": cols["Отчет"], "Акаунт": p["accounts"],
+                     "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-"})
     order = lambda r: (0 if r["Статус"].startswith("✅") else 1 if r["Статус"].startswith("👀") else 2, r["Позиция"])
-    st.dataframe(pd.DataFrame(sorted(rows, key=order)), hide_index=True, width="stretch")
+    st.dataframe(
+        pd.DataFrame(sorted(rows, key=order)), hide_index=True, width="stretch",
+        column_config={
+            "📊 Фундамент": st.column_config.TextColumn(
+                help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
+            "Потенциал до целта (%)": st.column_config.NumberColumn(format="%.1f"),
+            "Отчет": st.column_config.TextColumn(help=f"⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап при задържане)"),
+        },
+    )
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
@@ -713,25 +737,31 @@ def render_fund_coverage(fund_data: dict):
         st.rerun()
 
 
-def render_news_section(targets: list, news: dict):
-    """Ниво 2: бутон за проверка с Claude + web search и резултатите по инструмент."""
+def render_news_section(targets: list, news: dict, key: str):
+    """Ниво 2: бутон за проверка с Claude/Gemini + web search и резултатите по
+    инструмент. targets - обекти с .name и .symbol (сетъпи или позиции)."""
     provider = news_provider()
     api_key = st.secrets.get("GEMINI_API_KEY" if provider == "Gemini" else "ANTHROPIC_API_KEY", None)
     missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
     _, _, types = load_curated_symbol_info(curated_file_mtime())
+    fund_data = st.session_state.get("photon_fund", {})
+
+    def is_etf(symbol):
+        return types.get(symbol) == "ETF" or (fund_data.get(symbol) or {}).get("quote_type") == "ETF"
+
     billing = "Google AI (Gemini API)" if provider == "Gemini" else "Anthropic API"
     st.caption(
         f"Чрез **{provider}** (сменя се в ⚙️ Настройки). Всяка проверка търси в интернет - таксува се в {billing}. "
         "Резултатите се пазят до края на деня, отделно за всеки доставчик; проверяват се само липсващите."
     )
-    if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key="ph_news_btn",
+    if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key=f"{key}_btn",
                  disabled=not missing, width="stretch"):
         if not api_key:
             st.error(f"Липсва {'GEMINI_API_KEY' if provider == 'Gemini' else 'ANTHROPIC_API_KEY'} в Streamlit Secrets.")
         else:
             bar = st.progress(0.0, text=f"Търся новини и анализи за {len(missing)} инструмента - "
                                         "обикновено 1-3 минути, всеки отнема 20-60 сек...")
-            items = [(x.name, x.symbol, types.get(x.symbol) == "ETF") for x in missing]
+            items = [(x.name, x.symbol, is_etf(x.symbol)) for x in missing]
             found = fund.research_news_many(
                 items, provider, api_key, gemini_model=st.secrets.get("GEMINI_MODEL", fund.GEMINI_DEFAULT_MODEL),
                 on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
