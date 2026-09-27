@@ -6,3 +6,4 @@ plotly
 anthropic
 requests
 openpyxl
+google-genai
