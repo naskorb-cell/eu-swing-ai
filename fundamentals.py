@@ -139,6 +139,7 @@ NEWS_PROMPT = """Ти си финансов анализатор. Трябва �
 - дата на следващия отчет.
 {etf_hint}
 Използвай САМО намереното - не измисляй. Ако няма свежа информация, кажи го.
+В текстовете не слагай двойни кавички " (ползвай „ “ или единични ').
 
 Отговори САМО с JSON (без друг текст), на български:
 {{"verdict": "positive" | "neutral" | "negative",
@@ -151,11 +152,41 @@ ETF_HINT = """Това е ETF - вместо анализатори оцени �
 (тенденции, макро фактори, потоци към фонда)."""
 
 
+_JSON_FIELDS = ("verdict", "summary", "analyst_actions", "next_earnings", "sources")
+
+
 def _extract_json(text: str) -> dict:
     match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL) or re.search(r"(\{.*\})", text, re.DOTALL)
     if not match:
-        raise ValueError("Claude не върна JSON")
-    return json.loads(match.group(1))
+        raise ValueError("моделът не върна JSON")
+    raw = match.group(1)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return _salvage_json(raw)
+
+
+def _salvage_json(raw: str) -> dict:
+    """Резервно четене на полетата, когато JSON-ът е невалиден (най-често
+    неекранирани кавички в текста, напр. "Buy" вътре в summary): всяко поле е
+    текстът между неговия ключ и ключа на следващото."""
+    data = {}
+    for i, key in enumerate(_JSON_FIELDS):
+        nxt = "|".join(re.escape(f'"{k}"') for k in _JSON_FIELDS[i + 1:]) or r"\}\s*$"
+        m = re.search(rf'"{key}"\s*:\s*(.*?)\s*,?\s*(?={nxt})', raw, re.DOTALL)
+        if not m:
+            continue
+        value = m.group(1).strip().rstrip(",").strip()
+        if key == "sources":
+            data[key] = [{"title": t, "url": u} for t, u in
+                         re.findall(r'"title"\s*:\s*"(.*?)"\s*,\s*"url"\s*:\s*"(.*?)"', value)]
+        elif value.startswith('"') and value.endswith('"'):
+            data[key] = value[1:-1].replace('\\"', '"')
+        elif value != "null":
+            data[key] = value
+    if "verdict" not in data:
+        raise ValueError("невалиден JSON в отговора на модела")
+    return data
 
 
 def _build_prompt(name: str, symbol: str, is_etf: bool) -> str:
@@ -210,7 +241,8 @@ def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
     next_earnings, sources, searches} или {error}. Линковете се пазят само ако са
     от реално намерените резултати (без измислени URL-и)."""
     # таймаут на заявка: web search отнема десетки секунди, но не бива да виси безкрай
-    client = Anthropic(api_key=api_key, timeout=150.0, max_retries=1)
+    # 1 опит до 4 мин.: при таймаут повторният клик на бутона проверява само неуспелите
+    client = Anthropic(api_key=api_key, timeout=240.0, max_retries=0)
     messages = [{"role": "user", "content": _build_prompt(name, symbol, is_etf)}]
     tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
     found_urls, searches, response = {}, 0, None
