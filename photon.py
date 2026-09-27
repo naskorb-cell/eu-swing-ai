@@ -393,6 +393,12 @@ def render_photon_strategy():
             "Изключи парични и облигационни фондове", value=True, key="ph_excl_cash",
             help="Overnight/€ Cash/облигационни ETF-и почти не се движат и нямат swing структура.",
         )
+        exclude_overseas = st.checkbox(
+            "Само европейски и американски основни листвания", value=True, key="ph_excl_overseas",
+            help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (напр. .T, .HK, .AX, .TO): "
+                 "в T212 се търгуват на Gettex, когато основната им борса е затворена - широк спред и гап "
+                 "спрямо сигнала. Ръчно добавените се сканират винаги.",
+        )
         uploaded_universe = render_universe_uploader(key="ph")
     _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
@@ -443,6 +449,9 @@ def render_photon_strategy():
     if exclude_cash_bond:
         filters.append((lambda n, s: types.get(s) == "ETF" and rules.is_cash_or_bond_fund(n),
                         "Изключен: паричен/облигационен фонд", "Изключени парични/облигационни фондове"))
+    if exclude_overseas:
+        filters.append((lambda n, s: rules.is_non_eu_us_listing(resolved_symbols.get(s, s)),
+                        "Изключен: основна борса извън Европа/САЩ", "Изключени листвания извън Европа/САЩ"))
     for check, reason, caption in filters:
         excluded = {n: s for n, s in tickers.items() if check(n, s)}
         tickers = {n: s for n, s in tickers.items() if n not in excluded}

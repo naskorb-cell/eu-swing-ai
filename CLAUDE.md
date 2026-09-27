@@ -17,7 +17,7 @@
 | `t212_portfolio.py` | Trading 212 API клиент (Portfolio / History, Basic auth от key+secret) |
 | `fetch_eu_instruments.py` | Тегли всички T212 инструменти, филтрира EUR + ЕС/ЕИП борси → `eu_instruments.json` (без филтър по ликвидност - него прави месечният подбор) |
 | `select_liquid_universe.py` | Месечен pre-screen (+ ръчно от бутона „Обнови универса сега“ в UI): акции по капитализация + оборот, ETF по AUM + оборот, без ливъриджнати/short → `curated_universe.json` (приложението сканира всички от него) |
-| `universe_rules.py` | Общи правила: прагове за ликвидност, ISIN логика за родна/вторична борса, филтри за ливъриджнати/парични ETP, борса → Yahoo суфикс (`.DE .PA .AS .MI .BR .MC .VI .LS .MU`) — ползва се от скриптовете и от приложението |
+| `universe_rules.py` | Общи правила: прагове за ликвидност, ISIN логика за родна/вторична борса, филтри за ливъриджнати/парични ETP и за листвания извън Европа/САЩ (`.T .HK .AX .TO`...), борса → Yahoo суфикс (`.DE .PA .AS .MI .BR .MC .VI .LS .MU`) — ползва се от скриптовете и от приложението |
 | `daily_macro_scan.py` | Дневен макро скенер: FMP числа (Fed rate, CPI, 10y) + Claude с web search → `daily_macro_signal.json` |
 | `manual_universe.json` | Ръчно include/exclude на тикери (редактира се и от UI през GitHub API) |
 | `.github/workflows/` | `daily.yml` (03:00 UTC, instruments), `daily_macro.yml` (04:30 UTC), `monthly_curate.yml` (1-во число, 04:00 UTC). Всички commit-ват JSON резултата обратно в `main` |
