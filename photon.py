@@ -396,15 +396,23 @@ def render_photon_strategy():
         uploaded_universe = render_universe_uploader(key="ph")
     _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
+    liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
     if uploaded_universe:
-        tickers = uploaded_universe
-        st.caption(f"Универс (от качения фундаментален списък): {len(tickers)} инструмента")
-    else:
-        liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
-        tickers = load_universe(
-            max_instruments=None, liquidity=liquidity,
-            curated_mtime=curated_file_mtime(),
+        csv_mode = st.radio(
+            "Какво да сканирам с качения файл?", CSV_MODES, horizontal=True, key="ph_csv_mode",
+            help="InvestingPro screener-ът е за акции - затова по подразбиране ETF-ите остават от месечния списък.",
         )
+        if csv_mode == CSV_MODES[1]:
+            tickers = dict(uploaded_universe)
+        else:
+            curated = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
+            if csv_mode == CSV_MODES[0]:
+                _, _, curated_types = load_curated_symbol_info(curated_file_mtime())
+                curated = {n: s for n, s in curated.items() if curated_types.get(s) == "ETF"}
+            tickers = {**curated, **uploaded_universe}
+        st.caption(f"Универс: {len(uploaded_universe)} от файла + {len(tickers) - len(uploaded_universe)} от месечния списък")
+    else:
+        tickers = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     render_universe_refresh(key="ph")
     # филтрите са ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
@@ -516,6 +524,7 @@ def render_photon_strategy():
 
 
 FAR_ABOVE_RANGE_PCT = 120
+CSV_MODES = ["Акциите от файла + ETF от месечния списък", "Само файла", "Файла + целия месечен списък"]
 
 
 @st.cache_data(ttl=300, show_spinner=False)

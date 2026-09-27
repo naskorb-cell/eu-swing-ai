@@ -409,7 +409,7 @@ def main():
         else:
             reject_counts[why] = reject_counts.get(why, 0) + 1
             rejected.append({
-                "name": item["name"], "symbol": item["symbol"], "reason": why,
+                "name": item["name"], "symbol": item["symbol"], "reason": why, "t212_symbol": item.get("t212_symbol"),
                 "avg_dollar_volume": item.get("avg_dollar_volume"),
                 "market_cap": item.get("market_cap"), "aum": item.get("aum"),
             })
