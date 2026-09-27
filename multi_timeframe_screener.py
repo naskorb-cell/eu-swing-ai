@@ -2018,14 +2018,15 @@ def render_photon_strategy():
         tickers = load_universe(max_instruments=None, pinned_keywords=pinned_keywords, liquidity=liquidity)
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     render_universe_refresh(key="ph")
-    manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
-    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
-    render_universe_search(key="ph")
+    # филтърът за ливъриджнати е ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
     if exclude_leveraged:
         excluded = [n for n in tickers if rules.is_leveraged_or_short_etp(n)]
         tickers = {n: s for n, s in tickers.items() if n not in excluded}
         if excluded:
             st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
+    manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
+    tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
+    render_universe_search(key="ph")
 
     if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
         params = {
