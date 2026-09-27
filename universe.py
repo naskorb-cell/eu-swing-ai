@@ -132,37 +132,78 @@ CSV_COLUMNS = {
 }
 
 
+HEADER_SCAN_ROWS = 30
+
+
+def read_uploaded_tables(uploaded_file) -> list:
+    """Всички таблици от файла като DataFrame-и без заглавен ред (header=None):
+    всеки лист на Excel файла, а за CSV - с автоматичен разделител (, или ;)."""
+    if uploaded_file.name.lower().endswith(".csv"):
+        return [pd.read_csv(uploaded_file, header=None, dtype=str, sep=None, engine="python")]
+    return list(pd.read_excel(uploaded_file, header=None, dtype=str, sheet_name=None).values())
+
+
+def locate_header(raw: pd.DataFrame):
+    """Експортите (напр. InvestingPro) често имат заглавни редове над таблицата -
+    търсим в първите редове реда с колоните Name/Symbol/ISIN. Връща
+    (индекс на реда, {поле: номер на колона}) или (None, {})."""
+    for i in range(min(HEADER_SCAN_ROWS, len(raw))):
+        cells = [str(v).strip().lower() for v in raw.iloc[i].tolist()]
+        found = {}
+        for field, candidates in CSV_COLUMNS.items():
+            for candidate in candidates:
+                if candidate.lower() in cells:
+                    found[field] = cells.index(candidate.lower())
+                    break
+        if found:
+            return i, found
+    return None, {}
+
+
 def parse_uploaded_ticker_list(uploaded_file):
     """Чете CSV/XLSX (напр. износ от InvestingPro screener) и връща редовете
     като [{isin, symbol, name}] - от колоните ISIN / Symbol|Ticker /
-    Name|Company (без значение главни/малки букви). Ако няма нито една от тях,
-    първата колона се ползва като име."""
+    Name|Company (без значение главни/малки букви), където и да е заглавният
+    ред и на който и да е лист. Клетка "ТИКЕР\nИме" (тикер и име в една
+    колона) се разделя. Ако няма такива колони - първата колона е името."""
     try:
-        if uploaded_file.name.lower().endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
+        tables = read_uploaded_tables(uploaded_file)
     except Exception as e:
         st.error(f"Не успях да прочета файла: {e}")
         return []
-    if df.empty:
+    tables = [t.dropna(how="all").reset_index(drop=True) for t in tables]
+    tables = [t for t in tables if not t.empty]
+    if not tables:
         return []
-    by_lower = {str(c).strip().lower(): c for c in df.columns}
-    found = {}
-    for field, candidates in CSV_COLUMNS.items():
-        for candidate in candidates:
-            if candidate.lower() in by_lower:
-                found[field] = by_lower[candidate.lower()]
-                break
-    if not found:
-        found["name"] = df.columns[0]
 
-    def cell(row, field):
-        value = row.get(found[field]) if field in found else None
-        return str(value).strip() if value is not None and str(value).strip().lower() not in ("", "nan") else ""
+    raw, header_idx, found = tables[0], None, {}
+    for table in tables:
+        idx, cols = locate_header(table)
+        if idx is not None:
+            raw, header_idx, found = table, idx, cols
+            break
+    if header_idx is None:
+        header_idx, found = -1, {"name": 0}  # без заглавен ред - първата колона е името
 
-    rows = [{f: cell(r, f) for f in CSV_COLUMNS} for r in df.to_dict("records")]
-    return [r for r in rows if any(r.values())]
+    def cell(values, field):
+        if field not in found:
+            return ""
+        value = str(values[found[field]]).strip()
+        return "" if value.lower() in ("", "nan", "none") else value
+
+    rows = []
+    for values in raw.iloc[header_idx + 1:].itertuples(index=False):
+        row = {f: cell(values, f) for f in CSV_COLUMNS}
+        if "\n" in row["name"]:  # "GRE\nGrenergy Renovables" - тикер и име в една клетка
+            first, rest = row["name"].split("\n", 1)
+            row["symbol"] = row["symbol"] or first.strip()
+            row["name"] = rest.strip()
+        if any(row.values()):
+            rows.append(row)
+    if not rows:
+        preview = raw.head(8).fillna("").astype(str).values.tolist()
+        st.error(f"Не намерих редове с имена/тикери. Първите редове на файла: {preview}")
+    return rows
 
 
 FUND_WORDS = re.compile(
@@ -221,7 +262,8 @@ def load_universe_from_terms(rows: list):
         # борса - напр. US "ALV" е Autoliv, а в T212 "ALV" е Allianz)
         if row["symbol"] and row["symbol"].lower() in by_short:
             inst = by_short[row["symbol"].lower()]
-            if type_ok(inst) and (not row["name"] or names_match(row["name"], inst.get("name", ""))):
+            name_is_ticker = row["name"].strip().lower() in ("", row["symbol"].lower(), inst.get("shortName", "").lower())
+            if type_ok(inst) and (name_is_ticker or names_match(row["name"], inst.get("name", ""))):
                 return inst
         name = row["name"].lower()
         if name in by_name:
