@@ -28,7 +28,7 @@ MIN_UPSIDE_PCT = 10       # мин. потенциал до средната ц�
 EARNINGS_WARN_DAYS = 14   # отчет до толкова дни = риск от гап
 NEWS_MAX_SEARCHES = 3     # web търсения на компания (всяко се таксува)
 NEWS_WORKERS = 6
-NEWS_PROVIDERS = ["Claude", "Gemini"]
+NEWS_PROVIDERS = ["Gemini", "Claude"]  # първият е по подразбиране
 GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
 
 BUY_KEYS = {"strong_buy", "buy"}
