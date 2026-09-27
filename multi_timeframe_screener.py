@@ -1696,13 +1696,20 @@ def render_photon_strategy():
     if results:
         df_ready = pd.DataFrame(results).drop(columns=["Готов за вход"])
         df_ready = flag_macro_signal(df_ready, macro_keywords)
-        st.dataframe(
+        st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу.")
+        event_ready = st.dataframe(
             df_ready, use_container_width=True, hide_index=True,
             column_config={
                 "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
                 "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
             },
+            on_select="rerun", selection_mode="single-row", key="ph_ready_table",
         )
+        sel_rows = event_ready.selection.rows if event_ready and event_ready.selection else []
+        if sel_rows:
+            sel_name = df_ready.iloc[sel_rows[0]]["Име"]
+            if sel_name in tickers:
+                st.session_state["ph_chart_select"] = sel_name
     else:
         df_ready = pd.DataFrame()
         st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента.")
@@ -1712,13 +1719,20 @@ def render_photon_strategy():
     if watch_list:
         df_watch = pd.DataFrame(watch_list).drop(columns=["Готов за вход"])
         df_watch = flag_macro_signal(df_watch, macro_keywords)
-        st.dataframe(
+        st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу.")
+        event_watch = st.dataframe(
             df_watch, use_container_width=True, hide_index=True,
             column_config={
                 "📰 Медиен сигнал": st.column_config.CheckboxColumn("📰 Медиен сигнал"),
                 "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
             },
+            on_select="rerun", selection_mode="single-row", key="ph_watch_table",
         )
+        sel_rows_w = event_watch.selection.rows if event_watch and event_watch.selection else []
+        if sel_rows_w:
+            sel_name_w = df_watch.iloc[sel_rows_w[0]]["Име"]
+            if sel_name_w in tickers:
+                st.session_state["ph_chart_select"] = sel_name_w
     else:
         df_watch = pd.DataFrame()
         st.info("Няма инструменти на watchlist в момента.")
