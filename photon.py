@@ -242,14 +242,17 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
 def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     """Целият скан: пакетно теглене на дневни данни за всички, стъпка 1,
     после пакетно 60m данни САМО за оцелелите и стъпка 2.
-    Връща (готови, watchlist, фуния {етап: брой}, {причина за отпадане: брой}),
-    готовите и watchlist-ът са списъци от PhotonSetup."""
+    Връща (готови, watchlist, фуния {етап: брой}, {причина за отпадане: брой},
+    {symbol: статус}); готовите и watchlist-ът са списъци от PhotonSetup."""
     items = list(tickers.items())
     funnel = {"Сканирани": len(items)}
     rejects = {}
 
-    def reject(reason):
+    statuses = {}
+
+    def reject(reason, symbol):
         rejects[reason] = rejects.get(reason, 0) + 1
+        statuses[symbol] = f"Отпадна: {reason}"
 
     progress.progress(0.0, text="Тегля дневни данни...")
     daily_data = fetch_ohlc_many(
@@ -261,7 +264,7 @@ def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     for name, symbol in items:
         ctx, why = analyze_photon_daily(daily_data.get(symbol), p)
         if ctx is None:
-            reject(why)
+            reject(why, symbol)
         else:
             survivors.append((name, symbol, ctx))
     funnel["Седмичен + дневен Pro тренд"] = len(survivors)
@@ -277,16 +280,17 @@ def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     for name, symbol, ctx in survivors:
         setup, why = analyze_photon_intraday(name, symbol, ctx, intraday_data.get(symbol), p)
         if setup is None:
-            reject(why)
+            reject(why, symbol)
         else:
             setup.currency = (currencies or {}).get(symbol, "EUR")
             (results if setup.ready else watch_list).append(setup)
+            statuses[symbol] = ("✅ Готов за вход" if setup.ready else "👀 Watchlist") + f" - {setup.note}"
     funnel["Watchlist"] = len(watch_list)
     funnel["Готови за вход"] = len(results)
 
     results.sort(key=lambda s: s.rr or 0, reverse=True)
     watch_list.sort(key=lambda s: s.range_pos)
-    return results, watch_list, funnel, rejects
+    return results, watch_list, funnel, rejects, statuses
 
 
 def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str):
@@ -385,6 +389,10 @@ def render_photon_strategy():
             "Изключи ливъриджнати/short ETP", value=True, key="ph_excl_lev",
             help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
         )
+        exclude_cash_bond = st.checkbox(
+            "Изключи парични и облигационни фондове", value=True, key="ph_excl_cash",
+            help="Overnight/€ Cash/облигационни ETF-и почти не се движат и нямат swing структура.",
+        )
         uploaded_universe = render_universe_uploader(key="ph")
     _, macro_keywords = render_macro_section(key="ph", allow_autopin=False)
 
@@ -399,16 +407,25 @@ def render_photon_strategy():
         )
         st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
     render_universe_refresh(key="ph")
-    # филтърът за ливъриджнати е ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
+    # филтрите са ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
+    currencies, resolved_symbols, types = load_curated_symbol_info(curated_file_mtime())
+    filtered_out = {}  # symbol -> причина (за "Моите позиции в скана")
+    filters = []
     if exclude_leveraged:
-        excluded = [n for n in tickers if rules.is_leveraged_or_short_etp(n)]
+        filters.append((lambda n, s: rules.is_leveraged_or_short_etp(n), "Изключен: ливъриджнат/short ETP",
+                        "Изключени ливъриджнати/short ETP"))
+    if exclude_cash_bond:
+        filters.append((lambda n, s: types.get(s) == "ETF" and rules.is_cash_or_bond_fund(n),
+                        "Изключен: паричен/облигационен фонд", "Изключени парични/облигационни фондове"))
+    for check, reason, caption in filters:
+        excluded = {n: s for n, s in tickers.items() if check(n, s)}
         tickers = {n: s for n, s in tickers.items() if n not in excluded}
+        filtered_out.update({s: reason for s in excluded.values()})
         if excluded:
-            st.caption(f"Изключени {len(excluded)} ливъриджнати/short ETP")
+            st.caption(f"{caption}: {len(excluded)}")
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
     # ръчно добавени Gettex (.MU) акции -> основното им листване (ако е намерено)
-    _, resolved_symbols = load_curated_symbol_info(curated_file_mtime())
     tickers = {n: resolved_symbols.get(s, s) for n, s in tickers.items()}
     render_universe_search(key="ph")
 
@@ -420,13 +437,13 @@ def render_photon_strategy():
             "stop_atr_buffer": stop_atr_buffer, "min_rr": min_rr,
         }
         progress = st.progress(0.0, text="Търсене на Phase A/B сетъпи...")
-        currencies, _ = load_curated_symbol_info(curated_file_mtime())
-        results, watch_list, funnel, rejects = run_photon_scan(tickers, params, progress, currencies)
+        results, watch_list, funnel, rejects, statuses = run_photon_scan(tickers, params, progress, currencies)
         progress.empty()
         st.session_state["photon_results"] = results
         st.session_state.pop("photon_ai_text", None)
         st.session_state["photon_watchlist"] = watch_list
         st.session_state["photon_funnel"] = (funnel, rejects, datetime.now().strftime("%d.%m %H:%M"))
+        st.session_state["photon_statuses"] = statuses
 
     results = st.session_state.get("photon_results", [])
     watch_list = st.session_state.get("photon_watchlist", [])
@@ -443,7 +460,8 @@ def render_photon_strategy():
                     hide_index=True, width="stretch",
                 )
 
-    held = held_symbols()
+    positions = fetch_held_positions()
+    held = held_symbols(positions)
     setups_by_name = {x.name: x for x in results + watch_list}
 
     st.divider()
@@ -454,9 +472,22 @@ def render_photon_strategy():
 
     st.divider()
     section_header("👀 Watchlist", status="watch", subtitle="Pro Swing потвърден - колоната 'Бележка' казва какво чакаме")
-    df_watch = render_setup_table(watch_list, "ph_watch_table", held, macro_keywords, tickers)
+    show_far = st.checkbox(
+        f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
+        help="Над съпротивата = след пробив нагоре; до вход има нужда от нов пулбек, често дълъг.",
+    )
+    shown_watch = watch_list if show_far else [x for x in watch_list if x.range_pos <= FAR_ABOVE_RANGE_PCT]
+    if len(shown_watch) < len(watch_list):
+        st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
+    df_watch = render_setup_table(shown_watch, "ph_watch_table", held, macro_keywords, tickers)
     if df_watch.empty:
         st.info("Няма инструменти на watchlist в момента.")
+
+    if positions is not None and "photon_statuses" in st.session_state:
+        st.divider()
+        section_header("💼 Моите позиции в скана", status="info",
+                       subtitle="Къде е всяка отворена позиция в T212 спрямо последния скан")
+        render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out)
 
     st.divider()
     section_header("🤖 AI Анализ", status="info")
@@ -484,50 +515,87 @@ def render_photon_strategy():
         render_photon_chart(tickers[selected_name], setups_by_name.get(selected_name), swing_order_daily, min_range_atr)
 
 
+FAR_ABOVE_RANGE_PCT = 120
+
+
 @st.cache_data(ttl=300, show_spinner=False)
-def held_symbols():
-    """{Yahoo символ: 'N' / 'T' / 'N+T'} - отворените позиции в двата T212
-    акаунта (live, с ключовете от Streamlit Secrets). None, ако няма нито един
-    конфигуриран акаунт. Кеш 5 мин. (T212 лимит: 1 заявка/5 сек. на акаунт)."""
+def fetch_held_positions():
+    """Отворените позиции в двата T212 акаунта (live, с ключовете от Streamlit
+    Secrets): [{ticker, name, symbol (None, ако няма съвпадение), accounts}].
+    None, ако няма нито един конфигуриран акаунт. Кеш 5 мин. (T212 лимит:
+    1 заявка/5 сек. на акаунт)."""
     accounts = [a for a in T212_ACCOUNTS if st.secrets.get(a["key_secret_name"]) and st.secrets.get(a["secret_secret_name"])]
     if not accounts:
         return None
-    t212_to_symbol = t212_ticker_to_symbol()
-    held = {}
+    info = t212_ticker_to_symbol()
+    by_ticker = {}
     for account in accounts:
         try:
             auth = t212.build_auth_header(st.secrets[account["key_secret_name"]], st.secrets[account["secret_secret_name"]])
-            positions = t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth)
+            open_positions = t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth)
         except Exception:
             continue  # недостъпен акаунт не бива да чупи скрийнъра
-        if positions.empty:
+        if open_positions.empty:
             continue
-        for ticker in positions["Тикер"]:
-            symbol = t212_to_symbol.get(ticker)
-            if symbol is None and "_US_" in ticker:
-                symbol = ticker.split("_US_")[0]  # US листване в T212 (напр. AAPL_US_EQ -> AAPL)
-            if symbol:
-                labels = held.setdefault(symbol, [])
-                if account["label"] not in labels:
-                    labels.append(account["label"])
-    return {symbol: "+".join(labels) for symbol, labels in held.items()}
+        for ticker in open_positions["Тикер"]:
+            entry = by_ticker.get(ticker)
+            if entry is None:
+                symbol, name = info.get(ticker, (None, ticker))
+                if symbol is None and "_US_" in ticker:
+                    symbol = ticker.split("_US_")[0]  # US листване в T212 (напр. AAPL_US_EQ -> AAPL)
+                entry = by_ticker[ticker] = {"ticker": ticker, "name": name, "symbol": symbol, "accounts": []}
+            if account["label"] not in entry["accounts"]:
+                entry["accounts"].append(account["label"])
+    return [{**e, "accounts": "+".join(e["accounts"])} for e in by_ticker.values()]
+
+
+def held_symbols(positions):
+    """{Yahoo символ: 'N' / 'T' / 'N+T'} за колоната "💼 Държа"; None без T212 ключове."""
+    if positions is None:
+        return None
+    return {p["symbol"]: p["accounts"] for p in positions if p["symbol"]}
+
+
+def render_positions_status(positions: list, statuses: dict, scanned_symbols: set, filtered_out: dict):
+    """Таблица: всяка отворена позиция и къде е спрямо последния скан."""
+    if not positions:
+        st.info("Няма отворени позиции в T212.")
+        return
+    rows = []
+    for p in positions:
+        symbol = p["symbol"]
+        if symbol is None:
+            status = "⚠️ Няма съвпадение с Yahoo символ (не може да се сканира)"
+        elif symbol in statuses:
+            status = statuses[symbol]
+        elif symbol in filtered_out:
+            status = filtered_out[symbol]
+        elif symbol in scanned_symbols:
+            status = "Не е сканиран още - пусни скан"
+        else:
+            status = "Извън универса (не минава критериите за ликвидност) - добави го ръчно, за да се сканира"
+        rows.append({"Позиция": p["name"], "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-",
+                     "Акаунт": p["accounts"], "Статус": status})
+    order = lambda r: (0 if r["Статус"].startswith("✅") else 1 if r["Статус"].startswith("👀") else 2, r["Позиция"])
+    st.dataframe(pd.DataFrame(sorted(rows, key=order)), hide_index=True, width="stretch")
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def t212_ticker_to_symbol() -> dict:
-    """T212 тикер (напр. 'SAPd_EQ') -> Yahoo символът, който скрийнърът сканира
-    (за Gettex - основното листване от curated файла)."""
+    """T212 тикер (напр. 'SAPd_EQ') -> (Yahoo символът, който скрийнърът сканира
+    (за Gettex - основното листване от curated файла), име)."""
     path = Path(INSTRUMENTS_FILE)
     if not path.exists():
         return {}
-    _, resolved = load_curated_symbol_info(curated_file_mtime())
+    _, resolved, _ = load_curated_symbol_info(curated_file_mtime())
     mapping = {}
     for inst in json.loads(path.read_text(encoding="utf-8")).get("instruments", []):
         suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
         if suffix is None:
             continue
         yahoo_ticker = f"{inst.get('shortName', '')}{suffix}"
-        mapping[inst["ticker"]] = resolved.get(yahoo_ticker, yahoo_ticker)
+        label = f"{inst.get('shortName', inst['ticker'])} ({inst['name']})"
+        mapping[inst["ticker"]] = (resolved.get(yahoo_ticker, yahoo_ticker), label)
     return mapping
 
 

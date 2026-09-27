@@ -32,6 +32,19 @@ EEA_ISIN_COUNTRIES = {
 LEVERAGED_ETP_PATTERN = re.compile(r"\b(short|leveraged?|ultra|bear|inverse|boost)\b|\b\d+(\.\d+)?x\b", re.IGNORECASE)
 
 
+# Парични (overnight/cash) и облигационни фондове - почти без движение/с друг
+# характер на цената; безсмислени за swing по структура. Само за тип ETF.
+CASH_BOND_FUND_PATTERN = re.compile(
+    r"\b(cash|money market|overnight|€str|estr|eonia|sonia|t-bill|treasury bills?|bonds?|govt|government|"
+    r"treasury|corporate|corp|aggregate|floating rate|inflation[- ]linked|gilts?|ultrashort|ultra short)\b",
+    re.IGNORECASE,
+)
+
+
+def is_cash_or_bond_fund(name: str) -> bool:
+    return bool(CASH_BOND_FUND_PATTERN.search(name or ""))
+
+
 def is_leveraged_or_short_etp(name: str) -> bool:
     return bool(LEVERAGED_ETP_PATTERN.search(name or ""))
 

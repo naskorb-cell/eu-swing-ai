@@ -484,15 +484,16 @@ def flag_macro_signal(df: pd.DataFrame, macro_keywords, name_col="Име", ticke
 @st.cache_data(ttl=6 * 3600)
 def load_curated_symbol_info(curated_mtime: float = 0):
     """От curated_universe.json: ({symbol: валута}, {оригинален T212 .MU символ:
-    основно листване}) - за Gettex акциите се сканира основното листване
-    (US/SE/...), защото Yahoo няма използваеми данни за .MU."""
+    основно листване}, {symbol: тип STOCK/ETF}) - за Gettex акциите се сканира
+    основното листване (US/SE/...), защото Yahoo няма използваеми данни за .MU."""
     path = Path(CURATED_FILE)
     if not path.exists():
-        return {}, {}
+        return {}, {}, {}
     instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
     currencies = {x["symbol"]: x.get("currency", "EUR") for x in instruments}
     resolved = {x["t212_symbol"]: x["symbol"] for x in instruments if x.get("t212_symbol")}
-    return currencies, resolved
+    types = {x["symbol"]: x.get("type") for x in instruments}
+    return currencies, resolved, types
 
 
 def load_full_universe_for_search():
@@ -504,7 +505,7 @@ def load_full_universe_for_search():
     if not path.exists():
         return {}
     instruments = json.loads(path.read_text(encoding="utf-8")).get("instruments", [])
-    _, resolved = load_curated_symbol_info(curated_file_mtime())
+    _, resolved, _ = load_curated_symbol_info(curated_file_mtime())
     mapped = {}
     for inst in instruments:
         suffix = exchange_to_yahoo_suffix(inst.get("exchangeName", ""))
