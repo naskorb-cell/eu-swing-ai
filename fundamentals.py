@@ -16,7 +16,10 @@ import streamlit as st
 import yfinance as yf
 from anthropic import Anthropic
 
-from ai_client import AI_PROVIDERS, CLAUDE_MODEL, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL, gemini_thinking_config
+from ai_client import (
+    AI_PROVIDERS, CLAUDE_MODEL, CLAUDE_NEWS_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL,
+    gemini_thinking_config,
+)
 
 FUND_CONFIRMED = "✅ Потвърден"
 FUND_NEUTRAL = "➖ Неутрален"
@@ -26,7 +29,7 @@ FUND_NO_DATA = "— няма данни"
 MIN_ANALYSTS = 5          # по-малко анализатори = консенсусът не е представителен
 MIN_UPSIDE_PCT = 10       # мин. потенциал до средната целева цена за "потвърден"
 EARNINGS_WARN_DAYS = 14   # отчет до толкова дни = риск от гап
-NEWS_MAX_SEARCHES = 3     # web търсения на компания (всяко се таксува)
+NEWS_MAX_SEARCHES = 2     # web търсения на компания (всяко се таксува)
 NEWS_WORKERS = 6
 NEWS_PROVIDERS = AI_PROVIDERS  # общият превключвател на приложението
 
@@ -260,19 +263,44 @@ def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level) -> d
     return _news_result(data, sources, searches)
 
 
-def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
-    """Една компания: Claude с web search. Връща {verdict, summary, analyst_actions,
-    next_earnings, sources, searches} или {error}. Линковете се пазят само ако са
-    от реално намерените резултати (без измислени URL-и)."""
+def _claude_news_options(model: str) -> dict:
+    """Най-евтината работеща конфигурация за модела: без „мислене“ (таксува се като
+    изход) и ниско усилие. Haiku 4.5 не поддържа effort и новия web_search с
+    динамично филтриране - за него основният вариант на инструмента."""
+    if model.startswith("claude-haiku"):
+        return {"tool_type": "web_search_20250305", "extra": {}}
+    extra = {"output_config": {"effort": "low"}}
+    if model.startswith("claude-sonnet"):
+        extra["thinking"] = {"type": "disabled"}
+    return {"tool_type": "web_search_20260209", "extra": extra}
+
+
+def research_news(name: str, symbol: str, is_etf: bool, api_key: str,
+                  model: str = CLAUDE_NEWS_DEFAULT_MODEL, fallback_model: str = CLAUDE_MODEL) -> dict:
+    """Една компания: Claude с web search - по-евтиният модел, без мислене; при
+    недостъпен модел/настройка (не се таксува) - основният модел."""
+    result = None
+    for attempt_model in dict.fromkeys([model, fallback_model]):
+        result = _research_news_claude_once(name, symbol, is_etf, api_key, attempt_model)
+        if "error" not in result or not _is_config_error(result["error"]):
+            break
+    return result
+
+
+def _research_news_claude_once(name: str, symbol: str, is_etf: bool, api_key: str, model: str) -> dict:
+    """Връща {verdict, summary, analyst_actions, next_earnings, sources, searches}
+    или {error}. Линковете се пазят само ако са от реално намерените резултати."""
     # таймаут на заявка: web search отнема десетки секунди, но не бива да виси безкрай
     # 1 опит до 4 мин.: при таймаут повторният клик на бутона проверява само неуспелите
     client = Anthropic(api_key=api_key, timeout=240.0, max_retries=0)
     messages = [{"role": "user", "content": _build_prompt(name, symbol, is_etf)}]
-    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
+    options = _claude_news_options(model)
+    tools = [{"type": options["tool_type"], "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
     found_urls, searches, response = {}, 0, None
     try:
         for _ in range(3):  # pause_turn: сървърът спира дълги търсения - продължаваме
-            response = client.messages.create(model=CLAUDE_MODEL, max_tokens=4096, tools=tools, messages=messages)
+            response = client.messages.create(model=model, max_tokens=2048, tools=tools, messages=messages,
+                                              **options["extra"])
             usage = getattr(response.usage, "server_tool_use", None)
             searches += getattr(usage, "web_search_requests", 0) or 0
             for block in response.content:
@@ -293,13 +321,14 @@ def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
 
 
 def research_news_many(items: list, provider: str, api_key: str, gemini_model: str = GEMINI_NEWS_DEFAULT_MODEL,
-                       on_done=None, gemini_fallback_model: str = GEMINI_DEFAULT_MODEL) -> dict:
+                       on_done=None, gemini_fallback_model: str = GEMINI_DEFAULT_MODEL,
+                       claude_model: str = CLAUDE_NEWS_DEFAULT_MODEL) -> dict:
     """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS.
     provider = "Claude" или "Gemini" (api_key е ключът на съответния доставчик)."""
     def one(name, symbol, is_etf):
         if provider == "Gemini":
             return research_news_gemini(name, symbol, is_etf, api_key, gemini_model, gemini_fallback_model)
-        return research_news(name, symbol, is_etf, api_key)
+        return research_news(name, symbol, is_etf, api_key, claude_model)
 
     out = {}
     with ThreadPoolExecutor(max_workers=NEWS_WORKERS) as pool:
