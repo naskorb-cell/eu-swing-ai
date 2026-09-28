@@ -8,11 +8,11 @@
 |---|---|
 | `multi_timeframe_screener.py` | **Входна точка** на Streamlit приложението (page config, CSS, избор на секция): `streamlit run multi_timeframe_screener.py` |
 | `photon.py` | Photon Phases стратегията: анализ (`PhotonSetup`), пакетен скан, таблици, дневна/4ч графика, „💼 Държа“ и „Моите позиции в скана“ (T212; със същото фундаментално потвърждение + отделен бутон за новините по позициите) |
-| `fundamentals.py` | Фундаментално потвърждение на сетъпите (само подчертава/подрежда, не филтрира): ниво 1 - анализатори от Yahoo `.info` (консенсус, потенциал до целта, ръст EPS, дата на отчет); ниво 2 - бутон „Провери новини и анализи“ (Gemini + Google Search по подразбиране или Claude + `web_search` - избор в настройките, резултатите се пазят отделно за сравнение; готовите + първите 10 от Watchlist, линкове само от реално намерени резултати) |
+| `fundamentals.py` | Фундаментално потвърждение на сетъпите (само подчертава/подрежда, не филтрира): ниво 1 - анализатори от Yahoo `.info` (консенсус, потенциал до целта, ръст EPS, дата на отчет); ниво 2 - бутон „Провери новини и анализи“ (Gemini + Google Search или Claude + `web_search` - по общия превключвател, резултатите се пазят отделно за сравнение; готовите + първите 10 от Watchlist, линкове само от реално намерени резултати) |
 | `universe.py` | Универсът: curated/ръчен списък, CSV upload, търсене, макро сигнал, GitHub (dispatch/запис, статус на обновяването) |
 | `indicators.py` | Чисти изчисления: RSI/MACD/ATR, swing точки, структура, свещи (weekly/4ч по сесия) |
 | `portfolio_ui.py` | Секция Портфолио & P&L (`T212_ACCOUNTS`) |
-| `ai_client.py` | `call_claude` / `stream_claude` (модел `CLAUDE_MODEL`) |
+| `ai_client.py` | `call_claude` / `stream_claude` (модел `CLAUDE_MODEL`), `stream_gemini`, `stream_ai(prompt, provider, ...)`; `AI_PROVIDERS` (Gemini първи = по подразбиране) |
 | `ui_common.py` | CSS тема, `section_header`, `format_eur` |
 | `legacy_strategies.py` | Мъртъв код: старите стратегии (не се импортират от UI) |
 | `t212_portfolio.py` | Trading 212 API клиент (Portfolio / History, Basic auth от key+secret) |
@@ -25,7 +25,7 @@
 | `.streamlit/config.toml` | Тъмна тема |
 
 ## Текущо състояние на UI
-`st.radio` в края на `multi_timeframe_screener.py` показва **само две секции**:
+`st.radio` в края на `multi_timeframe_screener.py` показва **само две секции**, а под него е общият превключвател **„🤖 AI анализи чрез: Gemini / Claude“** (`ai_provider` в session_state; ползва се от новините, търговския план и анализа на портфолиото):
 1. **🧭 Photon Phases** → `photon.render_photon_strategy()` — SMC/MTF рамка на Photon Trading (BOS/CHoCH, Phase A/B, само long), каскада Weekly → Daily → 4h; колони „📊 Фундамент“ / „📰 Новини“ / „Отчет“ (зелен ред = потвърден, ⭐ = + положителни новини)
 2. **💼 Портфолио & P&L** → `portfolio_ui.render_portfolio_section()` — отворени/затворени сделки, P&L за избираем период, AI анализ; два акаунта в `T212_ACCOUNTS` (собствен + на съпругата)
 
@@ -34,7 +34,7 @@
 ## Филтри и данни
 - Универсум: `curated_universe.json` (+ `manual_universe.json`), или **CSV/Excel upload** (експорт от InvestingPro screener/Watchlist — планът е Pro, не Pro+); съпоставяне по ISIN → тикер → име (цели думи); режими: допълва месечния списък само с липсващите (по подразбиране) / акциите от файла + ETF / само файла; новите могат да се запишат трайно в `manual_universe.json` (бутон „💾 Запази“)
 - Индикатори: EMA50, SMA200, RSI, ATR, MACD, swing points; твърди трендови филтри
-- Цени: yfinance. AI интерпретация: Anthropic API (Claude е основният модел); Gemini (`google-genai`) е по избор само за новините в ниво 2 - решение на Наско за сравнение по цена/обхват
+- Цени: yfinance. AI интерпретация: Gemini (`google-genai`, по подразбиране) или Claude (Anthropic API) - избира се в приложението за всички AI анализи (решение на Наско)
 - FMP free tier връща 402 за EU тикери → fundamentals enrichment е премахнат; FMP се ползва само за макро
 - Yahoo понякога връща празни данни при много заявки → месечният скрипт прави повторни опити (теглене + `.info`/`fast_info`) и пази паметта от миналия месец (липсваща капитализация/AUM се допълва; инструмент без данни сега остава с `carried_over`)
 - Gettex (`.MU`) листванията и чуждите акции на европейски борси (не-ЕИП ISIN, напр. US акция на Xetra) → месечният скрипт намира по ISIN основното листване (US/`.ST`/`.HE`...) и сканира него (`t212_symbol` пази оригинала, `resolved_aliases` - всички T212 листвания; дубликатите Xetra/Gettex се сливат); оборот/капитализация/AUM се превръщат в € преди праговете, в резултатите има колона „Валута“

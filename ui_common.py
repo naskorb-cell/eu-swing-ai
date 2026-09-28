@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+from ai_client import AI_KEY_SECRETS, AI_PROVIDERS, GEMINI_DEFAULT_MODEL
+
 hide_st_style = """
             <style>
             @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -135,3 +137,20 @@ def format_eur(value: float) -> str:
     if value >= 1e6:
         return f"{value / 1e6:.3g} млн. €"
     return f"{value / 1e3:.3g} хил. €"
+
+
+def ai_provider() -> str:
+    """Избраният AI модел ("Gemini" / "Claude") от превключвателя горе в приложението."""
+    return st.session_state.get("ai_provider", AI_PROVIDERS[0])
+
+
+def ai_api_key(provider: str, key: str):
+    """API ключът на доставчика от Secrets; ако липсва - поле за ръчно въвеждане."""
+    api_key = st.secrets.get(AI_KEY_SECRETS[provider], None)
+    if not api_key:
+        api_key = st.text_input(f"{provider} API Key ({AI_KEY_SECRETS[provider]})", type="password", key=key)
+    return api_key
+
+
+def gemini_model() -> str:
+    return st.secrets.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
