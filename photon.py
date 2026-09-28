@@ -995,6 +995,7 @@ def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
                     ("Лимит вход" if plan["is_limit"] else "Buy stop", f"{plan['entry']:.2f}"), ("Stop", f"{x.stop:.2f}"),
                     ("Цел 1", f"{x.daily_resistance:.2f}"), ("Цел 2", f"{x.weekly_resistance:.2f}"),
                     ("R/R", f"{plan['rr']:.2f}" if plan["rr"] else "—"),
+                    ("⏱ До цел 1", f"~{plan['days'][1]} дни" if plan["days"] else "—"),
                 ]), unsafe_allow_html=True)
                 st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
                 st.caption(f"{plan['how']} · сега {x.price:.2f} {x.currency} · {x.note}")
