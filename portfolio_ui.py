@@ -6,7 +6,7 @@ import streamlit as st
 
 import t212_portfolio as t212
 from ai_client import AI_KEY_SECRETS, stream_ai
-from ui_common import ai_api_key, ai_provider, gemini_model, section_header
+from ui_common import ai_api_key, ai_provider, gemini_model, section_header, show_ai_error
 
 # ============================================================================
 # ПОРТФОЛИО: Trading 212 отворени позиции + P&L анализ (READ-ONLY)
@@ -228,6 +228,6 @@ def render_portfolio_section():
                     generate_ai_analysis_portfolio(df_open, df_period, summary, preset, provider, api_key)
                 )
             except Exception as e:
-                st.error(f"Грешка: {e}")
+                show_ai_error(e, provider, key=f"t212_ai_{slug}")
     elif st.session_state.get(f"t212_ai_text_{slug}"):
         st.markdown(st.session_state[f"t212_ai_text_{slug}"])

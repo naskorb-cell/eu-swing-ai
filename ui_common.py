@@ -132,6 +132,11 @@ hide_st_style = """
             .badge { display: inline-block; background: #1B232C; border: 1px solid var(--hairline); border-radius: 999px;
                      padding: 1px 9px; margin: 0 4px 4px 0; font-size: 0.78rem; color: var(--ink); white-space: nowrap; }
             [data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+            .lvl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 6px 0; }
+            .lvl { background: var(--void); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px; }
+            .lvl-label { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+            .lvl-value { font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; font-weight: 600; color: var(--ink);
+                         white-space: nowrap; }
 
             /* Caption-и (напр. "Обновено: ...") в моноспейс - усещане за таймстемп на терминал */
             [data-testid="stCaptionContainer"] { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem !important; }
@@ -174,3 +179,38 @@ def ai_api_key(provider: str, key: str):
 
 def gemini_model() -> str:
     return st.secrets.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
+
+
+def levels_html(items: list) -> str:
+    """Компактна решетка „етикет / стойност“ (цена, stop, цели, R/R) - за карти и
+    прозорци; st.metric е с твърде едър шрифт и реже числата в тесни колони."""
+    cells = "".join(f'<div class="lvl"><div class="lvl-label">{label}</div><div class="lvl-value">{value}</div></div>'
+                    for label, value in items)
+    return f'<div class="lvl-grid">{cells}</div>'
+
+
+def friendly_ai_error(error, provider: str) -> str:
+    """Човешко обяснение за честите грешки на AI доставчиците (кредити, лимити, ключ)."""
+    text = str(error)
+    low = text.lower()
+    if provider == "Gemini" and ("prepayment" in low or "credits are depleted" in low or "402" in low):
+        return ("Кредитите в Gemini API са изчерпани. Зареди ги в Google AI Studio → Billing "
+                "(aistudio.google.com) или превключи на Claude.")
+    if provider == "Claude" and ("credit balance" in low or "billing" in low):
+        return "Кредитите в Anthropic API са изчерпани. Зареди ги в console.anthropic.com → Billing или превключи на Gemini."
+    if "resource_exhausted" in low or "429" in low or "rate limit" in low or "quota" in low:
+        return f"{provider} върна лимит на заявките (quota/429). Опитай след минута или превключи модела."
+    if "api key" in low or "401" in low or "403" in low or "permission" in low:
+        return f"Ключът за {provider} е невалиден или без права ({AI_KEY_SECRETS[provider]} в Secrets)."
+    return f"Грешка от {provider}: {text}"
+
+
+def _switch_ai_provider(to: str):
+    st.session_state["ai_provider"] = to
+
+
+def show_ai_error(error, provider: str, key: str):
+    """Грешка от AI + бутон за превключване към другия модел."""
+    st.error(friendly_ai_error(error, provider))
+    other = next(p for p in AI_PROVIDERS if p != provider)
+    st.button(f"🔁 Превключи на {other}", key=f"{key}_switch_ai", on_click=_switch_ai_provider, args=(other,))

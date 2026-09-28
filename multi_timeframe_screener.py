@@ -42,8 +42,11 @@ with nav_col:
         label_visibility="collapsed",
     )
 with ai_col:
+    # стойността по подразбиране през session_state (не default=): така бутонът
+    # „Превключи на ...“ при грешка може да я смени без предупреждение от Streamlit
+    st.session_state.setdefault("ai_provider", AI_PROVIDERS[0])
     st.segmented_control(
-        "🤖 AI анализи чрез", AI_PROVIDERS, key="ai_provider", default=AI_PROVIDERS[0],
+        "🤖 AI анализи чрез", AI_PROVIDERS, key="ai_provider",
         format_func=lambda p: f"🤖 {p}",
         help="Кой модел прави всички AI анализи: новините по сетъпите и позициите, търговския план и "
              "анализа на портфолиото. Gemini иска GEMINI_API_KEY, Claude - ANTHROPIC_API_KEY в Secrets.",
