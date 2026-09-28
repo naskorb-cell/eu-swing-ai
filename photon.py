@@ -1119,22 +1119,111 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
     return df
 
 
-def swing_markers(fig, df_with_swings: pd.DataFrame, x_format: str = None):
-    """Триъгълници на swing high (▼) и swing low (▲). x_format - за графики с
-    категорийна ос (етикетите на свещите са низове, не дати)."""
+# ---------------------------------------------------------------- графики
+
+CHART_UP, CHART_DOWN = "#3DDC97", "#E85D5D"
+CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0B0F14", "#1B232C", "#E6EDF3", "#7C8B99"
+LEVEL_STYLES = {  # (цвят, тип линия, дебелина)
+    "Цел 2 · седм. съпротива": ("#E8A23D", "dot", 1),
+    "Цел 1 · дневна съпротива": ("#E85D5D", "dot", 1),
+    "Equilibrium 50%": ("#7C8B99", "dash", 1),
+    "Дневна подкрепа": ("#3DDC97", "dot", 1),
+    "CHoCH ниво": ("#E8A23D", "dash", 1),
+    "Stop": ("#E85D5D", "solid", 1.5),
+}
+
+
+def swing_markers(fig, df_with_swings: pd.DataFrame, x_values=None):
+    """Малки триъгълници на swing high (▼ над свещта) и swing low (▲ под нея).
+    x_values - етикетите на свещите при категорийна ос (4ч)."""
     points = alternating_swings(df_with_swings)
-    for kind, marker, color, label in (("H", "triangle-down", "#E85D5D", "Swing high"), ("L", "triangle-up", "#3DDC97", "Swing low")):
+    pos = {ts: i for i, ts in enumerate(df_with_swings.index)}
+    pad = (df_with_swings["High"].max() - df_with_swings["Low"].min()) * 0.012
+    for kind, marker, color, label in (("H", "triangle-down", CHART_DOWN, "Swing high"), ("L", "triangle-up", CHART_UP, "Swing low")):
         pts = [pt for pt in points if pt[1] == kind]
         if pts:
             fig.add_trace(go.Scatter(
-                x=[pt[0].strftime(x_format) if x_format else pt[0] for pt in pts], y=[pt[2] for pt in pts],
-                mode="markers", name=label, marker=dict(symbol=marker, size=10, color=color),
+                x=[x_values[pos[pt[0]]] if x_values is not None else pt[0] for pt in pts],
+                y=[pt[2] + pad if kind == "H" else pt[2] - pad for pt in pts],
+                mode="markers", name=label, showlegend=False, hovertemplate=f"{label}: %{{customdata:.2f}}<extra></extra>",
+                customdata=[pt[2] for pt in pts], marker=dict(symbol=marker, size=7, color=color, opacity=0.85),
             ))
 
 
+def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 130, categorical: bool = False,
+                  swings_order: int = None, height: int = 520):
+    """Свещи + нива с етикети в дясното поле (не върху свещите), тънки линии,
+    приглушена мрежа, кръстосан курсор. levels = [(етикет, цена)]; poi = (от, до).
+    По подразбиране се виждат последните visible_bars свещи (zoom out = цялата история)."""
+    df = df.dropna(subset=["Close"])
+    x = [ts.strftime("%d.%m %H:%M") for ts in df.index] if categorical else df.index
+    fig = go.Figure(go.Candlestick(
+        x=x, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="Цена", showlegend=False,
+        increasing=dict(line=dict(color=CHART_UP, width=1), fillcolor=CHART_UP),
+        decreasing=dict(line=dict(color=CHART_DOWN, width=1), fillcolor=CHART_DOWN),
+        whiskerwidth=0,
+    ))
+    if swings_order:
+        swing_markers(fig, find_swing_points(df, order=swings_order), x_values=x if categorical else None)
+
+    visible = df.iloc[-visible_bars:]
+    last_close = float(df["Close"].iloc[-1])
+    lo = min([visible["Low"].min()] + [v for _, v in levels if v] + ([poi[0]] if poi else []))
+    hi = max([visible["High"].max()] + [v for _, v in levels if v] + ([poi[1]] if poi else []))
+    pad = (hi - lo) * 0.06
+    y0, y1 = lo - pad, hi + pad
+
+    if poi:
+        fig.add_hrect(y0=poi[0], y1=poi[1], fillcolor="#5B8DEF", opacity=0.15, line_width=0)
+        levels = levels + [("POI", (poi[0] + poi[1]) / 2)]
+    # етикетите в дясното поле, разтворени по вертикала, за да не се застъпват
+    labels = [(name, value) for name, value in levels if value] + [("Цена", last_close)]
+    labels.sort(key=lambda lv: lv[1])
+    min_gap = (y1 - y0) * 0.045
+    placed = []
+    for name, value in labels:
+        y_label = max(value, placed[-1][2] + min_gap) if placed else value
+        placed.append((name, value, y_label))
+    overflow = placed[-1][2] - (y1 - min_gap / 2) if placed else 0
+    if overflow > 0:  # най-горните излизат над графиката - сваляме всички малко надолу
+        placed = [(n, v, yl - overflow) for n, v, yl in placed]
+    for name, value, y_label in placed:
+        color, dash, width = LEVEL_STYLES.get(name, ("#5B8DEF", "dot", 1))
+        if name == "Цена":
+            color = CHART_INK
+        elif name != "POI":
+            fig.add_hline(y=value, line_dash=dash, line_color=color, line_width=width, opacity=0.9)
+        fig.add_annotation(
+            xref="paper", x=1.0, xanchor="left", yref="y", y=y_label, showarrow=False, align="left",
+            text=f"<b>{value:,.2f}</b> {name}", font=dict(size=11, color=CHART_SURFACE if name == "Цена" else color),
+            bgcolor=CHART_INK if name == "Цена" else CHART_SURFACE, borderpad=2,
+        )
+
+    if categorical:
+        fig.update_xaxes(type="category", range=[max(len(df) - visible_bars, 0) - 0.5, len(df) + 1.5], nticks=10)
+    else:
+        span = df.index[-1] - df.index[-min(visible_bars, len(df))]
+        fig.update_xaxes(range=[df.index[-min(visible_bars, len(df))], df.index[-1] + span * 0.03])
+    fig.update_yaxes(range=[y0, y1], side="left", tickformat=",.2f")
+    fig.update_xaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
+    fig.update_yaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
+    fig.update_layout(
+        height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
+        xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
+        margin=dict(l=8, r=175, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
+        xaxis=dict(gridcolor=CHART_GRID, zeroline=False), yaxis=dict(gridcolor=CHART_GRID, zeroline=False),
+        hoverlabel=dict(bgcolor="#141A21", font_size=12),
+    )
+    return fig
+
+
+CHART_CONFIG = {"displaylogo": False, "scrollZoom": True,
+                "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d", "toggleSpikelines"]}
+
+
 def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_atr: float):
-    """Дневна графика (swing точки, подкрепа/съпротива/equilibrium, седмична
-    съпротива, stop, POI) + 4ч графика (swing точки, CHoCH ниво, stop).
+    """Три графики в табове - седмична (тренд и цел 2), дневна (диапазон,
+    подкрепа/съпротива, equilibrium, stop, POI) и 4ч (CHoCH ниво, stop, POI).
     Нивата на сетъпа се показват, ако инструментът е в резултатите от скана."""
     daily = fetch_ohlc_batch((symbol,), "2y", "1d").get(symbol)
     if daily is None or daily.empty:
@@ -1143,7 +1232,8 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     order = setup.daily_order if setup else swing_order_daily
     if setup:
         sup_lvl, res_lvl = setup.daily_support, setup.daily_resistance
-        st.caption(f"{setup.phase} ({'Pro' if setup.phase == 'A' else 'Counter'} Internal) · {setup.zone} · {setup.note} · цените са в {setup.currency}")
+        st.caption(f"{PHASE_BADGES.get(setup.phase, setup.phase)} · {zone_badge(setup.zone)} · {setup.note} · "
+                   f"цените са в {setup.currency} · колелото на мишката = zoom, влачене = местене")
     else:
         chart_s, found_order, _ = significant_daily_structure(daily, swing_order_daily, min_range_atr, average_true_range(daily, period=14))
         sup_lvl = chart_s["last_low"] if chart_s else None
@@ -1151,48 +1241,33 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         order = found_order or swing_order_daily
         st.caption("Инструментът не е в резултатите от последния скан - показват се само дневните нива.")
 
-    tab_daily, tab_4h = st.tabs(["Дневна", "4ч"])
-    with tab_daily:
-        fig = go.Figure(go.Candlestick(
-            x=daily.index, open=daily["Open"], high=daily["High"], low=daily["Low"], close=daily["Close"], name="Цена",
-        ))
-        swing_markers(fig, find_swing_points(daily, order=order))
-        if sup_lvl and res_lvl:
-            fig.add_hline(y=res_lvl, line_dash="dot", line_color="#E85D5D", annotation_text="Дневна съпротива (цел)")
-            fig.add_hline(y=sup_lvl + (res_lvl - sup_lvl) / 2, line_dash="dash", line_color="gray", annotation_text="Equilibrium (50%)")
-            fig.add_hline(y=sup_lvl, line_dash="dot", line_color="#3DDC97", annotation_text="Дневна подкрепа")
-        if setup:
-            if setup.weekly_resistance > res_lvl:
-                fig.add_hline(y=setup.weekly_resistance, line_dash="dot", line_color="#E8A23D", annotation_text="Седм. съпротива (цел 2)")
-            fig.add_hline(y=setup.stop, line_color="#E85D5D", line_width=2, annotation_text="Stop")
-            if setup.poi_low is not None:
-                fig.add_hrect(y0=setup.poi_low, y1=setup.poi_high, fillcolor="#5B8DEF", opacity=0.18, line_width=0, annotation_text="POI")
-        # по подразбиране последните ~9 месеца (цялата история е достъпна с zoom out)
-        fig.update_xaxes(range=[daily.index[-1] - pd.Timedelta(days=270), daily.index[-1] + pd.Timedelta(days=5)])
-        visible = daily[daily.index >= daily.index[-1] - pd.Timedelta(days=270)]
-        fig.update_yaxes(range=[visible["Low"].min() * 0.97, visible["High"].max() * 1.03])
-        fig.update_layout(height=600, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
-        st.plotly_chart(fig, width="stretch")
+    stop = [("Stop", setup.stop)] if setup else []
+    poi = (setup.poi_low, setup.poi_high) if setup and setup.poi_low is not None else None
+    target2 = [("Цел 2 · седм. съпротива", setup.weekly_resistance)] if setup and setup.weekly_resistance > (res_lvl or 0) else []
 
+    tab_w, tab_d, tab_4h = st.tabs(["📅 Седмична", "📆 Дневна", "⏱️ 4ч"], default="📆 Дневна")
+    with tab_w:
+        weekly = resample_ohlc(daily, "W")
+        levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl), ("Дневна подкрепа", sup_lvl)] if sup_lvl and res_lvl else []) + stop
+        fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=480)
+        st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
+        st.caption("Тренд (HH + HL на седмичните swing точки) и цел 2 - седмичната съпротива.")
+    with tab_d:
+        levels = list(target2)
+        if sup_lvl and res_lvl:
+            levels += [("Цел 1 · дневна съпротива", res_lvl), ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2),
+                       ("Дневна подкрепа", sup_lvl)]
+        fig = candle_figure(daily, levels + stop, poi=poi, visible_bars=130, swings_order=order)
+        st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
     with tab_4h:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
         if intraday is None or intraday.empty:
             st.info("Няма 4ч данни за този инструмент.")
         else:
             h4 = resample_session_halves(intraday)
-            # категорийна ос - без празни нощи/уикенди между свещите
-            x_format = "%d.%m %H:%M"
-            fig4 = go.Figure(go.Candlestick(
-                x=[ts.strftime(x_format) for ts in h4.index],
-                open=h4["Open"], high=h4["High"], low=h4["Low"], close=h4["Close"], name="4ч",
-            ))
-            swing_markers(fig4, find_swing_points(h4, order=1), x_format=x_format)
+            levels = ([("CHoCH ниво", setup.choch_level)] if setup else []) + stop
+            fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=480)
+            st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
             if setup:
-                fig4.add_hline(y=setup.choch_level, line_dash="dash", line_color="#E8A23D",
-                               annotation_text="CHoCH ниво" + (" ✓" if setup.choch_now else ""))
-                fig4.add_hline(y=setup.stop, line_color="#E85D5D", line_width=2, annotation_text="Stop")
-                if setup.poi_low is not None:
-                    fig4.add_hrect(y0=setup.poi_low, y1=setup.poi_high, fillcolor="#5B8DEF", opacity=0.18, line_width=0, annotation_text="POI")
-            fig4.update_xaxes(type="category", nticks=12)
-            fig4.update_layout(height=500, template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig4, width="stretch")
+                st.caption("Phase B: вход при затваряне над CHoCH нивото" + (" - ✓ вече пробито" if setup.choch_now else "")
+                           + " · Phase A: вход в POI зоната.")
