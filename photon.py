@@ -14,13 +14,13 @@ import yfinance as yf
 import fundamentals as fund
 import t212_portfolio as t212
 import universe_rules as rules
-from ai_client import stream_claude
+from ai_client import AI_KEY_SECRETS, stream_ai
 from indicators import (
     alternating_swings, average_true_range, detect_structure_events, drop_incomplete_week,
     find_swing_points, resample_ohlc, resample_session_halves, swing_structure,
 )
 from portfolio_ui import T212_ACCOUNTS
-from ui_common import format_eur, section_header
+from ui_common import ai_api_key, ai_provider, format_eur, gemini_model, section_header
 from universe import (
     INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
     load_curated_symbol_info, load_universe,
@@ -295,7 +295,7 @@ def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     return results, watch_list, funnel, rejects, statuses
 
 
-def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, api_key: str):
+def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, provider: str, api_key: str):
 
     ready_text = df_ready.to_string(index=False) if not df_ready.empty else "НЯМА готови сетъпи в момента."
     watch_text = df_watch.to_string(index=False) if not df_watch.empty else "НЯМА инструменти на watchlist в момента."
@@ -344,7 +344,7 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     съпротива, Target 2 на седмична съпротива.
     Бъди кратък, удобен за телефон.
     """
-    yield from stream_claude(prompt, api_key, max_tokens=4096)
+    yield from stream_ai(prompt, provider, api_key, max_tokens=4096, gemini_model=gemini_model())
 
 
 def render_photon_strategy():
@@ -404,11 +404,6 @@ def render_photon_strategy():
             help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (напр. .T, .HK, .AX, .TO): "
                  "в T212 се търгуват на Gettex, когато основната им борса е затворена - широк спред и гап "
                  "спрямо сигнала. Ръчно добавените се сканират винаги.",
-        )
-        st.radio(
-            "Новини и анализи (ниво 2) - чрез", fund.NEWS_PROVIDERS, horizontal=True, key="ph_news_provider",
-            help="Claude (web search) или Gemini (Google Search). Резултатите се пазят отделно за всеки, "
-                 "така че можеш да ги сравниш на едни и същи инструменти. Gemini иска GEMINI_API_KEY в Secrets.",
         )
         uploaded_universe = render_universe_uploader(key="ph")
 
@@ -564,16 +559,15 @@ def render_photon_strategy():
 
     st.divider()
     section_header("🤖 AI Анализ", status="info")
-    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
-    if not anthropic_api_key:
-        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key="ph_key")
-    if st.button("🚀 Генерирай Анализ и Търговски План", type="primary", width="stretch", key="ph_ai_btn"):
-        if not anthropic_api_key:
-            st.error("Липсва Anthropic API ключ!")
+    provider = ai_provider()
+    api_key = ai_api_key(provider, key="ph_key")
+    if st.button(f"🚀 Генерирай Анализ и Търговски План с {provider}", type="primary", width="stretch", key="ph_ai_btn"):
+        if not api_key:
+            st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets!")
         else:
             try:
                 st.session_state["photon_ai_text"] = st.write_stream(
-                    generate_ai_analysis_photon(df_ready, df_watch, anthropic_api_key)
+                    generate_ai_analysis_photon(df_ready, df_watch, provider, api_key)
                 )
             except Exception as e:
                 st.error(f"Грешка: {e}")
@@ -693,7 +687,7 @@ STAR_LABEL = "⭐ Структура + фундамент"
 
 
 def news_provider() -> str:
-    return st.session_state.get("ph_news_provider", fund.NEWS_PROVIDERS[0])
+    return ai_provider()  # общият превключвател „🤖 AI анализи чрез“ горе
 
 
 def today_news() -> dict:
@@ -741,7 +735,7 @@ def render_news_section(targets: list, news: dict, key: str):
     """Ниво 2: бутон за проверка с Claude/Gemini + web search и резултатите по
     инструмент. targets - обекти с .name и .symbol (сетъпи или позиции)."""
     provider = news_provider()
-    api_key = st.secrets.get("GEMINI_API_KEY" if provider == "Gemini" else "ANTHROPIC_API_KEY", None)
+    api_key = st.secrets.get(AI_KEY_SECRETS[provider], None)
     missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
     _, _, types = load_curated_symbol_info(curated_file_mtime())
     fund_data = st.session_state.get("photon_fund", {})
@@ -751,19 +745,19 @@ def render_news_section(targets: list, news: dict, key: str):
 
     billing = "Google AI (Gemini API)" if provider == "Gemini" else "Anthropic API"
     st.caption(
-        f"Чрез **{provider}** (сменя се в ⚙️ Настройки). Всяка проверка търси в интернет - таксува се в {billing}. "
+        f"Чрез **{provider}** (сменя се с „🤖 AI анализи чрез“ горе). Всяка проверка търси в интернет - таксува се в {billing}. "
         "Резултатите се пазят до края на деня, отделно за всеки доставчик; проверяват се само липсващите."
     )
     if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key=f"{key}_btn",
                  disabled=not missing, width="stretch"):
         if not api_key:
-            st.error(f"Липсва {'GEMINI_API_KEY' if provider == 'Gemini' else 'ANTHROPIC_API_KEY'} в Streamlit Secrets.")
+            st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets.")
         else:
             bar = st.progress(0.0, text=f"Търся новини и анализи за {len(missing)} инструмента - "
                                         "обикновено 1-3 минути, всеки отнема 20-60 сек...")
             items = [(x.name, x.symbol, is_etf(x.symbol)) for x in missing]
             found = fund.research_news_many(
-                items, provider, api_key, gemini_model=st.secrets.get("GEMINI_MODEL", fund.GEMINI_DEFAULT_MODEL),
+                items, provider, api_key, gemini_model=gemini_model(),
                 on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
             bar.empty()
             today = datetime.now().date().isoformat()

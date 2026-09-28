@@ -8,6 +8,7 @@ import streamlit as st
 
 from photon import render_photon_strategy
 from portfolio_ui import render_portfolio_section
+from ai_client import AI_PROVIDERS
 from ui_common import hide_st_style
 
 st.set_page_config(
@@ -37,6 +38,12 @@ strategy = st.radio(
     ],
     horizontal=True,
     label_visibility="collapsed",
+)
+
+st.radio(
+    "🤖 AI анализи чрез", AI_PROVIDERS, horizontal=True, key="ai_provider",
+    help="Кой модел прави всички AI анализи: новините по сетъпите и позициите, търговския план и "
+         "анализа на портфолиото. Gemini иска GEMINI_API_KEY, Claude - ANTHROPIC_API_KEY в Secrets.",
 )
 
 st.divider()

@@ -5,8 +5,8 @@ from datetime import date, datetime, timedelta
 import streamlit as st
 
 import t212_portfolio as t212
-from ai_client import stream_claude
-from ui_common import section_header
+from ai_client import AI_KEY_SECRETS, stream_ai
+from ui_common import ai_api_key, ai_provider, gemini_model, section_header
 
 # ============================================================================
 # ПОРТФОЛИО: Trading 212 отворени позиции + P&L анализ (READ-ONLY)
@@ -35,7 +35,7 @@ def _period_bounds(preset_label: str, custom_range=None):
     return today - timedelta(days=days), today
 
 
-def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_label: str, api_key: str):
+def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_label: str, provider: str, api_key: str):
 
     open_text = (
         open_df.to_string(index=False) if not open_df.empty
@@ -80,7 +80,7 @@ def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_lab
     Бъди кратък и конкретен, удобен за преглед на телефон. Не давай дисклеймъри
     за инвестиционни съвети по-дълги от едно изречение, ако изобщо е нужно.
     """
-    yield from stream_claude(prompt, api_key, max_tokens=2048)
+    yield from stream_ai(prompt, provider, api_key, max_tokens=2048, gemini_model=gemini_model())
 
 
 # Именувани T212 профили - всеки със свои Secrets ключове, за да могат
@@ -216,17 +216,16 @@ def render_portfolio_section():
 
     st.divider()
     section_header("🤖 AI Анализ на представянето", status="info")
-    anthropic_api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
-    if not anthropic_api_key:
-        anthropic_api_key = st.text_input("Anthropic API Key", type="password", key=f"t212_ai_key_{slug}")
+    provider = ai_provider()
+    api_key = ai_api_key(provider, key=f"t212_ai_key_{slug}")
 
-    if st.button("Генерирай AI анализ на портфолиото", type="primary", key=f"t212_ai_btn_{slug}"):
-        if not anthropic_api_key:
-            st.error("Липсва Anthropic API ключ!")
+    if st.button(f"Генерирай AI анализ на портфолиото с {provider}", type="primary", key=f"t212_ai_btn_{slug}"):
+        if not api_key:
+            st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets!")
         else:
             try:
                 st.session_state[f"t212_ai_text_{slug}"] = st.write_stream(
-                    generate_ai_analysis_portfolio(df_open, df_period, summary, preset, anthropic_api_key)
+                    generate_ai_analysis_portfolio(df_open, df_period, summary, preset, provider, api_key)
                 )
             except Exception as e:
                 st.error(f"Грешка: {e}")

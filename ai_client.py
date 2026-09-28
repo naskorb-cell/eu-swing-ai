@@ -1,8 +1,14 @@
-"""Извикване на Claude (Anthropic API) - цял отговор или на части (стрийминг)."""
+"""Извикване на AI модел - Claude (Anthropic API) или Gemini (Google) - цял
+отговор или на части (стрийминг). Кой модел прави анализите, се избира в
+приложението (AI_PROVIDERS; първият е по подразбиране)."""
 
 from anthropic import Anthropic
 
 CLAUDE_MODEL = "claude-sonnet-5"
+GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
+
+AI_PROVIDERS = ["Gemini", "Claude"]
+AI_KEY_SECRETS = {"Gemini": "GEMINI_API_KEY", "Claude": "ANTHROPIC_API_KEY"}
 
 
 def _claude_error(stop_reason) -> ValueError:
@@ -35,3 +41,26 @@ def stream_claude(prompt: str, api_key: str, max_tokens: int = 4096):
         final = stream.get_final_message()
     if not got_text:
         raise _claude_error(final.stop_reason)
+
+
+def stream_gemini(prompt: str, api_key: str, model: str = GEMINI_DEFAULT_MODEL):
+    """Gemini на части (за st.write_stream). Импортът е тук - без инсталиран
+    google-genai приложението работи, пада само тази функция."""
+    from google import genai
+    # клиентът трябва да е в променлива - временен обект се затваря преди заявката
+    client = genai.Client(api_key=api_key)
+    got_text = False
+    for chunk in client.models.generate_content_stream(model=model, contents=prompt):
+        text = chunk.text or ""
+        got_text = got_text or bool(text.strip())
+        yield text
+    if not got_text:
+        raise ValueError("Gemini върна празен отговор. Опитай пак.")
+
+
+def stream_ai(prompt: str, provider: str, api_key: str, max_tokens: int = 4096, gemini_model: str = GEMINI_DEFAULT_MODEL):
+    """Стрийминг от избрания доставчик ("Gemini" или "Claude")."""
+    if provider == "Gemini":
+        yield from stream_gemini(prompt, api_key, gemini_model)
+    else:
+        yield from stream_claude(prompt, api_key, max_tokens=max_tokens)
