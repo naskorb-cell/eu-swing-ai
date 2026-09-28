@@ -342,8 +342,9 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     - Ако категория е празна, кажи го ясно.
     - За Watchlist ползвай колоната "Бележка" за конкретното условие, което чакаме.
 
-    За "ГОТОВИ ЗА ВХОД": обясни фазата, Stop (колоната "Stop"), Target 1 на дневна
-    съпротива, Target 2 на седмична съпротива.
+    За "ГОТОВИ ЗА ВХОД": обясни фазата, входа с ЛИМИТ поръчка (колоните "Лимит вход"
+    и "Вид поръчка"), Stop (колоната "Stop"), Target 1 на дневна съпротива, Target 2
+    на седмична съпротива и ориентировъчната печалба/загуба (колоните с 💶).
     Бъди кратък, удобен за телефон.
     """
     yield from stream_ai(prompt, provider, api_key, max_tokens=4096, gemini_model=gemini_model())
@@ -376,10 +377,60 @@ PROFILE_HELP = {
 }
 
 # Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
-MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Валута", "Зона",
-                "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "Бележка"]
+MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Лимит вход", "Валута", "Зона",
+                "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "💶 Цел 1 / Цел 2", "Бележка"]
 PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
 ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
+DEFAULT_INVESTMENT = 1000  # € за ориентировъчната печалба/загуба
+
+
+def limit_entry(x):
+    """Предложение за вход с лимит поръчка -> (цена, пояснение, лимит ли е).
+    Phase A: лимит в POI зоната (горният ѝ край, или текущата цена, ако вече е вътре).
+    Phase B с пробит CHoCH: лимит на ретест на пробитото ниво.
+    Phase B без пробив: входът е ПОТВЪРЖДЕНИЕ над CHoCH - това е buy stop, не лимит."""
+    if x.phase == "A" and x.poi_high is not None:
+        entry, how, is_limit = min(x.price, x.poi_high), "лимит в POI зоната", True
+    elif x.choch_now or x.price > x.choch_level:
+        entry, how, is_limit = min(x.price, x.choch_level), "лимит на ретест на CHoCH", True
+    else:
+        entry, how, is_limit = x.choch_level, "buy stop над CHoCH (чака пробив)", False
+    if entry <= x.stop:  # нивото е под stop-а - входът е на текущата цена
+        entry, how, is_limit = x.price, "лимит на текущата цена", True
+    return entry, how, is_limit
+
+
+def investment_amount() -> float:
+    return float(st.session_state.get("ph_invest", DEFAULT_INVESTMENT))
+
+
+def pnl_eur(entry: float, level: float, amount: float) -> float:
+    """Ориентировъчна печалба/загуба в € при amount € вход на entry (без такси и курсови разлики)."""
+    return amount * (level / entry - 1) if entry else 0.0
+
+
+def fmt_pnl(value: float) -> str:
+    return f"{'+' if value >= 0 else '−'}{abs(value):,.0f} €".replace(",", " ")
+
+
+def trade_plan(x) -> dict:
+    """Лимит вход + ориентировъчната печалба до цел 1/2 и загубата до stop за сумата от настройките."""
+    entry, how, is_limit = limit_entry(x)
+    amount = investment_amount()
+    risk = entry - x.stop
+    return {
+        "entry": entry, "how": how, "is_limit": is_limit, "amount": amount,
+        "t1": pnl_eur(entry, x.daily_resistance, amount), "t2": pnl_eur(entry, x.weekly_resistance, amount),
+        "stop": pnl_eur(entry, x.stop, amount),
+        "rr": round((x.daily_resistance - entry) / risk, 2) if risk > 0 and x.daily_resistance > entry else None,
+    }
+
+
+def pnl_line_html(plan: dict) -> str:
+    """Бледият ред „при 1000 €: цел 1 +78 € · цел 2 +120 € · stop −25 €“."""
+    return (f'<div class="pnl-hint">при {plan["amount"]:,.0f} €: '.replace(",", " ")
+            + f'цел 1 <b>{fmt_pnl(plan["t1"])}</b> · цел 2 <b>{fmt_pnl(plan["t2"])}</b> · stop {fmt_pnl(plan["stop"])}'
+            + ' <span class="pnl-note">ориентировъчно, без такси и курсови разлики</span></div>')
 
 
 def zone_badge(zone: str) -> str:
@@ -445,6 +496,11 @@ def render_settings_tab():
         "Само Европа + САЩ", value=True, key="ph_excl_overseas",
         help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (.T, .HK, .AX, .TO...): в T212 се търгуват, "
              "когато основната им борса е затворена. Ръчно добавените се сканират винаги.",
+    )
+
+    st.number_input(
+        "💶 Сума за ориентировъчната печалба (€)", min_value=100, max_value=1_000_000, value=DEFAULT_INVESTMENT,
+        step=100, key="ph_invest", help="Колко би вложил в една сделка - за бледите сметки „цел 1 / цел 2 / stop“.",
     )
 
     with st.expander("💧 Ликвидност (месечната селекция вече е филтрирана - тук само вдигаш праговете)"):
@@ -742,11 +798,15 @@ def instrument_dialog(name: str, symbol: str):
         fund_data = st.session_state.get("photon_fund", {})
         news = today_news()
         if setup:
+            plan = trade_plan(setup)
             st.markdown(levels_html([
-                ("Цена", f"{setup.price:.2f} {setup.currency}"), ("Stop", f"{setup.stop:.2f}"),
+                ("Цена сега", f"{setup.price:.2f} {setup.currency}"),
+                ("Лимит вход" if plan["is_limit"] else "Buy stop", f"{plan['entry']:.2f}"), ("Stop", f"{setup.stop:.2f}"),
                 ("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}"), ("Цел 2 (седмична)", f"{setup.weekly_resistance:.2f}"),
-                ("R/R", f"{setup.rr:.2f}" if setup.rr else "—"),
+                ("R/R", f"{plan['rr']:.2f}" if plan["rr"] else "—"),
             ]), unsafe_allow_html=True)
+            st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
+            st.caption(f"Вход: {plan['how']}.")
         cols = fund.fundamental_columns(fund_data.get(symbol))
         facts = [cols["📊 Фундамент"]]
         if cols["Анализатори"]:
@@ -817,11 +877,14 @@ def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
                 if fcols["Отчет"].startswith("⚠️"):
                     badges.append(f"Отчет {fcols['Отчет']}")
                 st.markdown(" ".join(f'<span class="badge">{b}</span>' for b in badges), unsafe_allow_html=True)
+                plan = trade_plan(x)
                 st.markdown(levels_html([
-                    ("Цена", f"{x.price:.2f}"), ("Stop", f"{x.stop:.2f}"),
-                    ("Цел 1", f"{x.daily_resistance:.2f}"), ("R/R", f"{x.rr:.2f}" if x.rr else "—"),
+                    ("Лимит вход" if plan["is_limit"] else "Buy stop", f"{plan['entry']:.2f}"), ("Stop", f"{x.stop:.2f}"),
+                    ("Цел 1", f"{x.daily_resistance:.2f}"), ("Цел 2", f"{x.weekly_resistance:.2f}"),
+                    ("R/R", f"{plan['rr']:.2f}" if plan["rr"] else "—"),
                 ]), unsafe_allow_html=True)
-                st.caption(f"{x.note} · в {x.currency} · цел 2 (седмична): {x.weekly_resistance:.2f}")
+                st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
+                st.caption(f"{plan['how']} · сега {x.price:.2f} {x.currency} · {x.note}")
                 if st.button("📈 Графика и новини", key=f"ph_card_{x.symbol}", width="stretch"):
                     open_instrument(x.name, x.symbol)
 
@@ -1063,6 +1126,12 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
         verdict = (news.get(x.symbol) or {}).get("verdict", "")
         if cols["📊 Фундамент"] == fund.FUND_CONFIRMED and verdict == fund.NEWS_POSITIVE:
             cols["📊 Фундамент"] = STAR_LABEL
+        plan = trade_plan(x)
+        row["Лимит вход"] = plan["entry"]
+        row["Вид поръчка"] = plan["how"]
+        row["R/R (до дневна съпротива)"] = plan["rr"]  # от лимит цената, не от текущата
+        row["💶 Цел 1 / Цел 2"] = f"{fmt_pnl(plan['t1'])} / {fmt_pnl(plan['t2'])}"
+        row["💶 Stop"] = fmt_pnl(plan["stop"])
         rows.append({**row, **cols, "📰 Новини": verdict})
     df = pd.DataFrame(rows)
     if df.empty:
@@ -1074,7 +1143,7 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
 
 
 NUMBER_FORMATS = {
-    "Цена": "{:.2f}", "Позиция в диапазона (%)": "{:.1f}", "Дневна подкрепа": "{:.2f}", "Дневна съпротива": "{:.2f}",
+    "Цена": "{:.2f}", "Лимит вход": "{:.2f}", "Позиция в диапазона (%)": "{:.1f}", "Дневна подкрепа": "{:.2f}", "Дневна съпротива": "{:.2f}",
     "Stop": "{:.2f}", "Ширина (x ATR)": "{:.1f}", "R/R (до дневна съпротива)": "{:.2f}",
     "R/R (до седм. съпротива)": "{:.2f}", "Потенциал до целта (%)": "{:.1f}", "Ръст EPS (%)": "{:.1f}",
 }
@@ -1122,7 +1191,8 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
 # ---------------------------------------------------------------- графики
 
 CHART_UP, CHART_DOWN = "#3DDC97", "#E85D5D"
-CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0B0F14", "#1B232C", "#E6EDF3", "#7C8B99"
+CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0A1628", "#16284A", "#E6EDF3", "#8497B0"
+CHART_FAINT = "#5C6F8A"  # бледите бележки (ориентировъчна печалба) до нивата
 LEVEL_STYLES = {  # (цвят, тип линия, дебелина)
     "Цел 2 · седм. съпротива": ("#E8A23D", "dot", 1),
     "Цел 1 · дневна съпротива": ("#E85D5D", "dot", 1),
@@ -1130,6 +1200,8 @@ LEVEL_STYLES = {  # (цвят, тип линия, дебелина)
     "Дневна подкрепа": ("#3DDC97", "dot", 1),
     "CHoCH ниво": ("#E8A23D", "dash", 1),
     "Stop": ("#E85D5D", "solid", 1.5),
+    "Лимит вход": ("#5B8DEF", "dash", 1.2),
+    "Buy stop": ("#5B8DEF", "dash", 1.2),
 }
 
 
@@ -1168,26 +1240,28 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
 
     visible = df.iloc[-visible_bars:]
     last_close = float(df["Close"].iloc[-1])
-    lo = min([visible["Low"].min()] + [v for _, v in levels if v] + ([poi[0]] if poi else []))
-    hi = max([visible["High"].max()] + [v for _, v in levels if v] + ([poi[1]] if poi else []))
+    # ниво = (име, цена) или (име, цена, бледа бележка, напр. „+78 €“)
+    levels = [lv if len(lv) == 3 else (lv[0], lv[1], "") for lv in levels]
+    lo = min([visible["Low"].min()] + [v for _, v, _ in levels if v] + ([poi[0]] if poi else []))
+    hi = max([visible["High"].max()] + [v for _, v, _ in levels if v] + ([poi[1]] if poi else []))
     pad = (hi - lo) * 0.06
     y0, y1 = lo - pad, hi + pad
 
     if poi:
         fig.add_hrect(y0=poi[0], y1=poi[1], fillcolor="#5B8DEF", opacity=0.15, line_width=0)
-        levels = levels + [("POI", (poi[0] + poi[1]) / 2)]
+        levels = levels + [("POI", (poi[0] + poi[1]) / 2, "")]
     # етикетите в дясното поле, разтворени по вертикала, за да не се застъпват
-    labels = [(name, value) for name, value in levels if value] + [("Цена", last_close)]
+    labels = [lv for lv in levels if lv[1]] + [("Цена", last_close, "")]
     labels.sort(key=lambda lv: lv[1])
     min_gap = (y1 - y0) * 0.045
     placed = []
-    for name, value in labels:
+    for name, value, note in labels:
         y_label = max(value, placed[-1][2] + min_gap) if placed else value
-        placed.append((name, value, y_label))
+        placed.append((name, value, y_label, note))
     overflow = placed[-1][2] - (y1 - min_gap / 2) if placed else 0
     if overflow > 0:  # най-горните излизат над графиката - сваляме всички малко надолу
-        placed = [(n, v, yl - overflow) for n, v, yl in placed]
-    for name, value, y_label in placed:
+        placed = [(n, v, yl - overflow, nt) for n, v, yl, nt in placed]
+    for name, value, y_label, note in placed:
         color, dash, width = LEVEL_STYLES.get(name, ("#5B8DEF", "dot", 1))
         if name == "Цена":
             color = CHART_INK
@@ -1195,7 +1269,8 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
             fig.add_hline(y=value, line_dash=dash, line_color=color, line_width=width, opacity=0.9)
         fig.add_annotation(
             xref="paper", x=1.0, xanchor="left", yref="y", y=y_label, showarrow=False, align="left",
-            text=f"<b>{value:,.2f}</b> {name}", font=dict(size=11, color=CHART_SURFACE if name == "Цена" else color),
+            text=f"<b>{value:,.2f}</b> {name}" + (f" <span style='color:{CHART_FAINT}'>{note}</span>" if note else ""),
+            font=dict(size=11, color=CHART_SURFACE if name == "Цена" else color),
             bgcolor=CHART_INK if name == "Цена" else CHART_SURFACE, borderpad=2,
         )
 
@@ -1210,9 +1285,9 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
     fig.update_layout(
         height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
         xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
-        margin=dict(l=8, r=175, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
+        margin=dict(l=8, r=215, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
         xaxis=dict(gridcolor=CHART_GRID, zeroline=False), yaxis=dict(gridcolor=CHART_GRID, zeroline=False),
-        hoverlabel=dict(bgcolor="#141A21", font_size=12),
+        hoverlabel=dict(bgcolor="#11213A", font_size=12),
     )
     return fig
 
@@ -1241,23 +1316,30 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         order = found_order or swing_order_daily
         st.caption("Инструментът не е в резултатите от последния скан - показват се само дневните нива.")
 
-    stop = [("Stop", setup.stop)] if setup else []
+    plan = trade_plan(setup) if setup else None
+    stop = [("Stop", setup.stop, fmt_pnl(plan["stop"]))] if setup else []
+    entry = [("Лимит вход" if plan["is_limit"] else "Buy stop", plan["entry"])] if setup else []
     poi = (setup.poi_low, setup.poi_high) if setup and setup.poi_low is not None else None
-    target2 = [("Цел 2 · седм. съпротива", setup.weekly_resistance)] if setup and setup.weekly_resistance > (res_lvl or 0) else []
+    target2 = ([("Цел 2 · седм. съпротива", setup.weekly_resistance, fmt_pnl(plan["t2"]))]
+               if setup and setup.weekly_resistance > (res_lvl or 0) else [])
+    target1_note = fmt_pnl(plan["t1"]) if setup else ""
+    if setup:
+        st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
 
     tab_w, tab_d, tab_4h = st.tabs(["📅 Седмична", "📆 Дневна", "⏱️ 4ч"], default="📆 Дневна")
     with tab_w:
         weekly = resample_ohlc(daily, "W")
-        levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl), ("Дневна подкрепа", sup_lvl)] if sup_lvl and res_lvl else []) + stop
+        levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
+                            if sup_lvl and res_lvl else []) + stop + entry
         fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=480)
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
         st.caption("Тренд (HH + HL на седмичните swing точки) и цел 2 - седмичната съпротива.")
     with tab_d:
         levels = list(target2)
         if sup_lvl and res_lvl:
-            levels += [("Цел 1 · дневна съпротива", res_lvl), ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2),
-                       ("Дневна подкрепа", sup_lvl)]
-        fig = candle_figure(daily, levels + stop, poi=poi, visible_bars=130, swings_order=order)
+            levels += [("Цел 1 · дневна съпротива", res_lvl, target1_note),
+                       ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2), ("Дневна подкрепа", sup_lvl)]
+        fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order)
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
     with tab_4h:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
@@ -1265,7 +1347,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
             st.info("Няма 4ч данни за този инструмент.")
         else:
             h4 = resample_session_halves(intraday)
-            levels = ([("CHoCH ниво", setup.choch_level)] if setup else []) + stop
+            levels = ([("CHoCH ниво", setup.choch_level)] if setup else []) + stop + entry
             fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=480)
             st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
             if setup:
