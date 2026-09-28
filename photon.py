@@ -1,6 +1,7 @@
 """Photon Phases стратегията (SMC/MTF, Phase A/B, само long): анализ, скан, таблици, графики."""
 
 import json
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from types import SimpleNamespace
@@ -1002,13 +1003,31 @@ def news_provider() -> str:
     return ai_provider()  # общият превключвател „🤖 AI анализи чрез“ горе
 
 
+@st.cache_resource(show_spinner=False)
+def _news_store() -> dict:
+    """Общ за ВСИЧКИ сесии склад с резултатите от новините за деня: обновяване на
+    страницата, друг браузър или телефон не плащат повторно за вече проверено.
+    (Изчиства се само при рестарт/обновяване на самото приложение.)"""
+    return {"lock": threading.Lock(), "date": None, "by_provider": {}, "checks": {}}
+
+
+def _store_today() -> dict:
+    store = _news_store()
+    today = datetime.now().date().isoformat()
+    with store["lock"]:
+        if store["date"] != today:  # нов ден - новите новини се проверяват наново
+            store.update(date=today, by_provider={}, checks={})
+    return store
+
+
 def today_news() -> dict:
-    """Резултатите от ниво 2 (новини) за днес от избрания доставчик - {symbol: резултат};
-    от вчера се нулират."""
-    stored = st.session_state.get("photon_news")
-    if not stored or stored.get("date") != datetime.now().date().isoformat():
-        return {}
-    return stored["by_provider"].get(news_provider(), {})
+    """Резултатите от ниво 2 (новини) за днес от избрания доставчик - {symbol: резултат}."""
+    return dict(_store_today()["by_provider"].get(news_provider(), {}))
+
+
+def news_checks_today(provider: str) -> int:
+    """Колко платени проверки на новини са направени днес с този доставчик (всички сесии)."""
+    return _store_today()["checks"].get(provider, 0)
 
 
 ZONE_ORDER = {"Discount": 0, "Premium": 1}  # "Над съпротивата (BOS)" и др. - последни
@@ -1063,11 +1082,10 @@ def check_news(targets: list, news: dict) -> dict:
         [(x.name, x.symbol, is_etf(x.symbol)) for x in targets], provider, api_key, gemini_model=gemini_model(),
         on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
     bar.empty()
-    today = datetime.now().date().isoformat()
-    stored = st.session_state.get("photon_news")
-    by_provider = stored["by_provider"] if stored and stored.get("date") == today else {}
-    by_provider[provider] = {**news, **found}
-    st.session_state["photon_news"] = {"date": today, "by_provider": by_provider}
+    store = _store_today()
+    with store["lock"]:
+        store["by_provider"].setdefault(provider, {}).update(found)
+        store["checks"][provider] = store["checks"].get(provider, 0) + len(found)
     return found
 
 
@@ -1079,9 +1097,25 @@ def render_news_section(targets: list, news: dict, key: str):
     missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
     billing = "Google AI (Gemini API)" if provider == "Gemini" else "Anthropic API"
     st.caption(f"Чрез **{provider}** (сменя се с „🤖 AI анализи чрез“ горе) - всяка проверка търси в интернет "
-               f"и се таксува в {billing}. Резултатите се пазят до края на деня; проверяват се само липсващите.")
+               f"и се таксува в {billing}. Резултатите се пазят до края на деня за всички сесии; проверяват се "
+               f"само липсващите. Днес с {provider}: **{news_checks_today(provider)}** проверки.")
+    confirm_key = f"{key}_confirm"
     if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key=f"{key}_btn",
                  disabled=not missing, width="stretch"):
+        st.session_state[confirm_key] = True
+    run_check = False
+    if st.session_state.get(confirm_key) and missing:
+        with st.container(border=True):
+            st.warning(f"Ще се направят **{len(missing)} платени проверки** с {provider} (всяка = търсене в "
+                       f"интернет + отговор на модела). Продължаваме ли?")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Да, провери", key=f"{key}_yes", type="primary", width="stretch"):
+                st.session_state.pop(confirm_key, None)
+                run_check = True
+            if c2.button("✖ Откажи", key=f"{key}_no", width="stretch"):
+                st.session_state.pop(confirm_key, None)
+                st.rerun()
+    if run_check:
         found = check_news(missing, news)
         if found:
             searches = sum(r.get("searches", 0) for r in found.values())
