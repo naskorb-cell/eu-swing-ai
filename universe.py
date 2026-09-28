@@ -83,6 +83,10 @@ def load_universe(max_instruments=500, pinned_keywords: tuple = (), liquidity: t
             label = item["name"]
             if label in mapped:
                 continue
+            # само-Gettex (единственото листване в T212 е .MU) - маркет мейкър, широк спред;
+            # новият месечен подбор вече не ги записва, тук е за файловете отпреди това
+            if (item.get("t212_symbol") or "").endswith(".MU"):
+                continue
             # стар формат на файла (без type) - не филтрираме, докато месечният workflow не го обнови
             if liquidity and "type" in item and not rules.passes_liquidity(item, *liquidity)[0]:
                 continue
@@ -231,7 +235,7 @@ def load_universe_from_terms(rows: list):
     rows = [r if isinstance(r, dict) else {"isin": "", "symbol": "", "name": str(r)} for r in rows]
     # ливъриджнатите/short ETP-та никога не са целта (напр. "Leverage Shares 2x Long Super Micro")
     instruments = [i for i in json.loads(full_path.read_text(encoding="utf-8")).get("instruments", [])
-                   if exchange_to_yahoo_suffix(i.get("exchangeName", "")) is not None
+                   if exchange_to_yahoo_suffix(i.get("exchangeName", "")) not in (None, ".MU")
                    and not rules.is_leveraged_or_short_etp(i.get("name", ""))]
     by_isin = {i.get("isin", "").upper(): i for i in instruments if i.get("isin")}
     by_short = {i.get("shortName", "").lower(): i for i in instruments if i.get("shortName")}

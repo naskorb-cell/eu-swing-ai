@@ -398,6 +398,15 @@ def main():
     else:
         candidates, aliases = resolve_primary_listings(candidates)
 
+    # само на Gettex в T212 (няма листване на Xetra/Euronext/...) -> навън: там
+    # сделката минава при маркет мейкър с широк спред и малък оборот. При дубликат
+    # Xetra + Gettex остава Xetra (виж resolve_primary_listings), така че отпадат
+    # само наистина Gettex-only инструментите.
+    gettex_only = [c for c in candidates if c.get("t212_symbol", c["symbol"]).endswith(GETTEX_SUFFIX)]
+    if gettex_only:
+        candidates = [c for c in candidates if not c.get("t212_symbol", c["symbol"]).endswith(GETTEX_SUFFIX)]
+        print(f"Изключени само-Gettex инструменти: {len(gettex_only)}")
+
     scored = score_in_batches(candidates)
     print(f"Успешно оценени (с валидни данни): {len(scored)}")
 
