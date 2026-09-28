@@ -675,6 +675,32 @@ def render_status_box(tickers: dict, params: dict):
                 )
 
 
+LEGEND_MD = f"""
+| Символ | Значение |
+|---|---|
+| **⭐ Структура + фундамент** | най-силният сигнал: ✅ от анализаторите **и** 🟢 новини |
+| **✅ Потвърден** | анализаторите: Buy / Strong Buy от поне {fund.MIN_ANALYSTS}, потенциал ≥ {fund.MIN_UPSIDE_PCT}% до средната целева цена |
+| **➖ Неутрален** | Hold, малко анализатори или малък потенциал |
+| **⚠️ Против** | Sell или целевата цена е под текущата |
+| **— няма данни** | ETF или акция без анализаторско покритие в Yahoo |
+| **🟢 / ⚪ / 🔴 Новини** | положителни / неутрални / отрицателни новини от проверката с AI (празно = непроверено днес) |
+| **Зелен ред** | ✅ или ⭐ и новините не са 🔴 |
+| **💼 N / T / N+T** | отворена позиция в T212: твоят акаунт / на съпругата / и двата |
+| **🟦 A · Pro** | 4ч структурата е възходяща - вход в POI зоната |
+| **🟪 B · Counter** | 4ч е в пулбек - вход след пробив над CHoCH нивото |
+| **🟢 Discount / 🟠 Premium / 🔵 над съпротивата** | долната половина на дневния диапазон / горната / над дневната съпротива |
+| **Позиция %** | 0% = дневна подкрепа, 50% = equilibrium, 100% = съпротива (цел 1) |
+| **Лимит вход** | предложената цена за поръчка; ако е **над** текущата цена, това е buy stop - Phase B, който чака пробив на CHoCH |
+| **💶 Цел 1 / Цел 2** | ориентировъчна печалба до дневната / седмичната съпротива при сумата от настройките |
+| **Отчет ⚠️** | следващият отчет е до {fund.EARNINGS_WARN_DAYS} дни - риск от гап |
+"""
+
+
+def render_legend():
+    with st.expander("ℹ️ Легенда на символите"):
+        st.markdown(LEGEND_MD)
+
+
 def render_photon_strategy():
     status_box = st.container()
     results = st.session_state.get("photon_results", [])
@@ -715,6 +741,7 @@ def render_photon_strategy():
         elif not results:
             st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента - виж Watchlist.")
         else:
+            render_legend()
             st.caption("Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума. "
                        "Зелено = потвърдено и от анализаторите.")
             if st.toggle("Табличен изглед", key="ph_ready_as_table"):
@@ -729,6 +756,7 @@ def render_photon_strategy():
             st.info("Натисни **🔍 Сканирай пазара** горе.")
             df_watch = pd.DataFrame()
         else:
+            render_legend()
             st.caption("Pro Swing потвърден - колоната „Бележка“ казва какво чакаме. Кликни ред за графика и новини.")
             show_far = st.toggle(
                 f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
@@ -754,6 +782,7 @@ def render_photon_strategy():
         elif "photon_statuses" not in st.session_state:
             st.info("Пусни скан, за да видиш къде е всяка отворена позиция спрямо сигналите.")
         else:
+            render_legend()
             render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out,
                                     fund_data, news)
             held_targets = [SimpleNamespace(name=p["name"], symbol=p["symbol"]) for p in positions if p["symbol"]]
