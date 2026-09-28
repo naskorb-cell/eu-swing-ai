@@ -9,11 +9,11 @@ hide_st_style = """
             @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
             :root {
-                --void: #0B0F14;
-                --panel: #141A21;
+                --void: #0A1628;
+                --panel: #11213A;
                 --ink: #E6EDF3;
-                --ink-muted: #7C8B99;
-                --hairline: #232B33;
+                --ink-muted: #8497B0;
+                --hairline: #1E3252;
                 --go: #3DDC97;
                 --watch: #E8A23D;
                 --info: #5B8DEF;
@@ -129,9 +129,12 @@ hide_st_style = """
             .card-head.confirmed { border-left-color: var(--go); }
             .card-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--ink); }
             .card-ticker { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--ink-muted); }
-            .badge { display: inline-block; background: #1B232C; border: 1px solid var(--hairline); border-radius: 999px;
+            .badge { display: inline-block; background: #172A47; border: 1px solid var(--hairline); border-radius: 999px;
                      padding: 1px 9px; margin: 0 4px 4px 0; font-size: 0.78rem; color: var(--ink); white-space: nowrap; }
             [data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+            .pnl-hint { font-size: 0.74rem; color: #6F83A0; margin: 2px 0 6px; line-height: 1.4; }
+            .pnl-hint b { color: #93A6C2; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+            .pnl-note { color: #4E6282; font-size: 0.68rem; margin-left: 4px; }
             .lvl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 6px 0; }
             .lvl { background: var(--void); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px; }
             .lvl-label { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
