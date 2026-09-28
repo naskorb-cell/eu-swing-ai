@@ -1,5 +1,6 @@
 """Photon Phases стратегията (SMC/MTF, Phase A/B, само long): анализ, скан, таблици, графики."""
 
+import dataclasses
 import json
 import threading
 from dataclasses import dataclass
@@ -130,7 +131,25 @@ def analyze_photon_daily(daily_df: pd.DataFrame, p: dict):
         "current_price": current_price, "atr_daily": atr_daily, "daily_order": used_order,
         "daily_support": daily_s["last_low"], "daily_resistance": daily_s["last_high"],
         "weekly_resistance": weekly_s["last_high"],
+        "leg_speed": up_leg_speeds(daily_df, used_order),
     }, None
+
+
+def up_leg_speeds(daily_df: pd.DataFrame, order: int, legs: int = 8):
+    """Колко бързо акцията обикновено изминава възходящите си дневни swing-ове:
+    (бърз, типичен, бавен) ръст на цената за една свещ - 75-и, 50-и и 25-и
+    перцентил от последните `legs` хода swing low -> swing high. None при < 2 хода."""
+    points = alternating_swings(find_swing_points(daily_df, order=order))
+    pos = {ts: i for i, ts in enumerate(daily_df.index)}
+    speeds = [
+        (hi[2] - lo[2]) / (pos[hi[0]] - pos[lo[0]])
+        for lo, hi in zip(points, points[1:])
+        if lo[1] == "L" and hi[1] == "H" and pos[hi[0]] > pos[lo[0]] and hi[2] > lo[2]
+    ][-legs:]
+    if len(speeds) < 2:
+        return None
+    s = pd.Series(speeds)
+    return float(s.quantile(0.75)), float(s.median()), float(s.quantile(0.25))
 
 
 @dataclass
@@ -158,6 +177,7 @@ class PhotonSetup:
     poi_high: float | None
     daily_order: int            # swing чувствителност, при която е намерена значимата структура
     currency: str = "EUR"
+    leg_speed: tuple | None = None  # (бърз, типичен, бавен) ръст/свещ на възходящите дневни swing-ове
 
     def to_row(self, held_by: str = "") -> dict:
         return {
@@ -242,7 +262,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
         weekly_resistance=ctx["weekly_resistance"],
         width_atr=round(daily_range / atr_daily, 1) if atr_daily else None,
         stop=stop, rr=rr, rr_weekly=rr_weekly, ready=ready,
-        poi_low=poi_low, poi_high=poi_high, daily_order=ctx["daily_order"],
+        poi_low=poi_low, poi_high=poi_high, daily_order=ctx["daily_order"], leg_speed=ctx.get("leg_speed"),
     ), None
 
 
@@ -381,7 +401,7 @@ PROFILE_HELP = {
 
 # Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
 MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Лимит вход", "Валута", "Зона",
-                "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "💶 Цел 1 / Цел 2", "Бележка"]
+                "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
 PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
 ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
 DEFAULT_INVESTMENT = 1000  # € за ориентировъчната печалба/загуба
@@ -426,13 +446,64 @@ def trade_plan(x) -> dict:
         "t1": pnl_eur(entry, x.daily_resistance, amount), "t2": pnl_eur(entry, x.weekly_resistance, amount),
         "stop": pnl_eur(entry, x.stop, amount),
         "rr": round((x.daily_resistance - entry) / risk, 2) if risk > 0 and x.daily_resistance > entry else None,
+        "days": days_to_target(x, entry),
     }
+
+
+def days_to_target(x, entry: float):
+    """Ориентировъчен срок до цел 1 в търговски дни -> (бързо, типично, бавно) или None.
+    По скоростта на досегашните възходящи swing-ове на акцията; ако няма достатъчно
+    история - по дневния ATR (типичен тренд ~0.3 ATR на ден)."""
+    distance = x.daily_resistance - entry
+    if distance <= 0:
+        return None
+    speeds = x.leg_speed
+    if not speeds and x.width_atr:
+        atr = (x.daily_resistance - x.daily_support) / x.width_atr
+        speeds = (0.5 * atr, 0.3 * atr, 0.2 * atr)
+    if not speeds or min(speeds) <= 0:
+        return None
+    return tuple(max(1, round(distance / sp)) for sp in speeds)
+
+
+MONTH_TRADING_DAYS = 22
+HORIZON_OPTIONS = {"Без ограничение": 0, "~2 седмици": 10, "~3 седмици": 15, "~1 месец": MONTH_TRADING_DAYS,
+                   "~2 месеца": 44}
+
+
+def max_horizon_days() -> int:
+    return HORIZON_OPTIONS.get(st.session_state.get("ph_horizon", "~1 месец"), MONTH_TRADING_DAYS)
+
+
+def fmt_days(days) -> str:
+    if not days:
+        return "—"
+    fast, typical, slow = days
+    return f"~{typical} дни ({fast}-{slow})" if fast != slow else f"~{typical} дни"
+
+
+def split_by_horizon(results: list, watch_list: list):
+    """Филтър за хоризонта: готовите, при които типичният срок до цел 1 е над
+    избрания максимум, отиват в Watchlist с бележка. Връща (готови, watchlist)."""
+    limit = max_horizon_days()
+    if not limit:
+        return results, watch_list
+    keep, moved = [], []
+    for x in results:
+        days = trade_plan(x)["days"]
+        if days and days[1] > limit:
+            moved.append(dataclasses.replace(
+                x, note=f"Цел 1 твърде далеч за хоризонта (~{days[1]} търг. дни > {limit}) · {x.note}"))
+        else:
+            keep.append(x)
+    return keep, moved + watch_list
 
 
 def pnl_line_html(plan: dict) -> str:
     """Бледият ред „при 1000 €: цел 1 +78 € · цел 2 +120 € · stop −25 €“."""
     return (f'<div class="pnl-hint">при {plan["amount"]:,.0f} €: '.replace(",", " ")
             + f'цел 1 <b>{fmt_pnl(plan["t1"])}</b> · цел 2 <b>{fmt_pnl(plan["t2"])}</b> · stop {fmt_pnl(plan["stop"])}'
+            + (f' · ⏱ до цел 1 <b>{fmt_days(plan["days"])}</b>' if plan.get("days") else "")
             + ' <span class="pnl-note">ориентировъчно, без такси и курсови разлики</span></div>')
 
 
@@ -467,6 +538,13 @@ def render_settings_tab():
         "Профил", list(PROFILES), key="ph_profile", on_change=apply_profile, label_visibility="collapsed",
     )
     st.caption(PROFILE_HELP.get(st.session_state.get("ph_profile"), "") or "Избери профил.")
+
+    st.markdown("##### ⏱ Хоризонт на сделката")
+    st.segmented_control(
+        "Макс. срок до цел 1", list(HORIZON_OPTIONS), key="ph_horizon", label_visibility="collapsed",
+        help="Готовите, при които типичният срок до цел 1 е по-дълъг, отиват в Watchlist с бележка. Срокът е "
+             "ориентировъчен - по скоростта на досегашните възходящи swing-ове на акцията.",
+    )
 
     with st.expander("🔧 Разширени настройки на сигналите"):
         c1, c2 = st.columns(2)
@@ -691,6 +769,7 @@ LEGEND_MD = f"""
 | **🟢 Discount / 🟠 Premium / 🔵 над съпротивата** | долната половина на дневния диапазон / горната / над дневната съпротива |
 | **Позиция %** | 0% = дневна подкрепа, 50% = equilibrium, 100% = съпротива (цел 1) |
 | **Лимит вход** | предложената цена за поръчка; ако е **над** текущата цена, това е buy stop - Phase B, който чака пробив на CHoCH |
+| **⏱ До цел 1** | ориентировъчен срок в търговски дни (типичен и диапазон бързо-бавно) по скоростта на досегашните възходящи swing-ове на акцията; готовите над избрания хоризонт отиват в Watchlist |
 | **💶 Цел 1 / Цел 2** | ориентировъчна печалба до дневната / седмичната съпротива при сумата от настройките |
 | **Отчет ⚠️** | следващият отчет е до {fund.EARNINGS_WARN_DAYS} дни - риск от гап |
 """
@@ -703,8 +782,10 @@ def render_legend():
 
 def render_photon_strategy():
     status_box = st.container()
-    results = st.session_state.get("photon_results", [])
-    watch_list = st.session_state.get("photon_watchlist", [])
+    # хоризонтът е в таба с настройките (рисува се по-долу) - стойността е от сесията
+    st.session_state.setdefault("ph_horizon", "~1 месец")
+    results, watch_list = split_by_horizon(st.session_state.get("photon_results", []),
+                                           st.session_state.get("photon_watchlist", []))
     positions = fetch_held_positions()
     labels = [
         f"✅ Готови ({len(results)})", f"👀 Watchlist ({len(watch_list)})",
@@ -1198,6 +1279,7 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
         row["R/R (до дневна съпротива)"] = plan["rr"]  # от лимит цената, не от текущата
         row["💶 Цел 1 / Цел 2"] = f"{fmt_pnl(plan['t1'])} / {fmt_pnl(plan['t2'])}"
         row["💶 Stop"] = fmt_pnl(plan["stop"])
+        row["⏱ До цел 1"] = fmt_days(plan["days"])
         rows.append({**row, **cols, "📰 Новини": verdict})
     df = pd.DataFrame(rows)
     if df.empty:
