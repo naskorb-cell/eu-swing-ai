@@ -1293,7 +1293,11 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
 
 
 CHART_CONFIG = {"displaylogo": False, "scrollZoom": True,
-                "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d", "toggleSpikelines"]}
+                "modeBarButtonsToRemove": ["select2d", "lasso2d", "toggleSpikelines"]}
+CHART_HEIGHTS = {"S": 420, "M": 560, "L": 720, "XL": 900}
+CHART_HINT = ("↕ влачи **края** на ценовата скала (горе/долу) = разтягане вертикално · ↔ влачи края на времевата "
+              "ос = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
+              "⛶ горе вдясно на графиката = цял екран")
 
 
 def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_atr: float):
@@ -1308,7 +1312,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     if setup:
         sup_lvl, res_lvl = setup.daily_support, setup.daily_resistance
         st.caption(f"{PHASE_BADGES.get(setup.phase, setup.phase)} · {zone_badge(setup.zone)} · {setup.note} · "
-                   f"цените са в {setup.currency} · колелото на мишката = zoom, влачене = местене")
+                   f"цените са в {setup.currency}")
     else:
         chart_s, found_order, _ = significant_daily_structure(daily, swing_order_daily, min_range_atr, average_true_range(daily, period=14))
         sup_lvl = chart_s["last_low"] if chart_s else None
@@ -1326,12 +1330,21 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     if setup:
         st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
 
+    size_col, hint_col = st.columns([1, 4], vertical_alignment="center")
+    with size_col:
+        st.session_state.setdefault("ph_chart_h", "M")
+        st.segmented_control("Височина", list(CHART_HEIGHTS), key="ph_chart_h", label_visibility="collapsed",
+                             help="Височина на графиката: S / M / L / XL")
+    with hint_col:
+        st.caption(CHART_HINT)
+    height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
+
     tab_w, tab_d, tab_4h = st.tabs(["📅 Седмична", "📆 Дневна", "⏱️ 4ч"], default="📆 Дневна")
     with tab_w:
         weekly = resample_ohlc(daily, "W")
         levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
                             if sup_lvl and res_lvl else []) + stop + entry
-        fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=480)
+        fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=height)
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
         st.caption("Тренд (HH + HL на седмичните swing точки) и цел 2 - седмичната съпротива.")
     with tab_d:
@@ -1339,7 +1352,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         if sup_lvl and res_lvl:
             levels += [("Цел 1 · дневна съпротива", res_lvl, target1_note),
                        ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2), ("Дневна подкрепа", sup_lvl)]
-        fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order)
+        fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order, height=height)
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
     with tab_4h:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
@@ -1348,7 +1361,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         else:
             h4 = resample_session_halves(intraday)
             levels = ([("CHoCH ниво", setup.choch_level)] if setup else []) + stop + entry
-            fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=480)
+            fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=height)
             st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
             if setup:
                 st.caption("Phase B: вход при затваряне над CHoCH нивото" + (" - ✓ вече пробито" if setup.choch_now else "")
