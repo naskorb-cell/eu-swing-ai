@@ -30,21 +30,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-strategy = st.radio(
-    "Избери секция:",
-    [
-        "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
-        "💼 Портфолио & P&L",
-    ],
-    horizontal=True,
-    label_visibility="collapsed",
-)
-
-st.radio(
-    "🤖 AI анализи чрез", AI_PROVIDERS, horizontal=True, key="ai_provider",
-    help="Кой модел прави всички AI анализи: новините по сетъпите и позициите, търговския план и "
-         "анализа на портфолиото. Gemini иска GEMINI_API_KEY, Claude - ANTHROPIC_API_KEY в Secrets.",
-)
+nav_col, ai_col = st.columns([3, 1], vertical_alignment="center")
+with nav_col:
+    strategy = st.radio(
+        "Избери секция:",
+        [
+            "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
+            "💼 Портфолио & P&L",
+        ],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+with ai_col:
+    st.segmented_control(
+        "🤖 AI анализи чрез", AI_PROVIDERS, key="ai_provider", default=AI_PROVIDERS[0],
+        format_func=lambda p: f"🤖 {p}",
+        help="Кой модел прави всички AI анализи: новините по сетъпите и позициите, търговския план и "
+             "анализа на портфолиото. Gemini иска GEMINI_API_KEY, Claude - ANTHROPIC_API_KEY в Secrets.",
+    )
 
 st.divider()
 
