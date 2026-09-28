@@ -5,6 +5,9 @@
 from anthropic import Anthropic
 
 CLAUDE_MODEL = "claude-sonnet-5"
+# Новините (кратък JSON след търсене) - по-евтиният Haiku (secret CLAUDE_NEWS_MODEL);
+# при недостъпен модел проверката минава на CLAUDE_MODEL
+CLAUDE_NEWS_DEFAULT_MODEL = "claude-haiku-4-5"
 GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
 # Новините са кратък JSON - по-евтиният Lite модел стига (secret GEMINI_NEWS_MODEL);
 # ако не е достъпен, проверката минава автоматично на GEMINI_MODEL

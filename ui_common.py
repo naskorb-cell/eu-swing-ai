@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from ai_client import AI_KEY_SECRETS, AI_PROVIDERS, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL
+from ai_client import AI_KEY_SECRETS, AI_PROVIDERS, CLAUDE_NEWS_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL
 
 hide_st_style = """
             <style>
@@ -182,6 +182,11 @@ def ai_api_key(provider: str, key: str):
 
 def gemini_model() -> str:
     return st.secrets.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
+
+
+def claude_news_model() -> str:
+    """По-евтиният Claude модел за новините (secret CLAUDE_NEWS_MODEL, по подразбиране Haiku)."""
+    return st.secrets.get("CLAUDE_NEWS_MODEL", CLAUDE_NEWS_DEFAULT_MODEL)
 
 
 def gemini_news_model() -> str:
