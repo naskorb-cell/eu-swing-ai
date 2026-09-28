@@ -347,9 +347,105 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     yield from stream_ai(prompt, provider, api_key, max_tokens=4096, gemini_model=gemini_model())
 
 
-def render_photon_strategy():
-    with st.expander("⚙️ Настройки на скрининга", expanded=False):
-        st.markdown("**Ликвидност** - месечната селекция вече е филтрирана по тези прагове; тук може само да ги вдигнеш.")
+# ============================================================================
+# ИНТЕРФЕЙС
+# Страницата: горе бутон „Сканирай“ + статус + фуния; отдолу табове с
+# резултатите (Готови / Watchlist / Позиции / AI план) и таб „🛠 Универс и
+# настройки“ с всичко служебно. Кодът попълва таба с настройките ПРЕДИ горната
+# част (контейнерите в Streamlit се пълнят в произволен ред), защото сканът
+# зависи от настройките и универса.
+# ============================================================================
+
+# Готови профили за сигналите; "Разширени" плъзгачите могат да ги променят ръчно
+PROFILE_DEFAULTS = {
+    "ph_min_rr": 2.0, "ph_choch_age": 3, "ph_poi_atr": 1.0, "ph_min_range": 3.0, "ph_stop_buf": 0.5,
+    "ph_swo_w": 2, "ph_swo_d": 3,
+}
+PROFILES = {
+    "🛡️ Консервативен": {**PROFILE_DEFAULTS, "ph_min_rr": 2.5, "ph_choch_age": 2, "ph_poi_atr": 0.75, "ph_min_range": 3.5},
+    "⚖️ Стандартен": dict(PROFILE_DEFAULTS),
+    "🚀 Агресивен": {**PROFILE_DEFAULTS, "ph_min_rr": 1.5, "ph_choch_age": 4, "ph_poi_atr": 1.5, "ph_min_range": 2.5,
+                    "ph_stop_buf": 0.3},
+}
+PROFILE_HELP = {
+    "🛡️ Консервативен": "по-малко, но по-чисти сетъпи: R/R ≥ 2.5, само съвсем свеж CHoCH, тесен POI",
+    "⚖️ Стандартен": "балансът по подразбиране: R/R ≥ 2, CHoCH до 3 свещи, POI 1 x ATR",
+    "🚀 Агресивен": "повече кандидати: R/R ≥ 1.5, CHoCH до 4 свещи, по-широк POI, по-тесни диапазони",
+}
+
+# Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
+MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Валута", "Зона",
+                "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "Бележка"]
+PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
+ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
+
+
+def zone_badge(zone: str) -> str:
+    return ZONE_BADGES.get(zone, f"🔵 {zone}")
+
+
+def apply_profile():
+    """Callback на избора на профил: слага стойностите му в плъзгачите."""
+    profile = PROFILES.get(st.session_state.get("ph_profile"))
+    if profile:
+        st.session_state.update(profile)
+
+
+def current_profile_label() -> str:
+    selected = st.session_state.get("ph_profile", "⚖️ Стандартен")
+    values = PROFILES.get(selected, {})
+    changed = any(st.session_state.get(k, v) != v for k, v in values.items())
+    return f"{selected} (с ръчни промени)" if changed else selected
+
+
+def render_settings_tab():
+    """Таб „🛠 Универс и настройки“: профил, разширени плъзгачи, филтри,
+    ликвидност, CSV, ръчен списък, обновяване и търсене в универса.
+    Връща (params, liquidity, filter flags, качения универс)."""
+    for k, v in PROFILE_DEFAULTS.items():
+        st.session_state.setdefault(k, v)
+    st.session_state.setdefault("ph_profile", "⚖️ Стандартен")
+
+    st.markdown("##### 🎯 Профил на сигналите")
+    st.segmented_control(
+        "Профил", list(PROFILES), key="ph_profile", on_change=apply_profile, label_visibility="collapsed",
+    )
+    st.caption(PROFILE_HELP.get(st.session_state.get("ph_profile"), "") or "Избери профил.")
+
+    with st.expander("🔧 Разширени настройки на сигналите"):
+        c1, c2 = st.columns(2)
+        with c1:
+            st.slider("Минимален R/R (до дневна съпротива)", 1.0, 4.0, step=0.5, key="ph_min_rr")
+            st.slider("Свежест на CHoCH (макс. 4ч свещи назад)", 1, 6, key="ph_choch_age",
+                      help="Phase B е 'готов' само ако пробивът над 4ч swing high е станал до толкова свещи назад.")
+            st.slider("Ширина на POI зоната (x ATR 4ч)", 0.5, 2.0, step=0.25, key="ph_poi_atr",
+                      help="Phase A: цената трябва да е до толкова ATR над последния 4ч higher low.")
+            st.slider("Stop буфер под reference low (x ATR 4ч)", 0.0, 1.0, step=0.1, key="ph_stop_buf")
+        with c2:
+            st.slider("Мин. ширина на дневния диапазон (x дневен ATR)", 1.0, 6.0, step=0.5, key="ph_min_range",
+                      help="По-тесен диапазон е шум, не swing - тогава се търсят по-значими swing точки.")
+            st.slider("Чувствителност на седмичните swing точки", 1, 4, key="ph_swo_w")
+            st.slider("Чувствителност на дневните swing точки", 2, 6, key="ph_swo_d")
+            st.checkbox("Седмичен тренд само по затворени седмици", value=True, key="ph_closed_w",
+                        help="Текущата незавършена седмица не участва в седмичните swing точки.")
+
+    st.markdown("##### 🧹 Филтри на универса")
+    f1, f2, f3 = st.columns(3)
+    exclude_leveraged = f1.toggle(
+        "Без ливъриджнати/short ETP", value=True, key="ph_excl_lev",
+        help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
+    )
+    exclude_cash_bond = f2.toggle(
+        "Без парични/облигационни фондове", value=True, key="ph_excl_cash",
+        help="Overnight/€ Cash/облигационни ETF-и почти не се движат и нямат swing структура.",
+    )
+    exclude_overseas = f3.toggle(
+        "Само Европа + САЩ", value=True, key="ph_excl_overseas",
+        help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (.T, .HK, .AX, .TO...): в T212 се търгуват, "
+             "когато основната им борса е затворена. Ръчно добавените се сканират винаги.",
+    )
+
+    with st.expander("💧 Ликвидност (месечната селекция вече е филтрирана - тук само вдигаш праговете)"):
         liq_cols = st.columns(2)
         with liq_cols[0]:
             stock_min_cap = st.select_slider(
@@ -359,7 +455,7 @@ def render_photon_strategy():
             stock_min_turnover = st.select_slider(
                 "Акции: мин. оборот/ден", options=[5_000_000, 10_000_000, 20_000_000, 50_000_000],
                 value=rules.STOCK_MIN_TURNOVER, format_func=format_eur, key="ph_stock_turn",
-                help="Само за акции на родна (ЕС/ЕИП) борса. US/CH/UK акции на Xetra/Gettex се гледат само по капитализация.",
+                help="Само за акции на родна (ЕС/ЕИП) борса. Чуждите акции се гледат по капитализация.",
             )
         with liq_cols[1]:
             etf_min_aum = st.select_slider(
@@ -371,43 +467,25 @@ def render_photon_strategy():
                 "ETF: мин. оборот/ден", options=[250_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
                 value=rules.ETF_MIN_TURNOVER, format_func=format_eur, key="ph_etf_turn",
             )
-        swing_order_weekly = st.slider("Чувствителност на седмичните swing точки", 1, 4, 2, key="ph_swo_w")
-        swing_order_daily = st.slider("Чувствителност на дневните swing точки", 2, 6, 3, key="ph_swo_d")
-        min_range_atr = st.slider(
-            "Мин. ширина на дневния диапазон (x дневен ATR)", 1.0, 6.0, 3.0, step=0.5, key="ph_min_range",
-            help="По-тесен диапазон е шум, не swing - тогава се търсят по-значими swing точки.",
-        )
-        closed_weeks_only = st.checkbox(
-            "Седмичен тренд само по затворени седмици", value=True, key="ph_closed_w",
-            help="Текущата незавършена седмица не участва в седмичните swing точки.",
-        )
-        choch_max_age = st.slider(
-            "Свежест на CHoCH (макс. 4ч свещи назад)", 1, 6, 3, key="ph_choch_age",
-            help="Phase B е 'готов' само ако пробивът над 4ч swing high е станал до толкова свещи назад.",
-        )
-        poi_atr_mult = st.slider(
-            "Ширина на POI зоната (x ATR 4ч)", 0.5, 2.0, 1.0, step=0.25, key="ph_poi_atr",
-            help="Phase A: цената трябва да е до толкова ATR над последния 4ч higher low.",
-        )
-        stop_atr_buffer = st.slider("Stop буфер под reference low (x ATR 4ч)", 0.0, 1.0, 0.5, step=0.1, key="ph_stop_buf")
-        min_rr = st.slider("Минимален R/R (до дневна съпротива)", 1.0, 4.0, 2.0, step=0.5, key="ph_min_rr")
-        exclude_leveraged = st.checkbox(
-            "Изключи ливъриджнати/short ETP", value=True, key="ph_excl_lev",
-            help="Short/Inverse/Leveraged/2x/3x продукти: short е залог надолу, а daily leveraged губят стойност при държане.",
-        )
-        exclude_cash_bond = st.checkbox(
-            "Изключи парични и облигационни фондове", value=True, key="ph_excl_cash",
-            help="Overnight/€ Cash/облигационни ETF-и почти не се движат и нямат swing структура.",
-        )
-        exclude_overseas = st.checkbox(
-            "Само европейски и американски основни листвания", value=True, key="ph_excl_overseas",
-            help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (напр. .T, .HK, .AX, .TO): "
-                 "в T212 се търгуват на Gettex, когато основната им борса е затворена - широк спред и гап "
-                 "спрямо сигнала. Ръчно добавените се сканират винаги.",
-        )
+
+    with st.expander("📤 Качи списък от InvestingPro (CSV/Excel)"):
         uploaded_universe = render_universe_uploader(key="ph")
 
+    params = {
+        "swing_order_weekly": st.session_state["ph_swo_w"], "swing_order_daily": st.session_state["ph_swo_d"],
+        "min_range_atr": st.session_state["ph_min_range"], "closed_weeks_only": st.session_state.get("ph_closed_w", True),
+        "choch_max_age": st.session_state["ph_choch_age"], "poi_atr_mult": st.session_state["ph_poi_atr"],
+        "stop_atr_buffer": st.session_state["ph_stop_buf"], "min_rr": st.session_state["ph_min_rr"],
+    }
     liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
+    return params, liquidity, (exclude_leveraged, exclude_cash_bond, exclude_overseas), uploaded_universe
+
+
+def build_scan_universe(liquidity, flags, uploaded_universe):
+    """Универсът за скана (в таб „Настройки“ се показват и броячите):
+    curated/CSV -> филтри -> ръчен списък -> основни листвания.
+    Връща (tickers, filtered_out {symbol: причина})."""
+    exclude_leveraged, exclude_cash_bond, exclude_overseas = flags
     if uploaded_universe:
         curated = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
         curated_symbols = set(curated.values())
@@ -439,43 +517,72 @@ def render_photon_strategy():
                     else:
                         ok, msg = add_to_manual_universe(new_items, github_token)
                         (st.success if ok else st.error)(msg)
-        st.caption(f"Универс за скана: {len(tickers)} инструмента")
     else:
         tickers = load_universe(max_instruments=None, liquidity=liquidity, curated_mtime=curated_file_mtime())
-        st.caption(f"Универс: {len(tickers)} ликвидни инструмента")
-    render_universe_refresh(key="ph")
+
     # филтрите са ПРЕДИ ръчния списък - ръчно добавеното винаги се сканира
-    currencies, resolved_symbols, types = load_curated_symbol_info(curated_file_mtime())
-    filtered_out = {}  # symbol -> причина (за "Моите позиции в скана")
+    _, resolved_symbols, types = load_curated_symbol_info(curated_file_mtime())
+    filtered_out = {}  # symbol -> причина (за "Моите позиции")
     filters = []
     if exclude_leveraged:
-        filters.append((lambda n, s: rules.is_leveraged_or_short_etp(n), "Изключен: ливъриджнат/short ETP",
-                        "Изключени ливъриджнати/short ETP"))
+        filters.append((lambda n, s: rules.is_leveraged_or_short_etp(n), "Изключен: ливъриджнат/short ETP", "ливъриджнати/short"))
     if exclude_cash_bond:
         filters.append((lambda n, s: types.get(s) == "ETF" and rules.is_cash_or_bond_fund(n),
-                        "Изключен: паричен/облигационен фонд", "Изключени парични/облигационни фондове"))
+                        "Изключен: паричен/облигационен фонд", "парични/облигационни"))
     if exclude_overseas:
         filters.append((lambda n, s: rules.is_non_eu_us_listing(resolved_symbols.get(s, s)),
-                        "Изключен: основна борса извън Европа/САЩ", "Изключени листвания извън Европа/САЩ"))
-    for check, reason, caption in filters:
+                        "Изключен: основна борса извън Европа/САЩ", "извън Европа/САЩ"))
+    excluded_counts = []
+    for check, reason, short in filters:
         excluded = {n: s for n, s in tickers.items() if check(n, s)}
         tickers = {n: s for n, s in tickers.items() if n not in excluded}
         filtered_out.update({s: reason for s in excluded.values()})
         if excluded:
-            st.caption(f"{caption}: {len(excluded)}")
+            excluded_counts.append(f"{short}: {len(excluded)}")
+    if excluded_counts:
+        st.caption("Изключени от филтрите - " + " · ".join(excluded_counts))
+
+    st.markdown("##### 🗂️ Универс")
     manual_universe, scan_only_manual = render_manual_universe_editor(key="ph")
     tickers = apply_manual_universe(tickers, manual_universe, scan_only_manual)
-    # ръчно добавени Gettex (.MU) акции -> основното им листване (ако е намерено)
+    # ръчно добавени Gettex/чужди листвания -> основното им листване (ако е намерено)
     tickers = {n: resolved_symbols.get(s, s) for n, s in tickers.items()}
+    render_universe_refresh(key="ph")
     render_universe_search(key="ph")
+    return tickers, filtered_out
 
-    if st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn"):
-        params = {
-            "swing_order_weekly": swing_order_weekly, "swing_order_daily": swing_order_daily,
-            "min_range_atr": min_range_atr, "closed_weeks_only": closed_weeks_only,
-            "choch_max_age": choch_max_age, "poi_atr_mult": poi_atr_mult,
-            "stop_atr_buffer": stop_atr_buffer, "min_rr": min_rr,
-        }
+
+def funnel_bar_html(funnel: dict) -> str:
+    """Фунията като една лента: всеки етап с брой и % от сканираните."""
+    total = max(next(iter(funnel.values()), 0), 1)
+    colors = ["var(--info)", "var(--info)", "var(--watch)", "var(--go)"]
+    cells = []
+    for i, (label, count) in enumerate(funnel.items()):
+        pct = 100 * count / total
+        pct_txt = "" if i == 0 else f'<span class="pct">{pct:.1f}%</span>'
+        cells.append(
+            f'<div class="funnel-step" style="border-top-color:{colors[min(i, 3)]}">'
+            f'<div class="n">{count}</div><div class="lbl">{label} {pct_txt}</div></div>'
+        )
+    arrow = '<div class="funnel-arrow">›</div>'
+    return f'<div class="funnel">{arrow.join(cells)}</div>'
+
+
+def render_status_box(tickers: dict, params: dict):
+    """Горната част: голям бутон за скан, ред със статус и фунията."""
+    currencies, _, types = load_curated_symbol_info(curated_file_mtime())
+    scan_col, info_col = st.columns([1, 2], vertical_alignment="center")
+    with scan_col:
+        clicked = st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn", width="stretch")
+    with info_col:
+        last = st.session_state.get("photon_funnel")
+        last_txt = f"Последен скан: **{last[2]}**" if last else "Още няма скан в тази сесия"
+        st.markdown(
+            f"{last_txt} · Универс: **{len(tickers)}** инструмента · Профил: **{current_profile_label()}** · "
+            f"AI: **{ai_provider()}**"
+        )
+
+    if clicked:
         progress = st.progress(0.0, text="Търсене на Phase A/B сетъпи...")
         results, watch_list, funnel, rejects, statuses = run_photon_scan(tickers, params, progress, currencies)
         progress.empty()
@@ -491,95 +598,232 @@ def render_photon_strategy():
                                       if types.get(s) != "ETF"}))
         with st.spinner(f"Тегля анализаторски данни за {len(stock_symbols)} акции..."):
             st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols)
-
-    results = st.session_state.get("photon_results", [])
-    watch_list = st.session_state.get("photon_watchlist", [])
+        st.rerun()  # табовете горе показват броя си - прерисуваме с новите резултати
 
     if "photon_funnel" in st.session_state:
         funnel, rejects, scanned_at = st.session_state["photon_funnel"]
-        cols = st.columns(len(funnel))
-        for col, (label, count) in zip(cols, funnel.items()):
-            col.metric(label, count)
-        if rejects:
-            with st.expander(f"📉 Защо отпаднаха инструментите (скан от {scanned_at})"):
+        st.markdown(funnel_bar_html(funnel), unsafe_allow_html=True)
+        fund_data = st.session_state.get("photon_fund", {})
+        with st.expander("📉 Детайли: защо отпаднаха инструментите, покритие на анализаторите"):
+            if fund_data:
+                render_fund_coverage(fund_data)
+            if rejects:
                 st.dataframe(
                     pd.DataFrame(sorted(rejects.items(), key=lambda kv: -kv[1]), columns=["Причина", "Брой"]),
                     hide_index=True, width="stretch",
                 )
 
+
+def render_photon_strategy():
+    status_box = st.container()
+    results = st.session_state.get("photon_results", [])
+    watch_list = st.session_state.get("photon_watchlist", [])
     positions = fetch_held_positions()
+    labels = [
+        f"✅ Готови ({len(results)})", f"👀 Watchlist ({len(watch_list)})",
+        "💼 Позиции" + (f" ({len(positions)})" if positions else ""), "🤖 AI план", "🛠 Универс и настройки",
+    ]
+    tab_ready, tab_watch, tab_pos, tab_ai, tab_settings = st.tabs(labels)
+
+    with tab_settings:
+        params, liquidity, flags, uploaded_universe = render_settings_tab()
+        tickers, filtered_out = build_scan_universe(liquidity, flags, uploaded_universe)
+        st.markdown("##### 📈 Графика на произволен инструмент")
+        if tickers:
+            selected_name = st.selectbox("Инструмент", list(tickers.keys()), key="ph_chart_select", index=None,
+                                         placeholder="Избери или напиши име...")
+            if selected_name and st.button("Отвори графиката", key="ph_chart_open"):
+                open_instrument(selected_name, tickers[selected_name])
+
+    with status_box:
+        render_status_box(tickers, params)
+
     held = held_symbols(positions)
-    setups_by_name = {x.name: x for x in results + watch_list}
     fund_data = st.session_state.get("photon_fund", {})
-    if fund_data:
-        render_fund_coverage(fund_data)
-        fund_data = st.session_state.get("photon_fund", {})
     news = today_news()
     # по зона, после потвърдените от анализаторите/новините (виж sort_by_confirmation)
     results = sort_by_confirmation(results, fund_data, news)
     shown_order = sort_by_confirmation(watch_list, fund_data, {})
+    st.session_state["ph_setups_by_name"] = {x.name: x for x in results + watch_list}
+    st.session_state["ph_chart_params"] = (params["swing_order_daily"], params["min_range_atr"])
+    scanned = "photon_funnel" in st.session_state
 
-    st.divider()
-    section_header("✅ Готови за вход", status="go", subtitle="Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума")
-    df_ready = render_setup_table(results, "ph_ready_table", held, tickers, fund_data, news)
-    if df_ready.empty:
-        st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента.")
-
-    st.divider()
-    section_header("👀 Watchlist", status="watch", subtitle="Pro Swing потвърден - колоната 'Бележка' казва какво чакаме")
-    show_far = st.checkbox(
-        f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
-        help="Над съпротивата = след пробив нагоре; до вход има нужда от нов пулбек, често дълъг.",
-    )
-    shown_watch = shown_order if show_far else [x for x in shown_order if x.range_pos <= FAR_ABOVE_RANGE_PCT]
-    news_targets = results + shown_watch[:NEWS_WATCHLIST_TOP]  # ниво 2 - преди подреждането по новини
-    shown_watch = sort_by_confirmation(shown_watch, fund_data, news)
-    if len(shown_watch) < len(watch_list):
-        st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
-    df_watch = render_setup_table(shown_watch, "ph_watch_table", held, tickers, fund_data, news)
-    if df_watch.empty:
-        st.info("Няма инструменти на watchlist в момента.")
-
-    if news_targets:
-        st.divider()
-        section_header("📰 Новини и анализи", status="info",
-                       subtitle=f"Готовите за вход + първите {NEWS_WATCHLIST_TOP} от Watchlist: рейтинг промени, отчети, значими новини")
-        render_news_section([SimpleNamespace(name=x.name, symbol=x.symbol) for x in news_targets], news, key="ph_news")
-
-    if positions is not None and "photon_statuses" in st.session_state:
-        st.divider()
-        section_header("💼 Моите позиции в скана", status="info",
-                       subtitle="Къде е всяка отворена позиция в T212 спрямо последния скан")
-        render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out,
-                                fund_data, news)
-        held_targets = [SimpleNamespace(name=p["name"], symbol=p["symbol"]) for p in positions if p["symbol"]]
-        if held_targets:
-            st.markdown("**📰 Новини и анализи за позициите ми**")
-            render_news_section(held_targets, news, key="ph_news_pos")
-
-    st.divider()
-    section_header("🤖 AI Анализ", status="info")
-    provider = ai_provider()
-    api_key = ai_api_key(provider, key="ph_key")
-    if st.button(f"🚀 Генерирай Анализ и Търговски План с {provider}", type="primary", width="stretch", key="ph_ai_btn"):
-        if not api_key:
-            st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets!")
+    with tab_ready:
+        if not scanned:
+            st.info("Натисни **🔍 Сканирай пазара** горе.")
+        elif not results:
+            st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента - виж Watchlist.")
         else:
-            try:
-                st.session_state["photon_ai_text"] = st.write_stream(
-                    generate_ai_analysis_photon(df_ready, df_watch, provider, api_key)
-                )
-            except Exception as e:
-                st.error(f"Грешка: {e}")
-    elif st.session_state.get("photon_ai_text"):
-        # анализът остава видим и след клик по таблицата (всеки клик = rerun)
-        st.markdown(st.session_state["photon_ai_text"])
+            st.caption("Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума. "
+                       "Зелено = потвърдено и от анализаторите.")
+            if st.toggle("Табличен изглед", key="ph_ready_as_table"):
+                render_setup_table(results, "ph_ready_table", held, fund_data, news)
+            else:
+                render_setup_cards(results, held, fund_data, news)
+    df_ready = setups_dataframe(results, held, fund_data, news)  # за AI анализа
 
-    st.divider()
-    section_header("📈 Преглед на графика", status="info")
-    if tickers:
-        selected_name = st.selectbox("Избери инструмент", list(tickers.keys()), key="ph_chart_select")
-        render_photon_chart(tickers[selected_name], setups_by_name.get(selected_name), swing_order_daily, min_range_atr)
+    with tab_watch:
+        news_targets = list(results)
+        if not scanned:
+            st.info("Натисни **🔍 Сканирай пазара** горе.")
+            df_watch = pd.DataFrame()
+        else:
+            st.caption("Pro Swing потвърден - колоната „Бележка“ казва какво чакаме. Кликни ред за графика и новини.")
+            show_far = st.toggle(
+                f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
+                help="Над съпротивата = след пробив нагоре; до вход има нужда от нов пулбек, често дълъг.",
+            )
+            shown_watch = shown_order if show_far else [x for x in shown_order if x.range_pos <= FAR_ABOVE_RANGE_PCT]
+            news_targets += shown_watch[:NEWS_WATCHLIST_TOP]  # ниво 2 - преди подреждането по новини
+            shown_watch = sort_by_confirmation(shown_watch, fund_data, news)
+            if len(shown_watch) < len(watch_list):
+                st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
+            df_watch = render_setup_table(shown_watch, "ph_watch_table", held, fund_data, news)
+            if df_watch.empty:
+                st.info("Няма инструменти на watchlist в момента.")
+        if news_targets:
+            st.divider()
+            section_header("📰 Новини и анализи", status="info",
+                           subtitle=f"Готовите за вход + първите {NEWS_WATCHLIST_TOP} от Watchlist")
+            render_news_section([SimpleNamespace(name=x.name, symbol=x.symbol) for x in news_targets], news, key="ph_news")
+
+    with tab_pos:
+        if positions is None:
+            st.info("Няма настроени T212 ключове в Secrets - позициите не могат да се заредят.")
+        elif "photon_statuses" not in st.session_state:
+            st.info("Пусни скан, за да видиш къде е всяка отворена позиция спрямо сигналите.")
+        else:
+            render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out,
+                                    fund_data, news)
+            held_targets = [SimpleNamespace(name=p["name"], symbol=p["symbol"]) for p in positions if p["symbol"]]
+            if held_targets:
+                st.divider()
+                section_header("📰 Новини и анализи за позициите ми", status="info")
+                render_news_section(held_targets, news, key="ph_news_pos")
+
+    with tab_ai:
+        provider = ai_provider()
+        api_key = ai_api_key(provider, key="ph_key")
+        st.caption("Търговски план за готовите + какво да следиш в Watchlist, на база последния скан.")
+        if st.button(f"🚀 Генерирай Анализ и Търговски План с {provider}", type="primary", width="stretch",
+                     key="ph_ai_btn", disabled=not scanned):
+            if not api_key:
+                st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets!")
+            else:
+                try:
+                    st.session_state["photon_ai_text"] = st.write_stream(
+                        generate_ai_analysis_photon(df_ready, df_watch, provider, api_key)
+                    )
+                except Exception as e:
+                    st.error(f"Грешка: {e}")
+        elif st.session_state.get("photon_ai_text"):
+            # анализът остава видим и след други кликове (всеки клик = rerun)
+            st.markdown(st.session_state["photon_ai_text"])
+
+    # изскачащият прозорец с графика/новини (от клик по ред, карта или новина)
+    pending = st.session_state.pop("ph_dialog", None)
+    if pending:
+        instrument_dialog(*pending)
+
+
+# ---------------------------------------------------------------- прозорец за инструмент
+
+def open_instrument(name: str, symbol: str):
+    """Отваря прозореца на инструмента при следващото прерисуване (в края на страницата)."""
+    st.session_state["ph_dialog"] = (name, symbol)
+
+
+def instrument_dialog(name: str, symbol: str):
+    @st.dialog(name, width="large")
+    def body():
+        setup = st.session_state.get("ph_setups_by_name", {}).get(name)
+        fund_data = st.session_state.get("photon_fund", {})
+        news = today_news()
+        if setup:
+            m = st.columns(5)
+            m[0].metric("Цена", f"{setup.price:.2f} {setup.currency}")
+            m[1].metric("Stop", f"{setup.stop:.2f}")
+            m[2].metric("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}")
+            m[3].metric("Цел 2 (седмична)", f"{setup.weekly_resistance:.2f}")
+            m[4].metric("R/R", f"{setup.rr:.2f}" if setup.rr else "—")
+        cols = fund.fundamental_columns(fund_data.get(symbol))
+        facts = [cols["📊 Фундамент"]]
+        if cols["Анализатори"]:
+            facts.append(f"Анализатори: {cols['Анализатори']}")
+        if cols["Потенциал до целта (%)"] is not None:
+            facts.append(f"Потенциал до целта: {cols['Потенциал до целта (%)']:.1f}%")
+        if cols["Отчет"]:
+            facts.append(f"Отчет: {cols['Отчет']}")
+        st.markdown(" · ".join(facts))
+        tab_chart, tab_news = st.tabs(["📈 Графика", "📰 Новини"])
+        with tab_chart:
+            swing_order_daily, min_range_atr = st.session_state.get("ph_chart_params", (3, 3.0))
+            render_photon_chart(symbol, setup, swing_order_daily, min_range_atr)
+        with tab_news:
+            r = news.get(symbol)
+            if r and "error" not in r:
+                render_news_item(r)
+            else:
+                if r:
+                    st.warning(f"Предишната проверка беше неуспешна: {r['error']}")
+                provider = news_provider()
+                if st.button(f"🔎 Провери новините с {provider}", key="ph_dialog_news"):
+                    check_news([SimpleNamespace(name=name, symbol=symbol)], news)
+                    r = today_news().get(symbol)
+                    if r and "error" not in r:
+                        render_news_item(r)
+                    elif r:
+                        st.error(r["error"])
+    body()
+
+
+def render_news_item(r: dict):
+    st.markdown(f"**{r['verdict']}** - {r['summary']}")
+    if r.get("analyst_actions"):
+        st.markdown(f"**Анализатори:** {r['analyst_actions']}")
+    if r.get("next_earnings"):
+        st.markdown(f"**Следващ отчет:** {r['next_earnings']}")
+    if r.get("sources"):
+        st.markdown("**Източници:** " + " · ".join(f"[{s.get('title') or s['url']}]({s['url']})" for s in r["sources"]))
+
+
+# ---------------------------------------------------------------- карти за „Готови“
+
+def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
+    """Готовите за вход като карти (удобно на телефон): име, значки, нива, бутон."""
+    per_row = 2
+    for i in range(0, len(setups), per_row):
+        cols = st.columns(per_row)
+        for col, x in zip(cols, setups[i:i + per_row]):
+            fcols = fund.fundamental_columns(fund_data.get(x.symbol))
+            verdict = (news.get(x.symbol) or {}).get("verdict", "")
+            fund_label = fcols["📊 Фундамент"]
+            if fund_label == fund.FUND_CONFIRMED and verdict == fund.NEWS_POSITIVE:
+                fund_label = STAR_LABEL
+            confirmed = fund_label in (fund.FUND_CONFIRMED, STAR_LABEL) and verdict != fund.NEWS_NEGATIVE
+            held_by = (held or {}).get(x.symbol)
+            with col.container(border=True):
+                st.markdown(
+                    f'<div class="card-head{" confirmed" if confirmed else ""}">'
+                    f'<span class="card-name">{x.name}</span><span class="card-ticker">{x.symbol}</span></div>',
+                    unsafe_allow_html=True,
+                )
+                badges = [PHASE_BADGES.get(x.phase, x.phase), zone_badge(x.zone), fund_label]
+                if verdict:
+                    badges.append(verdict)
+                if held_by:
+                    badges.append(f"💼 {held_by}")
+                if fcols["Отчет"].startswith("⚠️"):
+                    badges.append(f"Отчет {fcols['Отчет']}")
+                st.markdown(" ".join(f'<span class="badge">{b}</span>' for b in badges), unsafe_allow_html=True)
+                m = st.columns(4)
+                m[0].metric("Цена", f"{x.price:.2f}", help=x.currency)
+                m[1].metric("Stop", f"{x.stop:.2f}")
+                m[2].metric("Цел 1", f"{x.daily_resistance:.2f}")
+                m[3].metric("R/R", f"{x.rr:.2f}" if x.rr else "—")
+                st.caption(f"{x.note} · в {x.currency} · цел 2 (седмична): {x.weekly_resistance:.2f}")
+                if st.button("📈 Графика и новини", key=f"ph_card_{x.symbol}", width="stretch"):
+                    open_instrument(x.name, x.symbol)
 
 
 FAR_ABOVE_RANGE_PCT = 120
@@ -652,8 +896,13 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
                      "Отчет": cols["Отчет"], "Акаунт": p["accounts"],
                      "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-"})
     order = lambda r: (0 if r["Статус"].startswith("✅") else 1 if r["Статус"].startswith("👀") else 2, r["Позиция"])
+    rows = sorted(rows, key=order)
+    items = [(r["Позиция"], r["Сканиран символ"]) for r in rows]
+    if any(sym != "-" for _, sym in items):
+        st.caption("👆 Кликни позиция за графика, анализатори и новини.")
     st.dataframe(
-        pd.DataFrame(sorted(rows, key=order)), hide_index=True, width="stretch",
+        pd.DataFrame(rows), hide_index=True, width="stretch", key="ph_pos_table", selection_mode="single-row",
+        on_select=lambda: _open_selected("ph_pos_table", [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
                 help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
@@ -731,107 +980,142 @@ def render_fund_coverage(fund_data: dict):
         st.rerun()
 
 
-def render_news_section(targets: list, news: dict, key: str):
-    """Ниво 2: бутон за проверка с Claude/Gemini + web search и резултатите по
-    инструмент. targets - обекти с .name и .symbol (сетъпи или позиции)."""
+def check_news(targets: list, news: dict) -> dict:
+    """Проверява новините за targets (обекти с .name/.symbol) с избрания AI модел
+    и записва резултатите за деня. Връща намереното."""
     provider = news_provider()
     api_key = st.secrets.get(AI_KEY_SECRETS[provider], None)
-    missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
+    if not api_key:
+        st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets.")
+        return {}
     _, _, types = load_curated_symbol_info(curated_file_mtime())
     fund_data = st.session_state.get("photon_fund", {})
 
     def is_etf(symbol):
         return types.get(symbol) == "ETF" or (fund_data.get(symbol) or {}).get("quote_type") == "ETF"
 
+    bar = st.progress(0.0, text=f"Търся новини и анализи за {len(targets)} инструмента - "
+                                "обикновено 1-3 минути, всеки отнема 20-60 сек...")
+    found = fund.research_news_many(
+        [(x.name, x.symbol, is_etf(x.symbol)) for x in targets], provider, api_key, gemini_model=gemini_model(),
+        on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
+    bar.empty()
+    today = datetime.now().date().isoformat()
+    stored = st.session_state.get("photon_news")
+    by_provider = stored["by_provider"] if stored and stored.get("date") == today else {}
+    by_provider[provider] = {**news, **found}
+    st.session_state["photon_news"] = {"date": today, "by_provider": by_provider}
+    return found
+
+
+def render_news_section(targets: list, news: dict, key: str):
+    """Ниво 2: бутон за проверка с избрания AI модел + компактна таблица с
+    резултатите; клик по ред отваря прозореца с подробностите и източниците.
+    targets - обекти с .name и .symbol (сетъпи или позиции)."""
+    provider = news_provider()
+    missing = [x for x in targets if x.symbol not in news or "error" in news[x.symbol]]
     billing = "Google AI (Gemini API)" if provider == "Gemini" else "Anthropic API"
-    st.caption(
-        f"Чрез **{provider}** (сменя се с „🤖 AI анализи чрез“ горе). Всяка проверка търси в интернет - таксува се в {billing}. "
-        "Резултатите се пазят до края на деня, отделно за всеки доставчик; проверяват се само липсващите."
-    )
+    st.caption(f"Чрез **{provider}** (сменя се с „🤖 AI анализи чрез“ горе) - всяка проверка търси в интернет "
+               f"и се таксува в {billing}. Резултатите се пазят до края на деня; проверяват се само липсващите.")
     if st.button(f"🔎 Провери новини и анализи с {provider} ({len(missing)} инструмента)", key=f"{key}_btn",
                  disabled=not missing, width="stretch"):
-        if not api_key:
-            st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets.")
-        else:
-            bar = st.progress(0.0, text=f"Търся новини и анализи за {len(missing)} инструмента - "
-                                        "обикновено 1-3 минути, всеки отнема 20-60 сек...")
-            items = [(x.name, x.symbol, is_etf(x.symbol)) for x in missing]
-            found = fund.research_news_many(
-                items, provider, api_key, gemini_model=gemini_model(),
-                on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
-            bar.empty()
-            today = datetime.now().date().isoformat()
-            stored = st.session_state.get("photon_news")
-            by_provider = stored["by_provider"] if stored and stored.get("date") == today else {}
-            by_provider[provider] = {**news, **found}
-            st.session_state["photon_news"] = {"date": today, "by_provider": by_provider}
+        found = check_news(missing, news)
+        if found:
             searches = sum(r.get("searches", 0) for r in found.values())
             errors = sum(1 for r in found.values() if "error" in r)
-            st.success(f"Готово: {len(found) - errors} проверени, {searches} web търсения"
-                       + (f", {errors} с грешка (опитай пак)" if errors else "") + ".")
-            st.rerun()  # таблиците горе се подреждат наново с новите оценки
+            st.toast(f"Готово: {len(found) - errors} проверени, {searches} web търсения"
+                     + (f", {errors} с грешка (натисни пак)" if errors else ""))
+            st.rerun()  # таблиците се подреждат наново с новите оценки
+    rows, symbols = [], []
     for x in targets:
         r = news.get(x.symbol)
         if not r:
             continue
-        if "error" in r:
-            st.warning(f"{x.name}: грешка при проверката - {r['error']}")
-            continue
-        with st.expander(f"{r['verdict']} · {x.name} · {provider}"):
-            st.markdown(r["summary"])
-            if r.get("analyst_actions"):
-                st.markdown(f"**Анализатори:** {r['analyst_actions']}")
-            if r.get("next_earnings"):
-                st.markdown(f"**Следващ отчет:** {r['next_earnings']}")
-            if r.get("sources"):
-                st.markdown("**Източници:** " + " · ".join(f"[{s.get('title') or s['url']}]({s['url']})" for s in r["sources"]))
+        failed = "error" in r
+        rows.append({"Инструмент": x.name, "Оценка": "⚠️ Грешка" if failed else r["verdict"],
+                     "Накратко": r["error"] if failed else r["summary"]})
+        symbols.append((x.name, x.symbol))
+    if rows:
+        st.caption("👆 Кликни ред за подробностите, анализаторите и източниците.")
+        st.dataframe(
+            pd.DataFrame(rows), hide_index=True, width="stretch", key=f"{key}_table",
+            column_config={"Накратко": st.column_config.TextColumn(width="large")},
+            on_select=lambda k=f"{key}_table", s=symbols: _open_selected(k, s), selection_mode="single-row",
+        )
 
 
-def render_setup_table(setups: list, key: str, held: dict, tickers: dict, fund_data: dict, news: dict) -> pd.DataFrame:
-    """Таблица с PhotonSetup-и; клик по ред избира инструмента за графиката.
-    held = {symbol: 'N'/'T'/'N+T'} или None (няма T212 ключове - колоната се скрива).
-    Колоните за фундамента (ниво 1) и новините (ниво 2) само подчертават - не филтрират."""
-    if not setups:
-        return pd.DataFrame()
+def _open_selected(table_key: str, items: list):
+    """Callback на избор на ред в таблица: отваря прозореца на инструмента."""
+    event = st.session_state.get(table_key) or {}
+    rows = (event.get("selection") or {}).get("rows") or []
+    if rows and rows[0] < len(items) and items[rows[0]][1]:
+        open_instrument(*items[rows[0]])
+
+
+def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
+    """PhotonSetup-и като таблица с фундамента и новините (и за AI анализа)."""
     rows = []
     for x in setups:
         row = x.to_row((held or {}).get(x.symbol, ""))
+        row["Фаза"] = PHASE_BADGES.get(x.phase, row["Фаза"])
+        row["Зона"] = zone_badge(x.zone)
         cols = fund.fundamental_columns(fund_data.get(x.symbol))
         verdict = (news.get(x.symbol) or {}).get("verdict", "")
         if cols["📊 Фундамент"] == fund.FUND_CONFIRMED and verdict == fund.NEWS_POSITIVE:
             cols["📊 Фундамент"] = STAR_LABEL
         rows.append({**row, **cols, "📰 Новини": verdict})
     df = pd.DataFrame(rows)
-    # фундаментът веднага след името/тикера, за да се вижда без хоризонтален скрол
-    front = ["Име", "Тикер", "📊 Фундамент", "📰 Новини"]
-    df = df[front + [c for c in df.columns if c not in front]]
+    if df.empty:
+        return df
     if held is None:
         df = df.drop(columns=["💼 Държа"])
+    front = [c for c in MAIN_COLUMNS if c in df.columns]
+    return df[front + [c for c in df.columns if c not in front]]
+
+
+NUMBER_FORMATS = {
+    "Цена": "{:.2f}", "Позиция в диапазона (%)": "{:.1f}", "Дневна подкрепа": "{:.2f}", "Дневна съпротива": "{:.2f}",
+    "Stop": "{:.2f}", "Ширина (x ATR)": "{:.1f}", "R/R (до дневна съпротива)": "{:.2f}",
+    "R/R (до седм. съпротива)": "{:.2f}", "Потенциал до целта (%)": "{:.1f}", "Ръст EPS (%)": "{:.1f}",
+}
+
+
+def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
+    """Таблица с PhotonSetup-и; клик по ред отваря прозореца с графиката и новините.
+    held = {symbol: 'N'/'T'/'N+T'} или None (няма T212 ключове - колоната се скрива).
+    Колоните за фундамента (ниво 1) и новините (ниво 2) само подчертават - не филтрират."""
+    df = setups_dataframe(setups, held, fund_data, news)
+    if df.empty:
+        return df
+    show_all = st.toggle("Още колони", key=f"{key}_all_cols")
+    order = list(df.columns) if show_all else [c for c in MAIN_COLUMNS if c in df.columns]
 
     def highlight(r):
         confirmed = r["📊 Фундамент"] in (fund.FUND_CONFIRMED, STAR_LABEL) and r["📰 Новини"] != fund.NEWS_NEGATIVE
         return ["background-color: rgba(61, 220, 151, 0.14)" if confirmed else ""] * len(r)
 
-    st.caption("👆 Кликни върху ред, за да заредиш графиката му по-долу. Зелен ред = структурата е потвърдена и от анализаторите.")
-    event = st.dataframe(
-        df.style.apply(highlight, axis=1).format(precision=2), width="stretch", hide_index=True,
+    items = [(x.name, x.symbol) for x in setups]
+    st.dataframe(
+        df.style.apply(highlight, axis=1).format({c: f for c, f in NUMBER_FORMATS.items() if c in df.columns}, na_rep="—"),
+        width="stretch", hide_index=True, column_order=order,
         column_config={
+            "Име": st.column_config.TextColumn("Име", pinned=True),
             "📊 Фундамент": st.column_config.TextColumn(
                 "📊 Фундамент", help=f"✅ Buy/Strong Buy от поне {fund.MIN_ANALYSTS} анализатори и потенциал ≥ "
                                     f"{fund.MIN_UPSIDE_PCT}% до средната целева цена; ⚠️ Sell или цел под цената; "
                                     "⭐ = потвърден + положителни новини"),
-            "📰 Новини": st.column_config.TextColumn("📰 Новини", help="От бутона „Провери новини и анализи“ по-долу"),
-            "Потенциал до целта (%)": st.column_config.NumberColumn(format="%.1f"),
-            "Ръст EPS (%)": st.column_config.NumberColumn(help="Прогнозна спрямо последната годишна печалба на акция", format="%.1f"),
+            "📰 Новини": st.column_config.TextColumn("📰 Новини", help="От бутона „Провери новини и анализи“"),
+            "Позиция в диапазона (%)": st.column_config.Column(
+                "Позиция %", help="0% = дневна подкрепа, 50% = equilibrium, 100% = съпротива"),
+            "R/R (до дневна съпротива)": st.column_config.Column("R/R", help="До дневната съпротива (цел 1)"),
+            "Бележка": st.column_config.TextColumn("Бележка", width="large"),
+            "Ръст EPS (%)": st.column_config.Column(help="Прогнозна спрямо последната годишна печалба на акция"),
             "Отчет": st.column_config.TextColumn(help=f"Следващ отчет; ⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап)"),
             "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
-            "💼 Държа": st.column_config.TextColumn("💼 Държа", help="Отворена позиция в T212: N / T (акаунт)"),
+            "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
         },
-        on_select="rerun", selection_mode="single-row", key=key,
+        on_select=lambda: _open_selected(key, items), selection_mode="single-row", key=key,
     )
-    rows = event.selection.rows if event and event.selection else []
-    if rows and df.iloc[rows[0]]["Име"] in tickers:
-        st.session_state["ph_chart_select"] = df.iloc[rows[0]]["Име"]
     return df
 
 

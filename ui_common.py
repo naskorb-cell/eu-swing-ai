@@ -114,6 +114,25 @@ hide_st_style = """
             }
             div[data-testid="stTextInput"] input::placeholder { color: var(--ink-muted) !important; opacity: 1; }
 
+            /* Фунията на скана като една лента */
+            .funnel { display: flex; align-items: stretch; gap: 6px; margin: 0.6rem 0 0.4rem; flex-wrap: wrap; }
+            .funnel-step { flex: 1 1 120px; background: var(--panel); border: 1px solid var(--hairline);
+                           border-top: 3px solid var(--info); border-radius: 10px; padding: 0.55rem 0.8rem; }
+            .funnel-step .n { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 600; color: var(--ink); }
+            .funnel-step .lbl { font-size: 0.8rem; color: var(--ink-muted); }
+            .funnel-step .pct { color: var(--ink); font-family: 'JetBrains Mono', monospace; margin-left: 4px; }
+            .funnel-arrow { align-self: center; color: var(--ink-muted); font-size: 1.4rem; }
+
+            /* Карти за „Готови за вход“ */
+            .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+                         border-left: 3px solid var(--hairline); padding-left: 8px; margin-bottom: 4px; }
+            .card-head.confirmed { border-left-color: var(--go); }
+            .card-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1.05rem; color: var(--ink); }
+            .card-ticker { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--ink-muted); }
+            .badge { display: inline-block; background: #1B232C; border: 1px solid var(--hairline); border-radius: 999px;
+                     padding: 1px 9px; margin: 0 4px 4px 0; font-size: 0.78rem; color: var(--ink); white-space: nowrap; }
+            [data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+
             /* Caption-и (напр. "Обновено: ...") в моноспейс - усещане за таймстемп на терминал */
             [data-testid="stCaptionContainer"] { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem !important; }
             </style>
@@ -141,7 +160,8 @@ def format_eur(value: float) -> str:
 
 def ai_provider() -> str:
     """Избраният AI модел ("Gemini" / "Claude") от превключвателя горе в приложението."""
-    return st.session_state.get("ai_provider", AI_PROVIDERS[0])
+    # segmented_control може да се "отмаркира" (None) - тогава моделът по подразбиране
+    return st.session_state.get("ai_provider") or AI_PROVIDERS[0]
 
 
 def ai_api_key(provider: str, key: str):
