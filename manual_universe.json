@@ -109,10 +109,6 @@
       "symbol": "UNP.DE"
     },
     {
-      "name": "D8V (Credicorp)",
-      "symbol": "D8V.MU"
-    },
-    {
       "name": "12DA (Dell Technologies)",
       "symbol": "12DA.DE"
     },
@@ -125,16 +121,8 @@
       "symbol": "DOCU"
     },
     {
-      "name": "TOW (Tower Semiconductor)",
-      "symbol": "TOW.MU"
-    },
-    {
       "name": "RSO (Ross Stores)",
       "symbol": "RSO.DE"
-    },
-    {
-      "name": "1IG (AutoStore)",
-      "symbol": "1IG.MU"
     },
     {
       "name": "UU2 (BlackRock)",
