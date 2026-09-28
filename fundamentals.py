@@ -16,7 +16,7 @@ import streamlit as st
 import yfinance as yf
 from anthropic import Anthropic
 
-from ai_client import AI_PROVIDERS, CLAUDE_MODEL, GEMINI_DEFAULT_MODEL, gemini_thinking_config
+from ai_client import AI_PROVIDERS, CLAUDE_MODEL, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL, gemini_thinking_config
 
 FUND_CONFIRMED = "✅ Потвърден"
 FUND_NEUTRAL = "➖ Неутрален"
@@ -206,9 +206,30 @@ def _news_result(data: dict, sources: list, searches: int) -> dict:
     }
 
 
-def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, model: str = GEMINI_DEFAULT_MODEL) -> dict:
-    """Една компания: Gemini с Google Search grounding. Източниците са от
-    grounding метаданните (реално намерените страници), не от текста на модела."""
+def _is_config_error(error: Exception) -> bool:
+    """Грешка от неподдържан модел/настройка (400/404) - не се таксува и си струва
+    да се опита с по-стандартна комбинация."""
+    text = str(error).lower()
+    return any(k in text for k in ("404", "not found", "not supported", "invalid_argument", "400"))
+
+
+def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str,
+                         model: str = GEMINI_NEWS_DEFAULT_MODEL, fallback_model: str = GEMINI_DEFAULT_MODEL) -> dict:
+    """Една компания: Gemini с Google Search grounding, възможно най-евтино:
+    Lite модел + минимално „мислене“; ако моделът/нивото не се поддържат - по-стандартна
+    комбинация. Източниците са от grounding метаданните (реално намерените страници)."""
+    attempts = [(model, "MINIMAL"), (model, "LOW")]
+    if fallback_model and fallback_model != model:
+        attempts.append((fallback_model, "LOW"))
+    result = None
+    for attempt_model, level in attempts:
+        result = _research_news_gemini_once(name, symbol, is_etf, api_key, attempt_model, level)
+        if "error" not in result or not _is_config_error(result["error"]):
+            break
+    return result
+
+
+def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level) -> dict:
     try:
         # импортът е тук, а не най-горе: без инсталиран google-genai приложението
         # трябва да работи (Gemini е само по избор)
@@ -221,7 +242,8 @@ def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, mod
             model=model, contents=_build_prompt(name, symbol, is_etf),
             config=genai_types.GenerateContentConfig(
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
-                thinking_config=gemini_thinking_config(model),
+                thinking_config=gemini_thinking_config(model, level),
+                max_output_tokens=4096,  # отговорът е кратък JSON; таван срещу изненади
             ),
         )
         meta = response.candidates[0].grounding_metadata if response.candidates else None
@@ -270,12 +292,13 @@ def research_news(name: str, symbol: str, is_etf: bool, api_key: str) -> dict:
     return _news_result(data, sources, searches)
 
 
-def research_news_many(items: list, provider: str, api_key: str, gemini_model: str = GEMINI_DEFAULT_MODEL, on_done=None) -> dict:
+def research_news_many(items: list, provider: str, api_key: str, gemini_model: str = GEMINI_NEWS_DEFAULT_MODEL,
+                       on_done=None, gemini_fallback_model: str = GEMINI_DEFAULT_MODEL) -> dict:
     """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS.
     provider = "Claude" или "Gemini" (api_key е ключът на съответния доставчик)."""
     def one(name, symbol, is_etf):
         if provider == "Gemini":
-            return research_news_gemini(name, symbol, is_etf, api_key, gemini_model)
+            return research_news_gemini(name, symbol, is_etf, api_key, gemini_model, gemini_fallback_model)
         return research_news(name, symbol, is_etf, api_key)
 
     out = {}

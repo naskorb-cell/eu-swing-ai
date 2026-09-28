@@ -22,7 +22,8 @@ from indicators import (
 )
 from portfolio_ui import T212_ACCOUNTS
 from ui_common import (
-    ai_api_key, ai_provider, format_eur, friendly_ai_error, gemini_model, levels_html, section_header, show_ai_error,
+    ai_api_key, ai_provider, format_eur, friendly_ai_error, gemini_model, gemini_news_model, levels_html, section_header,
+    show_ai_error,
 )
 from universe import (
     INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
@@ -1079,7 +1080,8 @@ def check_news(targets: list, news: dict) -> dict:
     bar = st.progress(0.0, text=f"Търся новини и анализи за {len(targets)} инструмента - "
                                 "обикновено 1-3 минути, всеки отнема 20-60 сек...")
     found = fund.research_news_many(
-        [(x.name, x.symbol, is_etf(x.symbol)) for x in targets], provider, api_key, gemini_model=gemini_model(),
+        [(x.name, x.symbol, is_etf(x.symbol)) for x in targets], provider, api_key, gemini_model=gemini_news_model(),
+        gemini_fallback_model=gemini_model(),
         on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
     bar.empty()
     store = _store_today()
