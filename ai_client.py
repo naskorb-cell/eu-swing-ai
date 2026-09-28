@@ -6,6 +6,9 @@ from anthropic import Anthropic
 
 CLAUDE_MODEL = "claude-sonnet-5"
 GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"  # сменя се без код със secret GEMINI_MODEL
+# Новините са кратък JSON - по-евтиният Lite модел стига (secret GEMINI_NEWS_MODEL);
+# ако не е достъпен, проверката минава автоматично на GEMINI_MODEL
+GEMINI_NEWS_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 AI_PROVIDERS = ["Gemini", "Claude"]
 AI_KEY_SECRETS = {"Gemini": "GEMINI_API_KEY", "Claude": "ANTHROPIC_API_KEY"}
@@ -43,14 +46,15 @@ def stream_claude(prompt: str, api_key: str, max_tokens: int = 4096):
         raise _claude_error(final.stop_reason)
 
 
-def gemini_thinking_config(model: str):
-    """Ниско ниво на вътрешно „мислене“ на Gemini - то се таксува като изходен текст,
-    а за кратките ни отговори (JSON с новини, план) не е нужно дълго разсъждение.
+def gemini_thinking_config(model: str, level: str = "LOW"):
+    """Ниско ниво на вътрешно „мислене“ на Gemini - то се таксува като изходен текст
+    (в Usage изходните токени бяха ~4 пъти входните), а за кратките ни отговори
+    (JSON с новини, план) не е нужно дълго разсъждение. level: MINIMAL / LOW / MEDIUM.
     Gemini 3.x приема thinking_level; 2.x - бюджет в токени."""
     from google.genai import types
     if model.startswith("gemini-2"):
-        return types.ThinkingConfig(thinking_budget=512)
-    return types.ThinkingConfig(thinking_level="LOW")
+        return types.ThinkingConfig(thinking_budget=0 if level == "MINIMAL" else 512)
+    return types.ThinkingConfig(thinking_level=level)
 
 
 def stream_gemini(prompt: str, api_key: str, model: str = GEMINI_DEFAULT_MODEL):
