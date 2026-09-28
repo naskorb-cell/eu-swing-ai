@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-09-27 14:47:50",
+  "fetched_at": "2026-09-28 09:24:53",
   "total": 6025,
   "instruments": [
     {
@@ -7808,7 +7808,7 @@
       "workingScheduleId": 166,
       "isin": "LU1829220216",
       "currencyCode": "EUR",
-      "name": "Amundi MSCI All Country World (Acc)",
+      "name": "Amundi MSCI All Country World Swap (Acc)",
       "shortName": "LYY0",
       "maxOpenQuantity": 7754.0,
       "extendedHours": false,
@@ -53854,7 +53854,7 @@
       "workingScheduleId": 166,
       "isin": "LU2009202107",
       "currencyCode": "EUR",
-      "name": "Amundi MSCI Emerging Ex China (Acc)",
+      "name": "Amundi MSCI Emerging Ex China Swap (Acc)",
       "shortName": "EMXC",
       "maxOpenQuantity": 119989.0,
       "extendedHours": false,
