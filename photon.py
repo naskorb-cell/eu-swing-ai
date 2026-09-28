@@ -1227,8 +1227,9 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
 
 # ---------------------------------------------------------------- графики
 
-CHART_UP, CHART_DOWN = "#3DDC97", "#E85D5D"
-CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0A1628", "#16284A", "#E6EDF3", "#8497B0"
+# цветовете са по образец на Наско (T212): почти черен синьо-зелен фон, видима мрежа, ярки свещи
+CHART_UP, CHART_DOWN = "#4BD65E", "#F5434B"
+CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0A141B", "#1D2B35", "#E6EDF3", "#8497B0"
 CHART_FAINT = "#5C6F8A"  # бледите бележки (ориентировъчна печалба) до нивата
 LEVEL_STYLES = {  # (цвят, тип линия, дебелина)
     "Цел 2 · седм. съпротива": ("#E8A23D", "dot", 1),
@@ -1302,6 +1303,8 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         color, dash, width = LEVEL_STYLES.get(name, ("#5B8DEF", "dot", 1))
         if name == "Цена":
             color = CHART_INK
+            # пунктирна линия на текущата цена през цялата графика (както в T212)
+            fig.add_hline(y=value, line_dash="dot", line_color=CHART_MUTED, line_width=1, opacity=0.8)
         elif name != "POI":
             fig.add_hline(y=value, line_dash=dash, line_color=color, line_width=width, opacity=0.9)
         fig.add_annotation(
@@ -1323,8 +1326,8 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
         xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
         margin=dict(l=8, r=215, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
-        xaxis=dict(gridcolor=CHART_GRID, zeroline=False), yaxis=dict(gridcolor=CHART_GRID, zeroline=False),
-        hoverlabel=dict(bgcolor="#11213A", font_size=12),
+        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False), yaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False),
+        hoverlabel=dict(bgcolor="#13212B", font_size=12),
     )
     return fig
 
