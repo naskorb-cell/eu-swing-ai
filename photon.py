@@ -20,7 +20,9 @@ from indicators import (
     find_swing_points, resample_ohlc, resample_session_halves, swing_structure,
 )
 from portfolio_ui import T212_ACCOUNTS
-from ui_common import ai_api_key, ai_provider, format_eur, gemini_model, section_header
+from ui_common import (
+    ai_api_key, ai_provider, format_eur, friendly_ai_error, gemini_model, levels_html, section_header, show_ai_error,
+)
 from universe import (
     INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
     load_curated_symbol_info, load_universe,
@@ -715,7 +717,7 @@ def render_photon_strategy():
                         generate_ai_analysis_photon(df_ready, df_watch, provider, api_key)
                     )
                 except Exception as e:
-                    st.error(f"Грешка: {e}")
+                    show_ai_error(e, provider, key="ph_ai")
         elif st.session_state.get("photon_ai_text"):
             # анализът остава видим и след други кликове (всеки клик = rerun)
             st.markdown(st.session_state["photon_ai_text"])
@@ -740,12 +742,11 @@ def instrument_dialog(name: str, symbol: str):
         fund_data = st.session_state.get("photon_fund", {})
         news = today_news()
         if setup:
-            m = st.columns(5)
-            m[0].metric("Цена", f"{setup.price:.2f} {setup.currency}")
-            m[1].metric("Stop", f"{setup.stop:.2f}")
-            m[2].metric("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}")
-            m[3].metric("Цел 2 (седмична)", f"{setup.weekly_resistance:.2f}")
-            m[4].metric("R/R", f"{setup.rr:.2f}" if setup.rr else "—")
+            st.markdown(levels_html([
+                ("Цена", f"{setup.price:.2f} {setup.currency}"), ("Stop", f"{setup.stop:.2f}"),
+                ("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}"), ("Цел 2 (седмична)", f"{setup.weekly_resistance:.2f}"),
+                ("R/R", f"{setup.rr:.2f}" if setup.rr else "—"),
+            ]), unsafe_allow_html=True)
         cols = fund.fundamental_columns(fund_data.get(symbol))
         facts = [cols["📊 Фундамент"]]
         if cols["Анализатори"]:
@@ -765,7 +766,7 @@ def instrument_dialog(name: str, symbol: str):
                 render_news_item(r)
             else:
                 if r:
-                    st.warning(f"Предишната проверка беше неуспешна: {r['error']}")
+                    st.warning(f"Предишната проверка беше неуспешна: {friendly_ai_error(r['error'], news_provider())}")
                 provider = news_provider()
                 if st.button(f"🔎 Провери новините с {provider}", key="ph_dialog_news"):
                     check_news([SimpleNamespace(name=name, symbol=symbol)], news)
@@ -773,7 +774,7 @@ def instrument_dialog(name: str, symbol: str):
                     if r and "error" not in r:
                         render_news_item(r)
                     elif r:
-                        st.error(r["error"])
+                        st.error(friendly_ai_error(r["error"], news_provider()))
     body()
 
 
@@ -816,11 +817,10 @@ def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
                 if fcols["Отчет"].startswith("⚠️"):
                     badges.append(f"Отчет {fcols['Отчет']}")
                 st.markdown(" ".join(f'<span class="badge">{b}</span>' for b in badges), unsafe_allow_html=True)
-                m = st.columns(4)
-                m[0].metric("Цена", f"{x.price:.2f}", help=x.currency)
-                m[1].metric("Stop", f"{x.stop:.2f}")
-                m[2].metric("Цел 1", f"{x.daily_resistance:.2f}")
-                m[3].metric("R/R", f"{x.rr:.2f}" if x.rr else "—")
+                st.markdown(levels_html([
+                    ("Цена", f"{x.price:.2f}"), ("Stop", f"{x.stop:.2f}"),
+                    ("Цел 1", f"{x.daily_resistance:.2f}"), ("R/R", f"{x.rr:.2f}" if x.rr else "—"),
+                ]), unsafe_allow_html=True)
                 st.caption(f"{x.note} · в {x.currency} · цел 2 (седмична): {x.weekly_resistance:.2f}")
                 if st.button("📈 Графика и новини", key=f"ph_card_{x.symbol}", width="stretch"):
                     open_instrument(x.name, x.symbol)
@@ -1033,7 +1033,7 @@ def render_news_section(targets: list, news: dict, key: str):
             continue
         failed = "error" in r
         rows.append({"Инструмент": x.name, "Оценка": "⚠️ Грешка" if failed else r["verdict"],
-                     "Накратко": r["error"] if failed else r["summary"]})
+                     "Накратко": friendly_ai_error(r["error"], provider) if failed else r["summary"]})
         symbols.append((x.name, x.symbol))
     if rows:
         st.caption("👆 Кликни ред за подробностите, анализаторите и източниците.")
