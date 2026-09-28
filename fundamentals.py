@@ -16,7 +16,7 @@ import streamlit as st
 import yfinance as yf
 from anthropic import Anthropic
 
-from ai_client import AI_PROVIDERS, CLAUDE_MODEL, GEMINI_DEFAULT_MODEL
+from ai_client import AI_PROVIDERS, CLAUDE_MODEL, GEMINI_DEFAULT_MODEL, gemini_thinking_config
 
 FUND_CONFIRMED = "✅ Потвърден"
 FUND_NEUTRAL = "➖ Неутрален"
@@ -219,7 +219,10 @@ def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str, mod
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model=model, contents=_build_prompt(name, symbol, is_etf),
-            config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]),
+            config=genai_types.GenerateContentConfig(
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
+                thinking_config=gemini_thinking_config(model),
+            ),
         )
         meta = response.candidates[0].grounding_metadata if response.candidates else None
         data = _extract_json(response.text or "")

@@ -43,14 +43,26 @@ def stream_claude(prompt: str, api_key: str, max_tokens: int = 4096):
         raise _claude_error(final.stop_reason)
 
 
+def gemini_thinking_config(model: str):
+    """Ниско ниво на вътрешно „мислене“ на Gemini - то се таксува като изходен текст,
+    а за кратките ни отговори (JSON с новини, план) не е нужно дълго разсъждение.
+    Gemini 3.x приема thinking_level; 2.x - бюджет в токени."""
+    from google.genai import types
+    if model.startswith("gemini-2"):
+        return types.ThinkingConfig(thinking_budget=512)
+    return types.ThinkingConfig(thinking_level="LOW")
+
+
 def stream_gemini(prompt: str, api_key: str, model: str = GEMINI_DEFAULT_MODEL):
     """Gemini на части (за st.write_stream). Импортът е тук - без инсталиран
     google-genai приложението работи, пада само тази функция."""
     from google import genai
+    from google.genai import types
     # клиентът трябва да е в променлива - временен обект се затваря преди заявката
     client = genai.Client(api_key=api_key)
     got_text = False
-    for chunk in client.models.generate_content_stream(model=model, contents=prompt):
+    config = types.GenerateContentConfig(thinking_config=gemini_thinking_config(model))
+    for chunk in client.models.generate_content_stream(model=model, contents=prompt, config=config):
         text = chunk.text or ""
         got_text = got_text or bool(text.strip())
         yield text
