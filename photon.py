@@ -436,6 +436,17 @@ def fmt_pnl(value: float) -> str:
     return f"{'+' if value >= 0 else '−'}{abs(value):,.0f} €".replace(",", " ")
 
 
+def target2(x):
+    """Цел 2 = седмичната съпротива, само ако е над цел 1 (дневната съпротива); иначе None.
+    Когато седмичната е под или равна на дневната, няма смислена втора цел."""
+    return x.weekly_resistance if x.weekly_resistance and x.weekly_resistance > x.daily_resistance else None
+
+
+def fmt_target2(x) -> str:
+    t2 = target2(x)
+    return f"{t2:.2f}" if t2 else "—"
+
+
 def trade_plan(x) -> dict:
     """Лимит вход + ориентировъчната печалба до цел 1/2 и загубата до stop за сумата от настройките."""
     entry, how, is_limit = limit_entry(x)
@@ -443,7 +454,7 @@ def trade_plan(x) -> dict:
     risk = entry - x.stop
     return {
         "entry": entry, "how": how, "is_limit": is_limit, "amount": amount,
-        "t1": pnl_eur(entry, x.daily_resistance, amount), "t2": pnl_eur(entry, x.weekly_resistance, amount),
+        "t1": pnl_eur(entry, x.daily_resistance, amount), "t2": pnl_eur(entry, target2(x), amount) if target2(x) else None,
         "stop": pnl_eur(entry, x.stop, amount),
         "rr": round((x.daily_resistance - entry) / risk, 2) if risk > 0 and x.daily_resistance > entry else None,
         "days": days_to_target(x, entry),
@@ -502,7 +513,7 @@ def split_by_horizon(results: list, watch_list: list):
 def pnl_line_html(plan: dict) -> str:
     """Бледият ред „при 1000 €: цел 1 +78 € · цел 2 +120 € · stop −25 €“."""
     return (f'<div class="pnl-hint">при {plan["amount"]:,.0f} €: '.replace(",", " ")
-            + f'цел 1 <b>{fmt_pnl(plan["t1"])}</b> · цел 2 <b>{fmt_pnl(plan["t2"])}</b> · stop {fmt_pnl(plan["stop"])}'
+            + f'цел 1 <b>{fmt_pnl(plan["t1"])}</b> · цел 2 <b>{fmt_pnl(plan["t2"]) if plan["t2"] is not None else "—"}</b> · stop {fmt_pnl(plan["stop"])}'
             + (f' · ⏱ до цел 1 <b>{fmt_days(plan["days"])}</b>' if plan.get("days") else "")
             + ' <span class="pnl-note">ориентировъчно, без такси и курсови разлики</span></div>')
 
@@ -915,7 +926,7 @@ def instrument_dialog(name: str, symbol: str):
             st.markdown(levels_html([
                 ("Цена сега", f"{setup.price:.2f} {setup.currency}"),
                 ("Лимит вход" if plan["is_limit"] else "Buy stop", f"{plan['entry']:.2f}"), ("Stop", f"{setup.stop:.2f}"),
-                ("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}"), ("Цел 2 (седмична)", f"{setup.weekly_resistance:.2f}"),
+                ("Цел 1 (дневна)", f"{setup.daily_resistance:.2f}"), ("Цел 2 (седмична)", fmt_target2(setup)),
                 ("R/R", f"{plan['rr']:.2f}" if plan["rr"] else "—"),
             ]), unsafe_allow_html=True)
             st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
@@ -993,7 +1004,7 @@ def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
                 plan = trade_plan(x)
                 st.markdown(levels_html([
                     ("Лимит вход" if plan["is_limit"] else "Buy stop", f"{plan['entry']:.2f}"), ("Stop", f"{x.stop:.2f}"),
-                    ("Цел 1", f"{x.daily_resistance:.2f}"), ("Цел 2", f"{x.weekly_resistance:.2f}"),
+                    ("Цел 1", f"{x.daily_resistance:.2f}"), ("Цел 2", fmt_target2(x)),
                     ("R/R", f"{plan['rr']:.2f}" if plan["rr"] else "—"),
                     ("⏱ До цел 1", f"~{plan['days'][1]} дни" if plan["days"] else "—"),
                 ]), unsafe_allow_html=True)
@@ -1278,7 +1289,9 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
         row["Лимит вход"] = plan["entry"]
         row["Вид поръчка"] = plan["how"]
         row["R/R (до дневна съпротива)"] = plan["rr"]  # от лимит цената, не от текущата
-        row["💶 Цел 1 / Цел 2"] = f"{fmt_pnl(plan['t1'])} / {fmt_pnl(plan['t2'])}"
+        row["💶 Цел 1 / Цел 2"] = f"{fmt_pnl(plan['t1'])} / {fmt_pnl(plan['t2']) if plan['t2'] is not None else '—'}"
+        if target2(x) is None:
+            row["R/R (до седм. съпротива)"] = None  # седмичната не е над цел 1 - няма втора цел
         row["💶 Stop"] = fmt_pnl(plan["stop"])
         row["⏱ До цел 1"] = fmt_days(plan["days"])
         rows.append({**row, **cols, "📰 Новини": verdict})
@@ -1483,8 +1496,8 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     stop = [("Stop", setup.stop, fmt_pnl(plan["stop"]))] if setup else []
     entry = [("Лимит вход" if plan["is_limit"] else "Buy stop", plan["entry"])] if setup else []
     poi = (setup.poi_low, setup.poi_high) if setup and setup.poi_low is not None else None
-    target2 = ([("Цел 2 · седм. съпротива", setup.weekly_resistance, fmt_pnl(plan["t2"]))]
-               if setup and setup.weekly_resistance > (res_lvl or 0) else [])
+    t2_levels = ([("Цел 2 · седм. съпротива", target2(setup), fmt_pnl(plan["t2"]))]
+                 if setup and target2(setup) and target2(setup) > (res_lvl or 0) else [])
     target1_note = fmt_pnl(plan["t1"]) if setup else ""
     if setup:
         st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
@@ -1501,13 +1514,13 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     tab_w, tab_d, tab_4h = st.tabs(["W", "D", "4h"], default="D")
     with tab_w:
         weekly = resample_ohlc(daily, "W")
-        levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
+        levels = t2_levels + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
                             if sup_lvl and res_lvl else []) + stop + entry
         fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=height)
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
         st.caption("Тренд (HH + HL на седмичните swing точки) и цел 2 - седмичната съпротива.")
     with tab_d:
-        levels = list(target2)
+        levels = list(t2_levels)
         if sup_lvl and res_lvl:
             levels += [("Цел 1 · дневна съпротива", res_lvl, target1_note),
                        ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2), ("Дневна подкрепа", sup_lvl)]
