@@ -1342,16 +1342,17 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
 # цветовете са по образец на Наско (T212): почти черен синьо-зелен фон, видима мрежа, ярки свещи
 CHART_UP, CHART_DOWN = "#4BD65E", "#F5434B"
 CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0A141B", "#1D2B35", "#E6EDF3", "#8497B0"
-CHART_FAINT = "#5C6F8A"  # бледите бележки (ориентировъчна печалба) до нивата
-LEVEL_STYLES = {  # (цвят, тип линия, дебелина)
-    "Цел 2 · седм. съпротива": ("#E8A23D", "dot", 1),
-    "Цел 1 · дневна съпротива": ("#E85D5D", "dot", 1),
-    "Equilibrium 50%": ("#7C8B99", "dash", 1),
+CHART_LABEL_BG = "rgba(10, 20, 27, 0.82)"  # полупрозрачен фон на етикетите в графиката - четими и върху свещите
+LEVEL_STYLES = {  # (цвят, тип линия, дебелина) - ярки, различими цветове за тъмния фон
+    "Цел 2 · седм. съпротива": ("#F5B642", "dot", 1),
+    "Цел 1 · дневна съпротива": ("#FF7A7A", "dot", 1),
+    "Equilibrium 50%": ("#A7B4C2", "dash", 1),
     "Дневна подкрепа": ("#3DDC97", "dot", 1),
-    "CHoCH ниво": ("#E8A23D", "dash", 1),
-    "Stop": ("#E85D5D", "solid", 1.5),
-    "Лимит вход": ("#5B8DEF", "dash", 1.2),
-    "Buy stop": ("#5B8DEF", "dash", 1.2),
+    "CHoCH ниво": ("#C792FF", "dash", 1),
+    "Stop": ("#FF4D57", "solid", 1.5),
+    "Лимит вход": ("#6EA8FE", "dash", 1.2),
+    "Buy stop": ("#6EA8FE", "dash", 1.2),
+    "POI": ("#6EA8FE", "dot", 1),
 }
 
 
@@ -1374,8 +1375,9 @@ def swing_markers(fig, df_with_swings: pd.DataFrame, x_values=None):
 
 def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 130, categorical: bool = False,
                   swings_order: int = None, height: int = 520):
-    """Свещи + нива с етикети в дясното поле (не върху свещите), тънки линии,
-    приглушена мрежа, кръстосан курсор. levels = [(етикет, цена)]; poi = (от, до).
+    """Свещи + нива като в T212: ценовата скала вдясно (с етикет на текущата цена),
+    празно място между последната свещ и скалата, етикетите на нивата вляво в самата
+    графика (полупрозрачен фон, цвят на линията). levels = [(етикет, цена)]; poi = (от, до).
     По подразбиране се виждат последните visible_bars свещи (zoom out = цялата история)."""
     df = df.dropna(subset=["Close"])
     x = [ts.strftime("%d.%m %H:%M") for ts in df.index] if categorical else df.index
@@ -1398,10 +1400,10 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
     y0, y1 = lo - pad, hi + pad
 
     if poi:
-        fig.add_hrect(y0=poi[0], y1=poi[1], fillcolor="#5B8DEF", opacity=0.15, line_width=0)
+        fig.add_hrect(y0=poi[0], y1=poi[1], fillcolor="#6EA8FE", opacity=0.13, line_width=0)
         levels = levels + [("POI", (poi[0] + poi[1]) / 2, "")]
-    # етикетите в дясното поле, разтворени по вертикала, за да не се застъпват
-    labels = [lv for lv in levels if lv[1]] + [("Цена", last_close, "")]
+    # етикетите вляво в графиката, разтворени по вертикала, за да не се застъпват
+    labels = [lv for lv in levels if lv[1]]
     labels.sort(key=lambda lv: lv[1])
     min_gap = (y1 - y0) * 0.045
     placed = []
@@ -1412,32 +1414,37 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
     if overflow > 0:  # най-горните излизат над графиката - сваляме всички малко надолу
         placed = [(n, v, yl - overflow, nt) for n, v, yl, nt in placed]
     for name, value, y_label, note in placed:
-        color, dash, width = LEVEL_STYLES.get(name, ("#5B8DEF", "dot", 1))
-        if name == "Цена":
-            color = CHART_INK
-            # пунктирна линия на текущата цена през цялата графика (както в T212)
-            fig.add_hline(y=value, line_dash="dot", line_color=CHART_MUTED, line_width=1, opacity=0.8)
-        elif name != "POI":
+        color, dash, width = LEVEL_STYLES.get(name, ("#6EA8FE", "dot", 1))
+        if name != "POI":
             fig.add_hline(y=value, line_dash=dash, line_color=color, line_width=width, opacity=0.9)
         fig.add_annotation(
-            xref="paper", x=1.0, xanchor="left", yref="y", y=y_label, showarrow=False, align="left",
-            text=f"<b>{value:,.2f}</b> {name}" + (f" <span style='color:{CHART_FAINT}'>{note}</span>" if note else ""),
-            font=dict(size=11, color=CHART_SURFACE if name == "Цена" else color),
-            bgcolor=CHART_INK if name == "Цена" else CHART_SURFACE, borderpad=2,
+            xref="paper", x=0.006, xanchor="left", yref="y", y=y_label, showarrow=False, align="left",
+            text=f"{name} <b>{value:,.2f}</b>" + (f" <span style='color:{CHART_MUTED}'>{note}</span>" if note else ""),
+            font=dict(size=11, color=color), bgcolor=CHART_LABEL_BG, bordercolor=color, borderwidth=1, borderpad=3,
         )
+    # текущата цена: пунктир през графиката + цветен етикет върху ценовата скала (както в T212)
+    prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else last_close
+    price_color = CHART_UP if last_close >= prev_close else CHART_DOWN
+    fig.add_hline(y=last_close, line_dash="dot", line_color=price_color, line_width=1, opacity=0.8)
+    fig.add_annotation(
+        xref="paper", x=1.0, xanchor="left", yref="y", y=last_close, showarrow=False,
+        text=f"<b>{last_close:,.2f}</b>", font=dict(size=11, color="#FFFFFF"), bgcolor=price_color, borderpad=3,
+    )
 
     if categorical:
-        fig.update_xaxes(type="category", range=[max(len(df) - visible_bars, 0) - 0.5, len(df) + 1.5], nticks=10)
+        shown = min(visible_bars, len(df))
+        fig.update_xaxes(type="category", range=[len(df) - shown - 0.5, len(df) - 0.5 + shown * 0.08], nticks=10)
     else:
+        # празно място вдясно (~8%), за да не се сливат последните свещи с ценовата скала
         span = df.index[-1] - df.index[-min(visible_bars, len(df))]
-        fig.update_xaxes(range=[df.index[-min(visible_bars, len(df))], df.index[-1] + span * 0.03])
-    fig.update_yaxes(range=[y0, y1], side="left", tickformat=",.2f")
+        fig.update_xaxes(range=[df.index[-min(visible_bars, len(df))], df.index[-1] + span * 0.08])
+    fig.update_yaxes(range=[y0, y1], side="right", tickformat=",.2f", ticklabelstandoff=6)
     fig.update_xaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
     fig.update_yaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
     fig.update_layout(
         height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
         xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
-        margin=dict(l=8, r=215, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
+        margin=dict(l=8, r=64, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
         xaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False), yaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False),
         hoverlabel=dict(bgcolor="#13212B", font_size=12),
     )
@@ -1491,7 +1498,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         st.caption(CHART_HINT)
     height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
 
-    tab_w, tab_d, tab_4h = st.tabs(["📅 Седмична", "📆 Дневна", "⏱️ 4ч"], default="📆 Дневна")
+    tab_w, tab_d, tab_4h = st.tabs(["W", "D", "4h"], default="D")
     with tab_w:
         weekly = resample_ohlc(daily, "W")
         levels = target2 + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
