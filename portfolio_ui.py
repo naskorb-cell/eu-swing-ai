@@ -1,7 +1,10 @@
 """Секция 💼 Портфолио & P&L (Trading 212, само четене) + AI анализ на представянето."""
 
+import hashlib
+import threading
 from datetime import date, datetime, timedelta
 
+import pandas as pd
 import streamlit as st
 
 import t212_portfolio as t212
@@ -33,6 +36,60 @@ def _period_bounds(preset_label: str, custom_range=None):
         return today.replace(day=1), today
     days = PERIOD_PRESETS.get(preset_label, 30)
     return today - timedelta(days=days), today
+
+
+# История на сделките: T212 позволява само 1 заявка на ~10 сек (50 записа на страница),
+# затова цялата история се тегли бавно. Заредената се пази в общ склад (за всички
+# сесии до рестарт на приложението) и следващите зареждания теглят само новите сделки.
+HISTORY_LOOKBACK_DAYS = 180  # толкова преди началото на периода - за покупките (средна цена)
+HISTORY_MAX_PAGES = 20
+
+
+@st.cache_resource
+def _history_store() -> dict:
+    return {"lock": threading.Lock(), "accounts": {}}
+
+
+def _account_id(env: str, api_key: str) -> str:
+    return hashlib.sha256(f"{env}:{api_key}".encode()).hexdigest()[:16]
+
+
+def load_order_history(base_url: str, auth_header: str, account_id: str, period_start: date, progress) -> dict:
+    """Връща записа от склада {"items", "keys", "next_path", "oldest"}, допълнен с новите
+    сделки и (при нужда) с по-стари страници до началото на периода - HISTORY_LOOKBACK_DAYS."""
+    needed = pd.Timestamp(period_start, tz="UTC") - pd.Timedelta(days=HISTORY_LOOKBACK_DAYS)
+
+    def on_page(page, count, oldest):
+        until = f" · назад до {oldest:%d.%m.%Y}" if oldest is not None else ""
+        progress.progress(min(page / HISTORY_MAX_PAGES, 1.0),
+                          text=f"История: страница {page} · {count} нови записа{until} "
+                               "(T212 позволява 1 заявка на 10 сек)")
+
+    store = _history_store()
+    with store["lock"]:
+        entry = store["accounts"].get(account_id)
+    if entry is None:
+        items, next_path, _ = t212.fetch_order_history(base_url, auth_header, max_pages=HISTORY_MAX_PAGES,
+                                                       stop_before=needed, on_page=on_page)
+        entry = {"items": items, "next_path": next_path}
+    else:
+        # само новите сделки - обикновено една заявка
+        new, _, _ = t212.fetch_order_history(base_url, auth_header, max_pages=HISTORY_MAX_PAGES,
+                                             known_keys=entry["keys"], on_page=on_page)
+        entry = {"items": new + entry["items"], "next_path": entry["next_path"], "oldest": entry["oldest"],
+                 "keys": entry["keys"] | {t212.order_key(i) for i in new}}
+        if entry["next_path"] and (entry["oldest"] is None or entry["oldest"] > needed):
+            older, next_path, _ = t212.fetch_order_history(base_url, auth_header, max_pages=HISTORY_MAX_PAGES,
+                                                           start_path=entry["next_path"], stop_before=needed,
+                                                           on_page=on_page)
+            entry["items"] += [i for i in older if t212.order_key(i) not in entry["keys"]]
+            entry["next_path"] = next_path
+    dates = [d for d in (t212.item_date(i) for i in entry["items"]) if d is not None]
+    entry["oldest"] = min(dates) if dates else None
+    entry["keys"] = {t212.order_key(i) for i in entry["items"]}
+    with store["lock"]:
+        store["accounts"][account_id] = entry
+    return entry
 
 
 def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_label: str, provider: str, api_key: str):
@@ -150,20 +207,23 @@ def render_portfolio_section():
         else:
             base_url = t212.T212_ENV_TO_BASE_URL[t212_env]
             auth_header = t212.build_auth_header(t212_key, t212_secret)
+            progress = st.progress(0.0, text="Зареждам отворените позиции...")
             try:
-                with st.spinner("Зареждам отворени позиции..."):
-                    df_open = t212.fetch_open_positions(base_url, auth_header)
-                with st.spinner("Зареждам история на сделките (може да отнеме малко време заради лимитите на T212)..."):
-                    raw_orders = t212.fetch_order_history(base_url, auth_header)
-                    df_closed_all = t212.orders_to_dataframe(raw_orders)
+                df_open = t212.fetch_open_positions(base_url, auth_header)
                 st.session_state[f"t212_open_{slug}"] = df_open
-                st.session_state[f"t212_closed_all_{slug}"] = df_closed_all
+                progress.progress(0.0, text=f"Позиции: {len(df_open)} ✓ · зареждам историята на сделките...")
+                entry = load_order_history(base_url, auth_header, _account_id(t212_env, t212_key), period_start, progress)
+                raw_orders = entry["items"]
+                st.session_state[f"t212_closed_all_{slug}"] = t212.orders_to_dataframe(raw_orders)
                 st.session_state[f"t212_raw_orders_{slug}"] = raw_orders
+                st.session_state[f"t212_history_from_{slug}"] = (entry["oldest"], entry["next_path"] is None)
                 st.session_state[f"t212_loaded_at_{slug}"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             except PermissionError as e:
                 st.error(str(e))
             except Exception as e:
                 st.error(f"Грешка при връзка с Trading 212: {e}")
+            finally:
+                progress.empty()
 
     df_open = st.session_state.get(f"t212_open_{slug}")
     df_closed_all = st.session_state.get(f"t212_closed_all_{slug}")
@@ -172,7 +232,11 @@ def render_portfolio_section():
         st.info(f"Натисни 'Зареди портфолио и история', за да видиш данните на {selected_label}.")
         return
 
-    st.caption(f"Последно заредено ({selected_label}): {st.session_state.get(f't212_loaded_at_{slug}', '?')}")
+    oldest, complete = st.session_state.get(f"t212_history_from_{slug}", (None, False))
+    history_note = ("цялата история" if complete else
+                    f"история от {oldest:%d.%m.%Y}" if oldest is not None else "без история")
+    st.caption(f"Последно заредено ({selected_label}): {st.session_state.get(f't212_loaded_at_{slug}', '?')} · "
+               f"{history_note} (следващото зареждане тегли само новите сделки)")
 
     raw_orders_debug = st.session_state.get(f"t212_raw_orders_{slug}")
     if raw_orders_debug:

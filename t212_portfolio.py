@@ -80,8 +80,28 @@ def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
     return df
 
 
-def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20) -> list:
-    """GET /equity/history/orders, страница по страница.
+def order_key(item: dict) -> str:
+    """Уникален ключ на запис от историята (id на поръчката + id на изпълнението)."""
+    order = item.get("order") if isinstance(item.get("order"), dict) else item
+    fill = item.get("fill") if isinstance(item.get("fill"), dict) else {}
+    return f"{order.get('id', '')}/{fill.get('id', '')}/{_pick(fill, 'filledAt', default='') or _pick(order, 'dateCreated', 'createdAt', default='')}"
+
+
+def item_date(item: dict):
+    """Датата на запис (UTC Timestamp) или None."""
+    date_val = _extract_order_fields(item)["date"]
+    ts = pd.to_datetime(date_val, errors="coerce", utc=True) if date_val is not None else None
+    return ts if ts is not None and pd.notna(ts) else None
+
+
+def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20, start_path: str = None,
+                        known_keys: set = None, stop_before=None, on_page=None) -> tuple:
+    """GET /equity/history/orders, страница по страница (най-новите първо).
+    Спира по-рано, ако стигне запис, който вече е зареден (known_keys - бързо
+    допълване с новите сделки), или запис по-стар от stop_before (UTC Timestamp).
+    start_path - продължава от запазен курсор (за по-стари страници).
+    on_page(страница, общо записи, най-стара дата) - за прогрес в UI.
+    Връща (записи, следващ курсор или None, стигнат ли е вече зареден запис).
     T212 връща 'nextPagePath' - ГОТОВ относителен път с вече вграден в него
     cursor query-параметър (напр. '/api/v0/equity/history/orders?cursor=...&limit=50').
     Той трябва да се използва КАКТО Е - да не се увива втори път в нов 'cursor'
@@ -89,30 +109,43 @@ def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20) ->
     from urllib.parse import urlsplit, parse_qs
 
     all_items = []
-    path = "/equity/history/orders"
-    params = {"limit": 50}
+    path, params = "/equity/history/orders", {"limit": 50}
+    if start_path:
+        split = urlsplit(start_path)
+        path, params = split.path, {k: v[0] for k, v in parse_qs(split.query).items()}
+    next_page_path = None
 
-    for _ in range(max_pages):
+    for page in range(1, max_pages + 1):
         data = _get(base_url, path, auth_header, params=params)
         items = data.get("items", []) if isinstance(data, dict) else data
-        if not items:
-            break
-        all_items.extend(items)
-
         next_page_path = data.get("nextPagePath") if isinstance(data, dict) else None
-        if not next_page_path:
-            break
-
         # base_url вече завършва на /api/v0 - маха се, ако nextPagePath го повтаря
-        if next_page_path.startswith("/api/v0"):
+        if next_page_path and next_page_path.startswith("/api/v0"):
             next_page_path = next_page_path[len("/api/v0"):]
+        if not items:
+            next_page_path = None
+            break
+        reached_known = False
+        for item in items:
+            if known_keys and order_key(item) in known_keys:
+                reached_known = True
+                break
+            all_items.append(item)
+        dates = [d for d in (item_date(i) for i in items) if d is not None]
+        oldest = min(dates) if dates else None
+        if on_page:
+            on_page(page, len(all_items), oldest)
+        if reached_known:
+            return all_items, None, True
+        if not next_page_path or page == max_pages or (
+                stop_before is not None and oldest is not None and oldest < stop_before):
+            break
 
         split = urlsplit(next_page_path)
         path = split.path
         params = {k: v[0] for k, v in parse_qs(split.query).items()}
-
         time.sleep(11)  # History лимитът е 6/мин (~1 заявка на 10 сек) - пазим резерв
-    return all_items
+    return all_items, next_page_path, False
 
 
 def _pick(d: dict, *candidates, default=None):
@@ -153,9 +186,13 @@ def _extract_order_fields(item: dict):
     if date_val is None:
         date_val = _pick(order, "dateExecuted", "dateModified", "dateCreated", "createdAt", default=None)
 
+    # по-новите версии на API-то връщат готова реализирана P&L в сметката (fill.walletImpact)
+    wallet = fill.get("walletImpact") if isinstance(fill.get("walletImpact"), dict) else {}
+    realized = _pick(wallet, "realisedProfitLoss", "realizedProfitLoss", default=None)
+
     return {
         "status": status, "ticker": ticker, "qty_raw": qty_raw,
-        "price": price, "filled_value": filled_value, "side": side, "date": date_val,
+        "price": price, "filled_value": filled_value, "side": side, "date": date_val, "realized": realized,
     }
 
 
@@ -224,6 +261,8 @@ def orders_to_dataframe(raw_orders: list) -> pd.DataFrame:
                 avg_cost = price  # нямаме предишна позиция (напр. история преди периода на API достъп) - P&L=0
             sell_qty = min(qty, pos["qty"]) if pos["qty"] > 0 else qty
             realized = (price - avg_cost) * sell_qty
+            if f.get("realized") is not None:  # готовата от T212 е по-точна (валута, такси)
+                realized = float(f["realized"])
             pos["qty"] = max(pos["qty"] - qty, 0.0)
             pos["cost"] = max(pos["cost"] - avg_cost * sell_qty, 0.0)
             closed_rows.append({
