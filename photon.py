@@ -1527,6 +1527,39 @@ CROSSHAIR_JS = """
     doc.querySelectorAll('.js-plotly-plot').forEach((p) => { if (p !== gd && p.__phX) p.__phX.box.style.display = 'none'; });
     if (gd && gd.__phOn) draw(gd, ev);
   }, true);
+  // разтягане по цялата скала (не само в краищата), както в T212:
+  // ценовата скала - влачене нагоре/надолу свива/разтяга около средата;
+  // времевата ос - влачене наляво/надясно разтяга/свива, десният край остава на място
+  const AXIS_Y = ['nsdrag', 'ndrag', 'sdrag'], AXIS_X = ['ewdrag', 'wdrag', 'edrag'];
+  let axisDrag = null;
+  doc.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0 || !w.Plotly) return;
+    const rect = ev.target, gd = plotOf(rect);
+    if (!gd || !rect.classList) return;
+    const isY = AXIS_Y.some((c) => rect.classList.contains(c)), isX = AXIS_X.some((c) => rect.classList.contains(c));
+    if (!isY && !isX) return;
+    ev.preventDefault(); ev.stopPropagation();  // вместо местенето на Plotly в средата на оста
+    const ax = gd._fullLayout[isY ? 'yaxis' : 'xaxis'];
+    axisDrag = {gd, isY, ax, x0: ev.clientX, y0: ev.clientY, r0: ax.range.map((v) => ax.r2l(v)), frame: null};
+    doc.body.style.cursor = isY ? 'ns-resize' : 'ew-resize';
+  }, true);
+  doc.addEventListener('mousemove', (ev) => {
+    if (!axisDrag) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const d = axisDrag, [a, b] = d.r0;
+    let range;
+    if (d.isY) {  // надолу = по-голям обхват (свещите се свиват), нагоре = разтягане
+      const k = Math.exp((ev.clientY - d.y0) / 150), mid = (a + b) / 2, half = (b - a) / 2 * k;
+      range = [mid - half, mid + half];
+    } else {      // надясно = разтягане (по-малко свещи), наляво = свиване
+      const k = Math.exp(-(ev.clientX - d.x0) / 200);
+      range = [b - (b - a) * k, b];
+    }
+    if (d.frame) cancelAnimationFrame(d.frame);
+    d.frame = requestAnimationFrame(() => w.Plotly.relayout(d.gd, {[(d.isY ? 'yaxis' : 'xaxis') + '.range']: range.map((v) => d.ax.l2r(v))}));
+  }, true);
+  doc.addEventListener('mouseup', () => { if (axisDrag) { axisDrag = null; doc.body.style.cursor = ''; } }, true);
+
   const hideAll = () => doc.querySelectorAll('.js-plotly-plot').forEach((p) => {
     p.__phOn = false; if (p.__phX) p.__phX.box.style.display = 'none';
   });
@@ -1565,8 +1598,8 @@ CROSSHAIR_JS = """
 })();
 </script>
 """
-CHART_HINT = ("↕ влачи **края** на ценовата скала (горе/долу) = разтягане вертикално · ↔ влачи края на времевата "
-              "ос = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
+CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
+              "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото (на телефон: задръж пръста) = кръст с цената; пак колелото / Esc / стрелката назад = скрий · "
               "⛶ горе вдясно на графиката = цял екран")
 
