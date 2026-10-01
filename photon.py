@@ -1518,16 +1518,47 @@ CROSSHAIR_JS = """
     doc.querySelectorAll('.js-plotly-plot').forEach((p) => { if (p !== gd && p.__phX) p.__phX.box.style.display = 'none'; });
     if (gd && gd.__phOn) draw(gd, ev);
   }, true);
-  doc.addEventListener('keydown', (ev) => {
-    if (ev.key !== 'Escape') return;
-    doc.querySelectorAll('.js-plotly-plot').forEach((p) => { p.__phOn = false; if (p.__phX) p.__phX.box.style.display = 'none'; });
-  }, true);
+  const hideAll = () => doc.querySelectorAll('.js-plotly-plot').forEach((p) => {
+    p.__phOn = false; if (p.__phX) p.__phX.box.style.display = 'none';
+  });
+  doc.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') hideAll(); }, true);
+
+  // телефон: задържане на пръста ~0.5 сек = кръст; пръстът го мести; стрелката назад го скрива
+  let timer = null, start = null, touchGd = null, pushed = false;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  doc.addEventListener('touchstart', (ev) => {
+    const gd = plotOf(ev.target);
+    cancel();
+    if (!gd || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    start = {x: t.clientX, y: t.clientY}; touchGd = gd;
+    if (gd.__phOn) { draw(gd, t); return; }
+    timer = setTimeout(() => {
+      timer = null;
+      hideAll();
+      gd.__phOn = true; draw(gd, {clientX: start.x, clientY: start.y});
+      if (navigator.vibrate) navigator.vibrate(15);
+      if (!pushed) { w.history.pushState({phCrosshair: true}, ''); pushed = true; }
+    }, 450);
+  }, {capture: true, passive: true});
+  doc.addEventListener('touchmove', (ev) => {
+    const t = ev.touches[0];
+    if (timer && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) cancel();
+    if (touchGd && touchGd.__phOn) { ev.preventDefault(); ev.stopPropagation(); draw(touchGd, t); }
+  }, {capture: true, passive: false});
+  doc.addEventListener('touchend', cancel, true);
+  doc.addEventListener('touchcancel', cancel, true);
+  doc.addEventListener('contextmenu', (ev) => { if (plotOf(ev.target)) ev.preventDefault(); }, true);
+  w.addEventListener('popstate', () => {
+    if (!pushed) return;
+    pushed = false; hideAll();
+  });
 })();
 </script>
 """
 CHART_HINT = ("↕ влачи **края** на ценовата скала (горе/долу) = разтягане вертикално · ↔ влачи края на времевата "
               "ос = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
-              "натисни колелото = кръст с цената (пак колелото или Esc = скрий) · "
+              "натисни колелото (на телефон: задръж пръста) = кръст с цената; пак колелото / Esc / стрелката назад = скрий · "
               "⛶ горе вдясно на графиката = цял екран")
 
 
