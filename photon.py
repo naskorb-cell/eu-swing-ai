@@ -1467,8 +1467,67 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
 CHART_CONFIG = {"displaylogo": False, "scrollZoom": True,
                 "modeBarButtonsToRemove": ["select2d", "lasso2d", "toggleSpikelines"]}
 CHART_HEIGHTS = {"S": 420, "M": 560, "L": 720, "XL": 900}
+# Кръст при натискане на средния бутон (колелото): линии през цялата графика + цената на
+# курсора върху ценовата скала. Plotly няма такъв режим, затова е малък скрипт върху
+# страницата (st.html с JS) - слуша всички графики, инсталира се веднъж.
+CROSSHAIR_JS = """
+<script>
+(() => {
+  const w = window.parent && window.parent.document ? window.parent : window;
+  if (w.__phCrosshair) return;
+  w.__phCrosshair = true;
+  const doc = w.document;
+  const plotOf = (el) => el && el.closest ? el.closest('.js-plotly-plot') : null;
+  const fmt = (v) => v.toFixed(2);
+  function overlay(gd) {
+    if (gd.__phX) return gd.__phX;
+    const box = doc.createElement('div');
+    box.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:20;display:none';
+    const line = (css) => { const d = doc.createElement('div'); d.style.cssText = 'position:absolute;' + css; box.appendChild(d); return d; };
+    const v = line('width:0;border-left:1px dashed #C9D4E0;opacity:.85');
+    const h = line('height:0;border-top:1px dashed #C9D4E0;opacity:.85');
+    const tag = line('padding:2px 6px;border-radius:3px;background:#C9D4E0;color:#0A141B;font:600 11px monospace;white-space:nowrap');
+    if (getComputedStyle(gd).position === 'static') gd.style.position = 'relative';
+    gd.appendChild(box);
+    gd.__phX = {box, v, h, tag};
+    return gd.__phX;
+  }
+  function draw(gd, ev) {
+    const L = gd._fullLayout; if (!L || !L.yaxis) return;
+    const s = L._size, r = gd.getBoundingClientRect(), o = overlay(gd);
+    const px = ev.clientX - r.left, py = ev.clientY - r.top;
+    if (px < s.l || px > s.l + s.w || py < s.t || py > s.t + s.h) { o.box.style.display = 'none'; return; }
+    o.box.style.display = 'block';
+    o.v.style.left = px + 'px'; o.v.style.top = s.t + 'px'; o.v.style.height = s.h + 'px';
+    o.h.style.top = py + 'px'; o.h.style.left = s.l + 'px'; o.h.style.width = s.w + 'px';
+    const price = L.yaxis.p2l(py - s.t);
+    o.tag.textContent = fmt(price);
+    o.tag.style.left = (s.l + s.w + 2) + 'px'; o.tag.style.top = (py - 9) + 'px';
+  }
+  // среден бутон: включва/изключва кръста; спира и автоматичното превъртане на браузъра
+  doc.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 1) return;
+    const gd = plotOf(ev.target); if (!gd) return;
+    ev.preventDefault();
+    gd.__phOn = !gd.__phOn;
+    if (gd.__phOn) draw(gd, ev); else if (gd.__phX) gd.__phX.box.style.display = 'none';
+  }, true);
+  doc.addEventListener('auxclick', (ev) => { if (ev.button === 1 && plotOf(ev.target)) ev.preventDefault(); }, true);
+  doc.addEventListener('mousemove', (ev) => {
+    const gd = plotOf(ev.target);
+    doc.querySelectorAll('.js-plotly-plot').forEach((p) => { if (p !== gd && p.__phX) p.__phX.box.style.display = 'none'; });
+    if (gd && gd.__phOn) draw(gd, ev);
+  }, true);
+  doc.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    doc.querySelectorAll('.js-plotly-plot').forEach((p) => { p.__phOn = false; if (p.__phX) p.__phX.box.style.display = 'none'; });
+  }, true);
+})();
+</script>
+"""
 CHART_HINT = ("↕ влачи **края** на ценовата скала (горе/долу) = разтягане вертикално · ↔ влачи края на времевата "
               "ос = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
+              "натисни колелото = кръст с цената (пак колелото или Esc = скрий) · "
               "⛶ горе вдясно на графиката = цял екран")
 
 
@@ -1509,6 +1568,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                              help="Височина на графиката: S / M / L / XL")
     with hint_col:
         st.caption(CHART_HINT)
+    st.html(CROSSHAIR_JS, unsafe_allow_javascript=True)
     height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
 
     tab_w, tab_d, tab_4h = st.tabs(["W", "D", "4h"], default="D")
