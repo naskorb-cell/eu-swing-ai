@@ -1452,11 +1452,9 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         span = df.index[-1] - df.index[-min(visible_bars, len(df))]
         fig.update_xaxes(range=[df.index[-min(visible_bars, len(df))], df.index[-1] + span * 0.08])
     fig.update_yaxes(range=[y0, y1], side="right", tickformat=",.2f", ticklabelstandoff=6)
-    fig.update_xaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
-    fig.update_yaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
     fig.update_layout(
         height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
-        xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
+        xaxis_rangeslider_visible=False, hovermode=False, dragmode="pan",  # без каре над свещите - кръстът е от CROSSHAIR_JS
         margin=dict(l=8, r=64, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
         xaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False), yaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False),
         hoverlabel=dict(bgcolor="#13212B", font_size=12),
@@ -1473,7 +1471,9 @@ CHART_HEIGHTS = {"S": 420, "M": 560, "L": 720, "XL": 900}
 CROSSHAIR_JS = """
 <script>
 (() => {
-  const w = window.parent && window.parent.document ? window.parent : window;
+  // само прозорецът на приложението: в Streamlit Cloud то е в iframe, а родителят е
+  // обвивката на хостинга (с „Manage app“) - там графиките ги няма
+  const w = window;
   if (w.__phCrosshair) return;
   w.__phCrosshair = true;
   const doc = w.document;
@@ -1486,10 +1486,11 @@ CROSSHAIR_JS = """
     const line = (css) => { const d = doc.createElement('div'); d.style.cssText = 'position:absolute;' + css; box.appendChild(d); return d; };
     const v = line('width:0;border-left:1px dashed #C9D4E0;opacity:.85');
     const h = line('height:0;border-top:1px dashed #C9D4E0;opacity:.85');
-    const tag = line('padding:2px 6px;border-radius:3px;background:#C9D4E0;color:#0A141B;font:600 11px monospace;white-space:nowrap');
+    const label = 'padding:2px 6px;border-radius:3px;background:#C9D4E0;color:#0A141B;font:600 11px monospace;white-space:nowrap';
+    const tag = line(label), date = line(label + ';transform:translateX(-50%)');
     if (getComputedStyle(gd).position === 'static') gd.style.position = 'relative';
     gd.appendChild(box);
-    gd.__phX = {box, v, h, tag};
+    gd.__phX = {box, v, h, tag, date};
     return gd.__phX;
   }
   function draw(gd, ev) {
@@ -1503,6 +1504,14 @@ CROSSHAIR_JS = """
     const price = L.yaxis.p2l(py - s.t);
     o.tag.textContent = fmt(price);
     o.tag.style.left = (s.l + s.w + 2) + 'px'; o.tag.style.top = (py - 9) + 'px';
+    // долу: дата (D/W) или дата и час на свещта (4h - категорийна ос)
+    const xa = L.xaxis, xl = xa.p2l(px - s.l);
+    let when = '';
+    if (xa.type === 'category') when = (xa._categories || [])[Math.round(xl)] || '';
+    else { const d = new Date(xl), p2 = (n) => String(n).padStart(2, '0');
+           when = p2(d.getUTCDate()) + '.' + p2(d.getUTCMonth() + 1) + '.' + d.getUTCFullYear(); }
+    o.date.textContent = when; o.date.style.display = when ? 'block' : 'none';
+    o.date.style.left = px + 'px'; o.date.style.top = (s.t + s.h + 3) + 'px';
   }
   // среден бутон: включва/изключва кръста; спира и автоматичното превъртане на браузъра
   doc.addEventListener('mousedown', (ev) => {
@@ -1518,6 +1527,39 @@ CROSSHAIR_JS = """
     doc.querySelectorAll('.js-plotly-plot').forEach((p) => { if (p !== gd && p.__phX) p.__phX.box.style.display = 'none'; });
     if (gd && gd.__phOn) draw(gd, ev);
   }, true);
+  // разтягане по цялата скала (не само в краищата), както в T212:
+  // ценовата скала - влачене нагоре/надолу свива/разтяга около средата;
+  // времевата ос - влачене наляво/надясно разтяга/свива, десният край остава на място
+  const AXIS_Y = ['nsdrag', 'ndrag', 'sdrag'], AXIS_X = ['ewdrag', 'wdrag', 'edrag'];
+  let axisDrag = null;
+  doc.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0 || !w.Plotly) return;
+    const rect = ev.target, gd = plotOf(rect);
+    if (!gd || !rect.classList) return;
+    const isY = AXIS_Y.some((c) => rect.classList.contains(c)), isX = AXIS_X.some((c) => rect.classList.contains(c));
+    if (!isY && !isX) return;
+    ev.preventDefault(); ev.stopPropagation();  // вместо местенето на Plotly в средата на оста
+    const ax = gd._fullLayout[isY ? 'yaxis' : 'xaxis'];
+    axisDrag = {gd, isY, ax, x0: ev.clientX, y0: ev.clientY, r0: ax.range.map((v) => ax.r2l(v)), frame: null};
+    doc.body.style.cursor = isY ? 'ns-resize' : 'ew-resize';
+  }, true);
+  doc.addEventListener('mousemove', (ev) => {
+    if (!axisDrag) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const d = axisDrag, [a, b] = d.r0;
+    let range;
+    if (d.isY) {  // надолу = по-голям обхват (свещите се свиват), нагоре = разтягане
+      const k = Math.exp((ev.clientY - d.y0) / 150), mid = (a + b) / 2, half = (b - a) / 2 * k;
+      range = [mid - half, mid + half];
+    } else {      // надясно = разтягане (по-малко свещи), наляво = свиване
+      const k = Math.exp(-(ev.clientX - d.x0) / 200);
+      range = [b - (b - a) * k, b];
+    }
+    if (d.frame) cancelAnimationFrame(d.frame);
+    d.frame = requestAnimationFrame(() => w.Plotly.relayout(d.gd, {[(d.isY ? 'yaxis' : 'xaxis') + '.range']: range.map((v) => d.ax.l2r(v))}));
+  }, true);
+  doc.addEventListener('mouseup', () => { if (axisDrag) { axisDrag = null; doc.body.style.cursor = ''; } }, true);
+
   const hideAll = () => doc.querySelectorAll('.js-plotly-plot').forEach((p) => {
     p.__phOn = false; if (p.__phX) p.__phX.box.style.display = 'none';
   });
@@ -1556,8 +1598,8 @@ CROSSHAIR_JS = """
 })();
 </script>
 """
-CHART_HINT = ("↕ влачи **края** на ценовата скала (горе/долу) = разтягане вертикално · ↔ влачи края на времевата "
-              "ос = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
+CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
+              "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото (на телефон: задръж пръста) = кръст с цената; пак колелото / Esc / стрелката назад = скрий · "
               "⛶ горе вдясно на графиката = цял екран")
 
