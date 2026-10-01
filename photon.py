@@ -1452,11 +1452,9 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         span = df.index[-1] - df.index[-min(visible_bars, len(df))]
         fig.update_xaxes(range=[df.index[-min(visible_bars, len(df))], df.index[-1] + span * 0.08])
     fig.update_yaxes(range=[y0, y1], side="right", tickformat=",.2f", ticklabelstandoff=6)
-    fig.update_xaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
-    fig.update_yaxes(showspikes=True, spikemode="across", spikethickness=1, spikecolor=CHART_MUTED, spikedash="dot")
     fig.update_layout(
         height=height, template="plotly_dark", paper_bgcolor=CHART_SURFACE, plot_bgcolor=CHART_SURFACE,
-        xaxis_rangeslider_visible=False, hovermode="x", dragmode="pan",
+        xaxis_rangeslider_visible=False, hovermode=False, dragmode="pan",  # без каре над свещите - кръстът е от CROSSHAIR_JS
         margin=dict(l=8, r=64, t=10, b=10), font=dict(size=11, color=CHART_MUTED),
         xaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False), yaxis=dict(showgrid=True, gridcolor=CHART_GRID, zeroline=False),
         hoverlabel=dict(bgcolor="#13212B", font_size=12),
@@ -1473,7 +1471,9 @@ CHART_HEIGHTS = {"S": 420, "M": 560, "L": 720, "XL": 900}
 CROSSHAIR_JS = """
 <script>
 (() => {
-  const w = window.parent && window.parent.document ? window.parent : window;
+  // само прозорецът на приложението: в Streamlit Cloud то е в iframe, а родителят е
+  // обвивката на хостинга (с „Manage app“) - там графиките ги няма
+  const w = window;
   if (w.__phCrosshair) return;
   w.__phCrosshair = true;
   const doc = w.document;
@@ -1486,10 +1486,11 @@ CROSSHAIR_JS = """
     const line = (css) => { const d = doc.createElement('div'); d.style.cssText = 'position:absolute;' + css; box.appendChild(d); return d; };
     const v = line('width:0;border-left:1px dashed #C9D4E0;opacity:.85');
     const h = line('height:0;border-top:1px dashed #C9D4E0;opacity:.85');
-    const tag = line('padding:2px 6px;border-radius:3px;background:#C9D4E0;color:#0A141B;font:600 11px monospace;white-space:nowrap');
+    const label = 'padding:2px 6px;border-radius:3px;background:#C9D4E0;color:#0A141B;font:600 11px monospace;white-space:nowrap';
+    const tag = line(label), date = line(label + ';transform:translateX(-50%)');
     if (getComputedStyle(gd).position === 'static') gd.style.position = 'relative';
     gd.appendChild(box);
-    gd.__phX = {box, v, h, tag};
+    gd.__phX = {box, v, h, tag, date};
     return gd.__phX;
   }
   function draw(gd, ev) {
@@ -1503,6 +1504,14 @@ CROSSHAIR_JS = """
     const price = L.yaxis.p2l(py - s.t);
     o.tag.textContent = fmt(price);
     o.tag.style.left = (s.l + s.w + 2) + 'px'; o.tag.style.top = (py - 9) + 'px';
+    // долу: дата (D/W) или дата и час на свещта (4h - категорийна ос)
+    const xa = L.xaxis, xl = xa.p2l(px - s.l);
+    let when = '';
+    if (xa.type === 'category') when = (xa._categories || [])[Math.round(xl)] || '';
+    else { const d = new Date(xl), p2 = (n) => String(n).padStart(2, '0');
+           when = p2(d.getUTCDate()) + '.' + p2(d.getUTCMonth() + 1) + '.' + d.getUTCFullYear(); }
+    o.date.textContent = when; o.date.style.display = when ? 'block' : 'none';
+    o.date.style.left = px + 'px'; o.date.style.top = (s.t + s.h + 3) + 'px';
   }
   // среден бутон: включва/изключва кръста; спира и автоматичното превъртане на браузъра
   doc.addEventListener('mousedown', (ev) => {
