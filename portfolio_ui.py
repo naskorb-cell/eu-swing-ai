@@ -34,6 +34,9 @@ def _period_bounds(preset_label: str, custom_range=None):
         return start, end
     if preset_label == "Този месец":
         return today.replace(day=1), today
+    if preset_label == "Миналия месец":
+        last_end = today.replace(day=1) - timedelta(days=1)
+        return last_end.replace(day=1), last_end
     days = PERIOD_PRESETS.get(preset_label, 30)
     return today - timedelta(days=days), today
 
@@ -185,7 +188,7 @@ def render_portfolio_section():
     with col_preset:
         preset = st.selectbox(
             "Период за анализ на затворените сделки:",
-            ["Този месец", "Тази седмица", "Последните 30 дни", "Последните 90 дни", "Тази година", "Персонализиран период"],
+            ["Този месец", "Миналия месец", "Тази седмица", "Последните 30 дни", "Последните 90 дни", "Тази година", "Персонализиран период"],
             index=0, key=f"t212_period_preset_{slug}",
         )
     custom_range = None
