@@ -153,6 +153,31 @@ T212_ACCOUNTS = [
 ]
 
 
+def render_open_positions(df_open, slug: str):
+    """Отворените позиции с текущата P&L; по подразбиране без частта в пайовете.
+    Връща показаната таблица (тя отива и в AI анализа)."""
+    section_header("📌 Отворени позиции", status="watch")
+    no_pies = st.toggle("Без позициите в пайовете", value=True, key=f"t212_no_pies_{slug}",
+                        help="Пайовете (дългосрочните кошници) не влизат в бройката и P&L")
+    if no_pies:
+        df_open = t212.exclude_pies(df_open)
+    if df_open.empty:
+        st.info("Нямаш текущо отворени позиции" + (" извън пайовете." if no_pies else "."))
+        return df_open
+    total_pl = df_open["P&L (€)"].sum()
+    total_invested = df_open["Инвестирано (€)"].sum()
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Брой позиции", len(df_open))
+    col2.metric("Общо инвестирано (€)", round(total_invested, 2))
+    col3.metric("Нереализирана P&L (€)", round(total_pl, 2),
+                delta=f"{total_pl / total_invested * 100:+.2f}%" if total_invested else None)
+    if no_pies and "Частично в пай" in df_open.columns and df_open["Частично в пай"].any():
+        st.caption("Инструментите с „Частично в пай“ са и в пай - за тях бройката и P&L са само за частта извън пая "
+                   "(пропорционално, ориентировъчно).")
+    st.dataframe(df_open, width="stretch", hide_index=True)
+    return df_open
+
+
 def render_portfolio_section():
     section_header(
         "💼 Портфолио & P&L (Trading 212)",
@@ -228,11 +253,29 @@ def render_portfolio_section():
             finally:
                 progress.empty()
 
+    if st.button("⚡ Само текущата P&L на отворените позиции", key=f"t212_open_btn_{slug}",
+                 help="Една бърза заявка, без историята на сделките"):
+        if not t212_key or not t212_secret:
+            st.error("Липсва T212 API Key/Secret!")
+        else:
+            try:
+                st.session_state[f"t212_open_{slug}"] = t212.fetch_open_positions(
+                    t212.T212_ENV_TO_BASE_URL[t212_env], t212.build_auth_header(t212_key, t212_secret))
+                st.session_state[f"t212_open_at_{slug}"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            except PermissionError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"Грешка при връзка с Trading 212: {e}")
+
     df_open = st.session_state.get(f"t212_open_{slug}")
     df_closed_all = st.session_state.get(f"t212_closed_all_{slug}")
 
-    if df_open is None or df_closed_all is None:
-        st.info(f"Натисни 'Зареди портфолио и история', за да видиш данните на {selected_label}.")
+    if df_open is None:
+        st.info(f"Натисни 'Зареди портфолио и история' или '⚡ Само текущата P&L', за да видиш данните на {selected_label}.")
+        return
+    if df_closed_all is None:
+        st.caption(f"Позициите са от {st.session_state.get(f't212_open_at_{slug}', '?')} · историята не е заредена.")
+        render_open_positions(df_open, slug)
         return
 
     oldest, complete = st.session_state.get(f"t212_history_from_{slug}", (None, False))
@@ -251,17 +294,7 @@ def render_portfolio_section():
             )
             st.json(raw_orders_debug[:3])
 
-    section_header("📌 Отворени позиции", status="watch")
-    if df_open.empty:
-        st.info("Нямаш текущо отворени позиции.")
-    else:
-        total_pl = df_open["P&L (€)"].sum()
-        total_invested = df_open["Инвестирано (€)"].sum()
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Брой позиции", len(df_open))
-        col2.metric("Общо инвестирано (€)", round(total_invested, 2))
-        col3.metric("Нереализирана P&L (€)", round(total_pl, 2), delta=round(total_pl, 2))
-        st.dataframe(df_open, width="stretch", hide_index=True)
+    df_open = render_open_positions(df_open, slug)
 
     df_period = t212.filter_by_period(df_closed_all, period_start, period_end)
     summary = t212.summarize_closed_trades(df_period)
