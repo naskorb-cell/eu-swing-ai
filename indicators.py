@@ -196,11 +196,130 @@ def swing_structure(df_with_swings: pd.DataFrame):
     lows = [p for p in points if p[1] == "L"]
     if len(highs) < 2 or len(lows) < 2:
         return None
+    ps = photon_structure(points, df_with_swings["Close"])
+    strong = ps["strong_low"] or lows[-1]
+    weak = ps["weak_high"] or highs[-1]
     return {
         "prev_high": highs[-2][2], "last_high": highs[-1][2], "last_high_idx": highs[-1][0],
         "prev_low": lows[-2][2], "last_low": lows[-1][2], "last_low_idx": lows[-1][0],
         "uptrend": highs[-1][2] > highs[-2][2] and lows[-1][2] > lows[-2][2],
+        # Photon: тренд по BOS/CHoCH, силното дъно (подкрепа/stop) и слабият връх (целта)
+        "trend": ps["trend"],
+        "strong_low": strong[2], "strong_low_idx": strong[0],
+        "weak_high": weak[2], "weak_high_idx": weak[0],
     }
+
+
+def photon_structure(points: list, closes: pd.Series = None) -> dict:
+    """Структурата по Photon Trading, проследена хронологично по swing точките:
+      - бичи BOS: връх над структурния връх -> най-ниското дъно на пулбека преди него
+        става СИЛНО дъно („довело до BOS“), а новият връх - структурният (СЛАБИЯТ) връх, целта;
+        дъната и върховете в пулбека (без пробив) са слаби/вътрешни - не местят нивата;
+      - мечи CHoCH: дъно под силното дъно -> тренд надолу; тогава силен lower high е
+        върхът преди всяко ново най-ниско дъно;
+      - бичи CHoCH: връх над силния lower high -> отново нагоре, силно дъно = най-ниското.
+    Пробив, станал след последната потвърдена swing точка, се гледа по затварянията.
+    Връща {trend: "up"/"down"/None, strong_low, weak_high} (точки (време, вид, цена) или None)."""
+    trend, struct_high, strong_low, pullback_low = None, None, None, None
+    lowest, strong_lh, last_high = None, None, None
+    for point in points:
+        _, kind, price = point
+        if kind == "H":
+            if trend == "down":
+                if strong_lh is not None and price > strong_lh[2]:  # бичи CHoCH
+                    trend, strong_low, struct_high, pullback_low = "up", lowest, point, None
+            elif struct_high is None:
+                struct_high = point
+            elif price > struct_high[2]:  # бичи BOS
+                if pullback_low is not None:
+                    trend, strong_low = "up", pullback_low
+                struct_high, pullback_low = point, None
+            last_high = point
+        else:
+            if trend == "up" and strong_low is not None and price < strong_low[2]:  # мечи CHoCH
+                trend, lowest, strong_lh = "down", point, last_high
+            elif trend == "down":
+                if price < lowest[2]:
+                    lowest, strong_lh = point, last_high
+            elif pullback_low is None or price < pullback_low[2]:
+                pullback_low = point
+    # пробив след последната потвърдена точка (новият връх още не е swing)
+    if closes is not None and points:
+        after = closes.loc[closes.index > points[-1][0]]
+        if not after.empty:
+            if trend == "down" and strong_lh is not None and after.max() > strong_lh[2]:
+                trend, strong_low = "up", lowest
+            elif trend != "down" and struct_high is not None and pullback_low is not None \
+                    and pullback_low[0] > struct_high[0] and after.max() > struct_high[2]:
+                trend, strong_low = "up", pullback_low
+            elif trend == "up" and strong_low is not None and after.min() < strong_low[2]:
+                trend = "down"
+    return {"trend": trend, "strong_low": strong_low, "weak_high": struct_high if trend == "up" else None}
+
+
+def align_timestamp(ts, index: pd.DatetimeIndex):
+    """Привежда момент (напр. дата от дневните свещи) към часовата зона на index
+    (часовите свещи), за да могат да се сравняват. None остава None."""
+    if ts is None:
+        return None
+    ts = pd.Timestamp(ts)
+    tz = getattr(index, "tz", None)
+    if tz is not None and ts.tzinfo is None:
+        return ts.tz_localize(tz)
+    if tz is None and ts.tzinfo is not None:
+        return ts.tz_localize(None)
+    return ts.tz_convert(tz) if tz is not None else ts
+
+
+def pullback_choch(df_with_swings: pd.DataFrame, pullback_start=None):
+    """Бичи CHoCH по Photon Trading: пробив (затваряне) над силния lower high - последния
+    swing връх ПРЕДИ най-ниското дъно на пулбека (той е „причинил“ дъното). Пулбекът е
+    от pullback_start (напр. датата на дневния слаб връх) до сега; без него - цялата история.
+    Връща {choch_level, choch_bars_ago (None = няма пробив), pullback_low, pullback_low_idx,
+    level_idx, break_idx} или None, ако няма достатъчно данни."""
+    df = df_with_swings
+    pullback_start = align_timestamp(pullback_start, df.index)
+    window = df.loc[df.index >= pullback_start] if pullback_start is not None else df
+    if len(window) < 3:
+        window = df
+    low_idx = window["Low"].idxmin()
+    before = df.loc[(df.index < low_idx) & (df.index >= window.index[0])]
+    if before.empty:
+        before = df.loc[df.index < low_idx].tail(5)
+    if before.empty:
+        return None
+    swing_highs = before[before["SwingHigh"]] if "SwingHigh" in before else before.iloc[0:0]
+    if swing_highs.empty:  # право спускане без междинен връх - най-високото преди дъното
+        level_idx = before["High"].idxmax()
+    else:
+        level_idx = swing_highs.index[-1]
+    level = float(df.loc[level_idx, "High"])
+    closes = df["Close"]
+    after = closes.loc[closes.index > low_idx]
+    breaks = after[after > level]
+    bars_ago = break_idx = None
+    if not breaks.empty:
+        break_idx = breaks.index[0]
+        bars_ago = int(len(closes) - 1 - closes.index.get_loc(break_idx))
+    return {
+        "choch_level": level, "choch_bars_ago": bars_ago, "level_idx": level_idx, "break_idx": break_idx,
+        "pullback_low": float(window["Low"].min()), "pullback_low_idx": low_idx,
+    }
+
+
+def bos_marks(df_with_swings: pd.DataFrame, max_marks: int = 3) -> list:
+    """Последните пробиви (затваряне) над swing върхове - за графиката:
+    [(време на върха, време на пробива, цена)]."""
+    closes = df_with_swings["Close"]
+    marks = []
+    for ts, kind, price in alternating_swings(df_with_swings):
+        if kind != "H":
+            continue
+        after = closes.loc[closes.index > ts]
+        breaks = after[after > price]
+        if not breaks.empty:
+            marks.append((ts, breaks.index[0], price))
+    return marks[-max_marks:]
 
 
 def resample_session_halves(intraday: pd.DataFrame) -> pd.DataFrame:
@@ -231,21 +350,22 @@ def drop_incomplete_week(weekly: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Dat
     return weekly if week_closed else weekly.iloc[:-1]
 
 
-def detect_structure_events(df_with_swings: pd.DataFrame, choch_max_age: int = 3):
+def detect_structure_events(df_with_swings: pd.DataFrame, choch_max_age: int = 3, pullback_start=None):
     """Photon Trading MTF Phases логика върху 4ч ('Internal'):
       - Pro Internal: HH+HL и цената държи над последния internal low;
       - Counter Internal: lower high, lower low или затваряне под последния
         internal low (пулбекът срещу дневния тренд тече);
-      - бичи CHoCH: ПЪРВОТО затваряне над последния internal swing high.
-        Брои се за "сега", само ако е станало в последните choch_max_age свещи -
-        иначе входът вече е изпуснат.
+      - бичи CHoCH (Counter): ПЪРВОТО затваряне над силния lower high - последния
+        връх преди най-ниското дъно на пулбека (pullback_choch; pullback_start =
+        датата на дневния слаб връх). Брои се за "сега", само ако е станало в
+        последните choch_max_age свещи - иначе входът вече е изпуснат.
+      - Pro: POI и stop са при силното 4ч дъно (довело до последния 4ч BOS).
     Връща None, ако няма достатъчно swing точки за преценка."""
     s = swing_structure(df_with_swings)
     if s is None:
         return None
 
     closes = df_with_swings["Close"]
-    lows = df_with_swings["Low"]
     current_close = float(closes.iloc[-1])
 
     lower_high = s["last_high"] < s["prev_high"]
@@ -253,25 +373,21 @@ def detect_structure_events(df_with_swings: pd.DataFrame, choch_max_age: int = 3
     broke_last_low = current_close < s["last_low"]
     internal_state = "counter" if (lower_high or lower_low or broke_last_low) else "pro"
 
-    # CHoCH ниво = последният internal swing high; търсим първото затваряне над него след формирането му
-    choch_level = s["last_high"]
-    after_high = closes.loc[closes.index > s["last_high_idx"]]
-    breaks = after_high[after_high > choch_level]
-    choch_bars_ago = None
-    if not breaks.empty:
-        choch_bars_ago = int(len(closes) - 1 - closes.index.get_loc(breaks.index[0]))
-    choch_bullish_now = choch_bars_ago is not None and choch_bars_ago < choch_max_age
-
-    if internal_state == "pro":
-        reference_low = s["last_low"]  # последният internal HL
+    pb = pullback_choch(df_with_swings, pullback_start if pullback_start is not None else s["last_high_idx"])
+    if internal_state == "counter" and pb is not None:
+        choch_level, choch_bars_ago = pb["choch_level"], pb["choch_bars_ago"]
+        reference_low = pb["pullback_low"]  # дъното на пулбека - силното, щом CHoCH го потвърди
     else:
-        # дъното на пулбека: най-ниското от последния swing high насам
-        # (може още да не е потвърдено като swing low)
-        pullback_lows = lows.loc[lows.index > s["last_high_idx"]]
-        reference_low = float(pullback_lows.min()) if not pullback_lows.empty else s["last_low"]
+        # Pro: следващото ниво за пробив е последният 4ч връх
+        choch_level = s["last_high"]
+        after_high = closes.loc[closes.index > s["last_high_idx"]]
+        breaks = after_high[after_high > choch_level]
+        choch_bars_ago = int(len(closes) - 1 - closes.index.get_loc(breaks.index[0])) if not breaks.empty else None
+        reference_low = s["strong_low"] if internal_state == "pro" else s["last_low"]
+    choch_bullish_now = choch_bars_ago is not None and choch_bars_ago < choch_max_age
 
     return {
         "internal_state": internal_state, "choch_bullish_now": choch_bullish_now,
         "choch_bars_ago": choch_bars_ago, "choch_level": choch_level,
-        "reference_low": reference_low, "internal_hl": s["last_low"],
+        "reference_low": reference_low, "internal_hl": s["strong_low"],
     }

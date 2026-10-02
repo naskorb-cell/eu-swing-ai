@@ -18,8 +18,8 @@ import t212_portfolio as t212
 import universe_rules as rules
 from ai_client import AI_KEY_SECRETS, stream_ai
 from indicators import (
-    alternating_swings, average_true_range, detect_structure_events, drop_incomplete_week,
-    find_swing_points, resample_ohlc, resample_session_halves, swing_structure,
+    alternating_swings, average_true_range, bos_marks, detect_structure_events, drop_incomplete_week,
+    find_swing_points, pullback_choch, resample_ohlc, resample_session_halves, swing_structure,
 )
 from portfolio_ui import T212_ACCOUNTS
 from ui_common import (
@@ -38,8 +38,8 @@ PHOTON_BATCH_SIZE = 50
 
 # Причини за отпадане - ползват се във фунията на скана
 REJECT_NO_DATA = "Няма/малко ценови данни"
-REJECT_WEEKLY = "Седмичният тренд не е Pro (HH+HL)"
-REJECT_DAILY = "Дневният тренд не е Pro (HH+HL)"
+REJECT_WEEKLY = "Седмичният тренд не е бичи (няма BOS нагоре / под силното дъно)"
+REJECT_DAILY = "Дневният тренд не е бичи (няма BOS нагоре / под силното дъно)"
 REJECT_SMALL_RANGE = "Дневният диапазон е твърде тесен (под мин. x ATR)"
 REJECT_BROKEN = "Цена под дневната подкрепа (счупена структура)"
 REJECT_NO_4H = "Няма 4ч данни/структура"
@@ -93,7 +93,7 @@ def significant_daily_structure(daily_df: pd.DataFrame, base_order: int, min_ran
         s = swing_structure(find_swing_points(daily_df, order=order))
         if s is None:
             return None, None, REJECT_DAILY
-        if s["last_high"] - s["last_low"] >= min_range and s["last_high"] > s["last_low"]:
+        if s["weak_high"] - s["strong_low"] >= min_range and s["weak_high"] > s["strong_low"]:
             return s, order, None
     return None, None, REJECT_SMALL_RANGE
 
@@ -111,7 +111,7 @@ def analyze_photon_daily(daily_df: pd.DataFrame, p: dict):
     if len(weekly) < 20:
         return None, REJECT_NO_DATA
     weekly_s = swing_structure(find_swing_points(weekly, order=p["swing_order_weekly"]))
-    if weekly_s is None or not weekly_s["uptrend"]:
+    if weekly_s is None or weekly_s["trend"] != "up":
         return None, REJECT_WEEKLY
 
     # --- Swing/MTF (Дневен): Pro Swing (нагоре) със значим диапазон - Phase C/D извън обхват ---
@@ -119,18 +119,20 @@ def analyze_photon_daily(daily_df: pd.DataFrame, p: dict):
     daily_s, used_order, why = significant_daily_structure(daily_df, p["swing_order_daily"], p["min_range_atr"], atr_daily)
     if daily_s is None:
         return None, why
-    if not daily_s["uptrend"]:
+    if daily_s["trend"] != "up":
         return None, REJECT_DAILY
 
     current_price = float(daily_df["Close"].iloc[-1])
-    # Затваряне под последния дневен HL = дневната структура е счупена (не е discount)
-    if current_price < daily_s["last_low"]:
+    # Photon: диапазонът е от силното дъно (довело до последния BOS) до слабия връх (целта).
+    # Затваряне под силното дъно = дневната структура е счупена (не е discount)
+    if current_price < daily_s["strong_low"]:
         return None, REJECT_BROKEN
 
     return {
         "current_price": current_price, "atr_daily": atr_daily, "daily_order": used_order,
-        "daily_support": daily_s["last_low"], "daily_resistance": daily_s["last_high"],
-        "weekly_resistance": weekly_s["last_high"],
+        "daily_support": daily_s["strong_low"], "daily_resistance": daily_s["weak_high"],
+        "pullback_start": daily_s["weak_high_idx"],  # дневният пулбек започва от слабия връх
+        "weekly_resistance": weekly_s["weak_high"],
         "leg_speed": up_leg_speeds(daily_df, used_order),
     }, None
 
@@ -178,6 +180,8 @@ class PhotonSetup:
     daily_order: int            # swing чувствителност, при която е намерена значимата структура
     currency: str = "EUR"
     leg_speed: tuple | None = None  # (бърз, типичен, бавен) ръст/свещ на възходящите дневни swing-ове
+    choch_tf: str = "4ч"            # рамката на CHoCH-а („1ч“ при включено по-ранно потвърждение)
+    pullback_start: object = None   # датата на дневния слаб връх - началото на пулбека
 
     def to_row(self, held_by: str = "") -> dict:
         return {
@@ -192,15 +196,22 @@ class PhotonSetup:
         }
 
 
+CHOCH_1H_BARS_PER_4H = 4  # ~4 часови свещи в една „4ч“ (половин сесия)
+
+
 def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.DataFrame, p: dict):
     """Стъпка 2: 4ч Internal структура, фаза, stop и R/R.
     Връща (PhotonSetup, None) или (None, причина за отпадане)."""
-    events, atr_4h = None, None
+    events, atr_4h, choch_1h = None, None, None
     if intraday is not None and not intraday.empty:
         h4 = resample_session_halves(intraday)
         if len(h4) >= 10:
-            events = detect_structure_events(find_swing_points(h4, order=1), p["choch_max_age"])
+            events = detect_structure_events(find_swing_points(h4, order=1), p["choch_max_age"],
+                                             pullback_start=ctx.get("pullback_start"))
             atr_4h = average_true_range(h4, period=14)
+        if p.get("choch_1h") and len(intraday) >= 30:
+            # по-ранно потвърждение на по-малката рамка: 1ч CHoCH над силния 1ч lower high
+            choch_1h = pullback_choch(find_swing_points(intraday, order=2), ctx.get("pullback_start"))
     if events is None:
         return None, REJECT_NO_4H
 
@@ -228,6 +239,14 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
         phase = "B"
         poi_low = poi_high = None
         setup_ok = in_discount and events["choch_bullish_now"]
+    choch_tf = "4ч"
+    if phase == "B" and not events["choch_bullish_now"] and choch_1h and choch_1h["choch_bars_ago"] is not None \
+            and choch_1h["choch_bars_ago"] < p["choch_max_age"] * CHOCH_1H_BARS_PER_4H:
+        # 4ч CHoCH още няма, но 1ч вече е обърнал - по-ранен вход с по-ниско CHoCH ниво
+        choch_tf = "1ч"
+        events = {**events, "choch_bullish_now": True, "choch_level": choch_1h["choch_level"],
+                  "choch_bars_ago": choch_1h["choch_bars_ago"], "reference_low": choch_1h["pullback_low"]}
+        setup_ok = in_discount
 
     # --- Stop с ATR буфер под reference low; минимален риск 0.5 x дневен ATR ---
     stop = events["reference_low"] - (p["stop_atr_buffer"] * atr_4h if atr_4h else 0)
@@ -242,7 +261,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
     ready = setup_ok and rr_ok
 
     if ready:
-        note = "Вход на POI" if phase == "A" else f"CHoCH преди {events['choch_bars_ago']} свещи"
+        note = "Вход на POI" if phase == "A" else f"{choch_tf} CHoCH преди {events['choch_bars_ago']} свещи"
     elif setup_ok:
         note = f"R/R под {p['min_rr']}"
     elif above_resistance:
@@ -263,6 +282,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
         width_atr=round(daily_range / atr_daily, 1) if atr_daily else None,
         stop=stop, rr=rr, rr_weekly=rr_weekly, ready=ready,
         poi_low=poi_low, poi_high=poi_high, daily_order=ctx["daily_order"], leg_speed=ctx.get("leg_speed"),
+        choch_tf=choch_tf, pullback_start=ctx.get("pullback_start"),
     ), None
 
 
@@ -331,16 +351,21 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     адаптирана: HTF=Седмичен, Swing/MTF=Дневен, Internal/LTF=4ч. САМО LONG.
 
     Правила:
-    - Седмичен тренд трябва да е Pro (възходящ) - твърд филтър.
-    - Дневен Swing тренд трябва също да е Pro (възходящ) - твърд филтър.
+    - Седмичен тренд трябва да е бичи (последният BOS е нагоре и цената е над
+      силното дъно) - твърд филтър.
+    - Дневен Swing тренд трябва също да е бичи - твърд филтър.
       (Counter Swing фази C/D са изключени - твърде агресивни за системата.)
+    - Дневният диапазон е от СИЛНОТО дъно (довело до последния BOS) до СЛАБИЯ
+      връх (целта, „Дневна съпротива“); вътрешните дъна/върхове в пулбека не го местят.
     - Phase A (Pro Swing + Pro Internal): 4ч структурата е HH+HL - влизаме
-      на POI (зоната точно над последния 4ч higher low), без да чакаме CHoCH.
+      на POI (зоната над силното 4ч дъно), без да чакаме CHoCH.
     - Phase B (Pro Swing + Counter Internal): 4ч е в пулбек (lower high/low) -
-      влизаме на СВЕЖ CHoCH (първо затваряне над последния 4ч swing high
-      преди най-много няколко свещи).
+      влизаме на СВЕЖ CHoCH: първо затваряне над силния 4ч lower high (върхът
+      преди най-ниското дъно на пулбека). По избор и по-ранен 1ч CHoCH
+      (бележката тогава казва „1ч CHoCH“).
     - И двете фази: само в discount зона (под 50% от дневния диапазон),
-      Stop под reference low с ATR буфер, минимален R/R спрямо дневната съпротива.
+      Stop под силното дъно/дъното на пулбека с ATR буфер, минимален R/R спрямо
+      дневната съпротива.
     - Колоната "Бележка" казва какво чакаме за всеки инструмент от watchlist-а.
     - Колоната "💼 Държа" (ако я има) показва инструменти, в които вече има
       отворена позиция (N/T = акаунт) - за тях коментирай управление на
@@ -562,7 +587,7 @@ def render_settings_tab():
         with c1:
             st.slider("Минимален R/R (до дневна съпротива)", 1.0, 4.0, step=0.5, key="ph_min_rr")
             st.slider("Свежест на CHoCH (макс. 4ч свещи назад)", 1, 6, key="ph_choch_age",
-                      help="Phase B е 'готов' само ако пробивът над 4ч swing high е станал до толкова свещи назад.")
+                      help="Phase B е „готов“ само ако пробивът над силния 4ч lower high (CHoCH) е станал до толкова свещи назад.")
             st.slider("Ширина на POI зоната (x ATR 4ч)", 0.5, 2.0, step=0.25, key="ph_poi_atr",
                       help="Phase A: цената трябва да е до толкова ATR над последния 4ч higher low.")
             st.slider("Stop буфер под reference low (x ATR 4ч)", 0.0, 1.0, step=0.1, key="ph_stop_buf")
@@ -573,6 +598,9 @@ def render_settings_tab():
             st.slider("Чувствителност на дневните swing точки", 2, 6, key="ph_swo_d")
             st.checkbox("Седмичен тренд само по затворени седмици", value=True, key="ph_closed_w",
                         help="Текущата незавършена седмица не участва в седмичните swing точки.")
+        st.toggle("⚡ По-ранен вход с 1ч CHoCH (Phase B)", value=False, key="ph_choch_1h",
+                  help="Ако 4ч CHoCH още няма, но на 1ч цената вече е пробила силния lower high в discount зоната, "
+                       "сетъпът е готов: по-ранен вход и по-ниско CHoCH ниво (по-висок R/R), но повече фалшиви сигнали.")
 
     st.markdown("##### 🧹 Филтри на универса")
     f1, f2, f3 = st.columns(3)
@@ -626,6 +654,7 @@ def render_settings_tab():
         "min_range_atr": st.session_state["ph_min_range"], "closed_weeks_only": st.session_state.get("ph_closed_w", True),
         "choch_max_age": st.session_state["ph_choch_age"], "poi_atr_mult": st.session_state["ph_poi_atr"],
         "stop_atr_buffer": st.session_state["ph_stop_buf"], "min_rr": st.session_state["ph_min_rr"],
+        "choch_1h": st.session_state.get("ph_choch_1h", False),
     }
     liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
     return params, liquidity, (exclude_leveraged, exclude_cash_bond, exclude_overseas), uploaded_universe
@@ -775,8 +804,9 @@ LEGEND_MD = f"""
 | **🟢 / ⚪ / 🔴 Новини** | положителни / неутрални / отрицателни новини от проверката с AI (празно = непроверено днес) |
 | **Зелен ред** | ✅ или ⭐ и новините не са 🔴 |
 | **💼 N / T / N+T** | отворена позиция в T212: твоят акаунт / на съпругата / и двата |
-| **🟦 A · Pro** | 4ч структурата е възходяща - вход в POI зоната |
-| **🟪 B · Counter** | 4ч е в пулбек - вход след пробив над CHoCH нивото |
+| **🟦 A · Pro** | 4ч структурата е възходяща - вход в POI зоната над силното 4ч дъно |
+| **🟪 B · Counter** | 4ч е в пулбек - вход след пробив (CHoCH) над силния lower high - върхът преди най-ниското дъно на пулбека; „1ч CHoCH“ = по-ранното потвърждение от настройките |
+| **Силно дъно / слаб връх** | силното дъно е довело до пробив нагоре (BOS) - то е дневната подкрепа и под него структурата е счупена; слабият връх още не е „защитен“ - той е целта (на графиката: BOS линии и надписи) |
 | **🟢 Discount / 🟠 Premium / 🔵 над съпротивата** | долната половина на дневния диапазон / горната / над дневната съпротива |
 | **Позиция %** | 0% = дневна подкрепа, 50% = equilibrium, 100% = съпротива (цел 1) |
 | **Лимит вход** | предложената цена за поръчка; ако е **над** текущата цена, това е buy stop - Phase B, който чака пробив на CHoCH |
@@ -1388,13 +1418,20 @@ def swing_markers(fig, df_with_swings: pd.DataFrame, x_values=None):
 
 
 def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 130, categorical: bool = False,
-                  swings_order: int = None, height: int = 520):
+                  swings_order: int = None, height: int = 520, marks: list = None, tags: list = None):
     """Свещи + нива като в T212: ценовата скала вдясно (с етикет на текущата цена),
     празно място между последната свещ и скалата, етикетите на нивата вляво в самата
     графика (полупрозрачен фон, цвят на линията). levels = [(етикет, цена)]; poi = (от, до).
-    По подразбиране се виждат последните visible_bars свещи (zoom out = цялата история)."""
+    По подразбиране се виждат последните visible_bars свещи (zoom out = цялата история).
+    marks = [(от, до или None = последната свещ, цена, текст, цвят, тип линия)] - къси линии като
+    BOS/CHoCH в учебниците на Photon; tags = [(момент, цена, текст, цвят, "above"/"below")] -
+    надписи при swing точка („силно дъно“, „слаб връх“)."""
     df = df.dropna(subset=["Close"])
     x = [ts.strftime("%d.%m %H:%M") for ts in df.index] if categorical else df.index
+
+    def to_x(ts):
+        ts = df.index[-1] if ts is None else ts
+        return ts.strftime("%d.%m %H:%M") if categorical else ts
     fig = go.Figure(go.Candlestick(
         x=x, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="Цена", showlegend=False,
         increasing=dict(line=dict(color=CHART_UP, width=1), fillcolor=CHART_UP),
@@ -1445,6 +1482,16 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         text=f"<b>{last_close:,.2f}</b>", font=dict(size=11, color="#FFFFFF"), bgcolor=price_color, borderpad=3,
     )
 
+    for x0, x1, y, text, color, dash in marks or []:
+        fig.add_shape(type="line", xref="x", yref="y", x0=to_x(x0), x1=to_x(x1), y0=y, y1=y,
+                      line=dict(color=color, width=1.2, dash=dash))
+        fig.add_annotation(xref="x", yref="y", x=to_x(x1), y=y, text=text, showarrow=False, xanchor="right",
+                           yanchor="bottom", font=dict(size=10, color=color))
+    for ts, y, text, color, where in tags or []:
+        fig.add_annotation(xref="x", yref="y", x=to_x(ts), y=y, text=text, showarrow=True, arrowhead=0,
+                           arrowcolor=color, ax=0, ay=-26 if where == "above" else 26, font=dict(size=10, color=color),
+                           bgcolor=CHART_LABEL_BG, borderpad=2)
+
     if categorical:
         shown = min(visible_bars, len(df))
         fig.update_xaxes(type="category", range=[len(df) - shown - 0.5, len(df) - 0.5 + shown * 0.08], nticks=10)
@@ -1461,6 +1508,34 @@ def candle_figure(df: pd.DataFrame, levels: list, poi=None, visible_bars: int = 
         hoverlabel=dict(bgcolor="#13212B", font_size=12),
     )
     return fig
+
+
+MARK_BOS, MARK_CHOCH, MARK_STRONG, MARK_WEAK = "#C9D4E0", "#C792FF", "#3DDC97", "#FF7A7A"
+
+
+def structure_annotations(df_with_swings: pd.DataFrame) -> dict:
+    """BOS линиите (пробитите върхове) и надписите „силно дъно“ / „слаб връх“ за candle_figure."""
+    marks = [(ts, brk, price, "BOS", MARK_BOS, "solid") for ts, brk, price in bos_marks(df_with_swings)]
+    s = swing_structure(df_with_swings)
+    tags = []
+    if s is not None:
+        tags = [(s["strong_low_idx"], s["strong_low"], "силно дъно", MARK_STRONG, "below"),
+                (s["weak_high_idx"], s["weak_high"], "слаб връх · цел", MARK_WEAK, "above")]
+    return {"marks": marks, "tags": tags}
+
+
+def choch_annotations(df_with_swings: pd.DataFrame, pullback_start) -> dict:
+    """4ч: линия от силния lower high до пробива му (CHoCH) или до днес, ако още чака,
+    и надпис на дъното на пулбека."""
+    pb = pullback_choch(df_with_swings, pullback_start)
+    if pb is None:
+        return {}
+    done = pb["break_idx"] is not None
+    return {
+        "marks": [(pb["level_idx"], pb["break_idx"], pb["choch_level"], "CHoCH" if done else "CHoCH?", MARK_CHOCH,
+                   "solid" if done else "dot")],
+        "tags": [(pb["pullback_low_idx"], pb["pullback_low"], "дъно на пулбека", MARK_STRONG, "below")],
+    }
 
 
 CHART_CONFIG = {"displaylogo": False, "scrollZoom": True,
@@ -1620,8 +1695,8 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                    f"цените са в {setup.currency}")
     else:
         chart_s, found_order, _ = significant_daily_structure(daily, swing_order_daily, min_range_atr, average_true_range(daily, period=14))
-        sup_lvl = chart_s["last_low"] if chart_s else None
-        res_lvl = chart_s["last_high"] if chart_s else None
+        sup_lvl = chart_s["strong_low"] if chart_s else None
+        res_lvl = chart_s["weak_high"] if chart_s else None
         order = found_order or swing_order_daily
         st.caption("Инструментът не е в резултатите от последния скан - показват се само дневните нива.")
 
@@ -1650,15 +1725,18 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         weekly = resample_ohlc(daily, "W")
         levels = t2_levels + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
                             if sup_lvl and res_lvl else []) + stop + entry
-        fig = candle_figure(weekly, levels, visible_bars=104, swings_order=st.session_state.get("ph_swo_w", 2), height=height)
+        swo_w = st.session_state.get("ph_swo_w", 2)
+        fig = candle_figure(weekly, levels, visible_bars=104, swings_order=swo_w, height=height,
+                            **structure_annotations(find_swing_points(weekly, order=swo_w)))
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
-        st.caption("Тренд (HH + HL на седмичните swing точки) и цел 2 - седмичната съпротива.")
+        st.caption("Тренд по седмичните BOS (бичи, докато цената е над силното дъно) и цел 2 - седмичният слаб връх.")
     with tab_d:
         levels = list(t2_levels)
         if sup_lvl and res_lvl:
             levels += [("Цел 1 · дневна съпротива", res_lvl, target1_note),
                        ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2), ("Дневна подкрепа", sup_lvl)]
-        fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order, height=height)
+        fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order, height=height,
+                            **structure_annotations(find_swing_points(daily, order=order)))
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
     with tab_4h:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
@@ -1666,8 +1744,10 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
             st.info("Няма 4ч данни за този инструмент.")
         else:
             h4 = resample_session_halves(intraday)
-            levels = ([("CHoCH ниво", setup.choch_level)] if setup else []) + stop + entry
-            fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=height)
+            levels = ([(f"CHoCH ниво ({setup.choch_tf})" if setup.choch_tf != "4ч" else "CHoCH ниво", setup.choch_level)]
+                      if setup else []) + stop + entry
+            fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=height,
+                                **choch_annotations(find_swing_points(h4, order=1), setup.pullback_start if setup else None))
             st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
             if setup:
                 st.caption("Phase B: вход при затваряне над CHoCH нивото" + (" - ✓ вече пробито" if setup.choch_now else "")
