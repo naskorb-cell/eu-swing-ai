@@ -1032,7 +1032,8 @@ def fetch_held_positions():
     for account in accounts:
         try:
             auth = t212.build_auth_header(st.secrets[account["key_secret_name"]], st.secrets[account["secret_secret_name"]])
-            open_positions = t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth)
+            # без пайовете - те са дългосрочни кошници, не swing позиции
+            open_positions = t212.exclude_pies(t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth))
         except Exception:
             continue  # недостъпен акаунт не бива да чупи скрийнъра
         if open_positions.empty:
