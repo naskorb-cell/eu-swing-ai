@@ -243,7 +243,6 @@ def render_portfolio_section():
                 entry = load_order_history(base_url, auth_header, _account_id(t212_env, t212_key), period_start, progress)
                 raw_orders = entry["items"]
                 st.session_state[f"t212_closed_all_{slug}"] = t212.orders_to_dataframe(raw_orders)
-                st.session_state[f"t212_raw_orders_{slug}"] = raw_orders
                 st.session_state[f"t212_history_from_{slug}"] = (entry["oldest"], entry["next_path"] is None)
                 st.session_state[f"t212_loaded_at_{slug}"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             except PermissionError as e:
@@ -283,16 +282,6 @@ def render_portfolio_section():
                     f"история от {oldest:%d.%m.%Y}" if oldest is not None else "без история")
     st.caption(f"Последно заредено ({selected_label}): {st.session_state.get(f't212_loaded_at_{slug}', '?')} · "
                f"{history_note} (следващото зареждане тегли само новите сделки)")
-
-    raw_orders_debug = st.session_state.get(f"t212_raw_orders_{slug}")
-    if raw_orders_debug:
-        with st.expander("🔍 Технически детайли (суров JSON от T212 - за диагностика)", expanded=False):
-            st.caption(
-                f"Общо {len(raw_orders_debug)} записа заредени. По-долу са първите 3 - "
-                "ако реализираните P&L не съвпадат с реалните ти сделки, изпрати ми това, "
-                "за да коригирам разчитането на полетата."
-            )
-            st.json(raw_orders_debug[:3])
 
     df_open = render_open_positions(df_open, slug)
 
