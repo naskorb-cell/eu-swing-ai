@@ -65,6 +65,8 @@ def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
         ppl = pos.get("ppl", 0) or 0  # profit/loss в EUR (или базовата валута на сметката)
         cost_basis = qty * avg_price
         ppl_pct = (ppl / cost_basis * 100) if cost_basis else 0
+        # частта в пайове (pieQuantity в старата схема на API-то, quantityInPies в новата)
+        in_pies = _pick(pos, "pieQuantity", "quantityInPies", default=0) or 0
         rows.append({
             "Тикер": pos.get("ticker", "?"),
             "Кол-во": qty,
@@ -73,6 +75,7 @@ def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
             "P&L (€)": round(ppl, 2),
             "P&L (%)": round(ppl_pct, 2),
             "Инвестирано (€)": round(cost_basis, 2),
+            "В пай (бр.)": in_pies,
         })
     df = pd.DataFrame(rows)
     if not df.empty:
@@ -92,6 +95,25 @@ def item_date(item: dict):
     date_val = _extract_order_fields(item)["date"]
     ts = pd.to_datetime(date_val, errors="coerce", utc=True) if date_val is not None else None
     return ts if ts is not None and pd.notna(ts) else None
+
+
+def exclude_pies(df: pd.DataFrame) -> pd.DataFrame:
+    """Само частта от позициите извън пайовете. Изцяло в пай -> отпада; частично ->
+    количеството, инвестираното и P&L се намаляват пропорционално (приблизително,
+    защото T212 връща една обща средна цена за целия инструмент)."""
+    if df.empty or "В пай (бр.)" not in df.columns:
+        return df
+    out = df.copy()
+    qty = out["Кол-во"].astype(float)
+    free = (qty - out["В пай (бр.)"].astype(float)).clip(lower=0)
+    share = (free / qty.where(qty != 0)).fillna(0)
+    out = out[free > 1e-9].copy()
+    share = share[out.index]
+    out["Кол-во"] = (out["Кол-во"] * share).round(6)
+    out["Инвестирано (€)"] = (out["Инвестирано (€)"] * share).round(2)
+    out["P&L (€)"] = (out["P&L (€)"] * share).round(2)
+    out["Частично в пай"] = share < 1 - 1e-9
+    return out.drop(columns=["В пай (бр.)"]).reset_index(drop=True)
 
 
 def fetch_order_history(base_url: str, auth_header: str, max_pages: int = 20, start_path: str = None,
