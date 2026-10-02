@@ -1419,6 +1419,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
 # цветовете са по образец на Наско (T212): почти черен синьо-зелен фон, видима мрежа, ярки свещи
 CHART_UP, CHART_DOWN = "#4BD65E", "#F5434B"
 CHART_SURFACE, CHART_GRID, CHART_INK, CHART_MUTED = "#0A141B", "#1D2B35", "#E6EDF3", "#8497B0"
+CHART_SWING = "#9AA7B4"  # сивите точки на swing върховете/дъната
 CHART_LABEL_BG = "rgba(10, 20, 27, 0.82)"  # полупрозрачен фон на етикетите в графиката - четими и върху свещите
 LEVEL_STYLES = {  # (цвят, тип линия, дебелина) - ярки, различими цветове за тъмния фон
     "Цел 2 · седм. съпротива": ("#F5B642", "dot", 1),
@@ -1434,19 +1435,19 @@ LEVEL_STYLES = {  # (цвят, тип линия, дебелина) - ярки, 
 
 
 def swing_markers(fig, df_with_swings: pd.DataFrame, x_values=None):
-    """Малки триъгълници на swing high (▼ над свещта) и swing low (▲ под нея).
+    """Малки сиви точки на swing high (над свещта) и swing low (под нея) - ненатрапчиви.
     x_values - етикетите на свещите при категорийна ос (4ч)."""
     points = alternating_swings(df_with_swings)
     pos = {ts: i for i, ts in enumerate(df_with_swings.index)}
     pad = (df_with_swings["High"].max() - df_with_swings["Low"].min()) * 0.012
-    for kind, marker, color, label in (("H", "triangle-down", CHART_DOWN, "Swing high"), ("L", "triangle-up", CHART_UP, "Swing low")):
+    for kind, marker, color, label in (("H", "circle", CHART_SWING, "Swing high"), ("L", "circle", CHART_SWING, "Swing low")):
         pts = [pt for pt in points if pt[1] == kind]
         if pts:
             fig.add_trace(go.Scatter(
                 x=[x_values[pos[pt[0]]] if x_values is not None else pt[0] for pt in pts],
                 y=[pt[2] + pad if kind == "H" else pt[2] - pad for pt in pts],
                 mode="markers", name=label, showlegend=False, hovertemplate=f"{label}: %{{customdata:.2f}}<extra></extra>",
-                customdata=[pt[2] for pt in pts], marker=dict(symbol=marker, size=7, color=color, opacity=0.85),
+                customdata=[pt[2] for pt in pts], marker=dict(symbol=marker, size=5, color=color, opacity=0.75),
             ))
 
 
