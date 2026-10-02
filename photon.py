@@ -747,6 +747,25 @@ def funnel_bar_html(funnel: dict) -> str:
     return f'<div class="funnel">{arrow.join(cells)}</div>'
 
 
+FUND_WATCHLIST_TOP = 30  # за толкова от Watchlist анализаторите се теглят веднага след скана
+
+
+def fetch_pending_fund_data(slot):
+    """Тегли чакащите анализаторски данни (след скана или от бутоните) с прогрес в slot
+    и прерисува страницата. Вика се в края - резултатите вече се виждат."""
+    pending = st.session_state.get("photon_fund_pending")
+    if not pending:
+        return
+    with slot:
+        bar = st.progress(0.0, text=f"📊 Анализаторски данни от Yahoo за {len(pending)} акции "
+                                    "(резултатите вече са готови отдолу)...")
+    got = fund.fetch_analyst_data(pending, on_done=lambda i, n: bar.progress(
+        i / n, text=f"📊 Анализаторски данни от Yahoo: {i}/{n} (резултатите вече са готови отдолу)"))
+    st.session_state["photon_fund"] = {**st.session_state.get("photon_fund", {}), **got}
+    st.session_state.pop("photon_fund_pending", None)
+    st.rerun()
+
+
 def render_status_box(tickers: dict, params: dict):
     """Горната част: голям бутон за скан, ред със статус и фунията."""
     currencies, _, types = load_curated_symbol_info(curated_file_mtime())
@@ -770,13 +789,17 @@ def render_status_box(tickers: dict, params: dict):
         st.session_state["photon_watchlist"] = watch_list
         st.session_state["photon_funnel"] = (funnel, rejects, datetime.now().strftime("%d.%m %H:%M"))
         st.session_state["photon_statuses"] = statuses
-        # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите) -
-        # за сетъпите от скана и за отворените позиции в T212
+        # ниво 1 на фундаменталното потвърждение: анализатори от Yahoo (без ETF-ите). Тегли се СЛЕД
+        # като резултатите се покажат (в края на страницата) и само за важните: готовите, отворените
+        # позиции и първите FUND_WATCHLIST_TOP от Watchlist (най-близо до подкрепата); останалите - с бутон
         held_now = [p["symbol"] for p in fetch_held_positions() or [] if p["symbol"]]
-        stock_symbols = tuple(sorted({s for s in [x.symbol for x in results + watch_list] + held_now
-                                      if types.get(s) != "ETF"}))
-        with st.spinner(f"Тегля анализаторски данни за {len(stock_symbols)} акции..."):
-            st.session_state["photon_fund"] = fund.fetch_analyst_data(stock_symbols)
+        near = [x.symbol for x in sorted(watch_list, key=lambda x: x.range_pos)]
+        is_stock = lambda s: s and types.get(s) != "ETF"  # noqa: E731
+        priority = list(dict.fromkeys(s for s in [x.symbol for x in results] + held_now + near[:FUND_WATCHLIST_TOP]
+                                      if is_stock(s)))
+        st.session_state["photon_fund"] = {}
+        st.session_state["photon_fund_pending"] = tuple(priority)
+        st.session_state["photon_fund_rest"] = tuple(s for s in near[FUND_WATCHLIST_TOP:] if is_stock(s) and s not in priority)
         st.rerun()  # табовете горе показват броя си - прерисуваме с новите резултати
 
     if "photon_funnel" in st.session_state:
@@ -846,6 +869,7 @@ def render_photon_strategy():
 
     with status_box:
         render_status_box(tickers, params)
+        fund_slot = st.empty()
 
     held = held_symbols(positions)
     fund_data = st.session_state.get("photon_fund", {})
@@ -936,6 +960,9 @@ def render_photon_strategy():
     pending = st.session_state.pop("ph_dialog", None)
     if pending:
         instrument_dialog(*pending)
+    else:
+        # анализаторите - след като всичко горе вече е нарисувано (прогресът е в горния статус)
+        fetch_pending_fund_data(fund_slot)
 
 
 # ---------------------------------------------------------------- прозорец за инструмент
@@ -1206,14 +1233,20 @@ def render_fund_coverage(fund_data: dict):
     covered = sum(1 for d in fund_data.values() if fund.fundamental_verdict(d) != fund.FUND_NO_DATA)
     st.caption(f"📊 Анализаторски данни от Yahoo: изтеглени за {got} от {len(fund_data)} акции, "
                f"{covered} с анализаторско покритие.")
+    rest = [s for s in st.session_state.get("photon_fund_rest", ()) if s not in fund_data]
+    if rest:
+        st.caption(f"За останалите {len(rest)} от Watchlist (по-далеч от подкрепата) анализаторите не са изтеглени, "
+                   "за да е по-бърз сканът.")
+        if st.button(f"📊 Изтегли и за тях ({len(rest)})", key="ph_fund_rest"):
+            st.session_state["photon_fund_pending"] = tuple(rest)
+            st.rerun()
     if not failed:
         return
     first_error = next(fund_data[s]["error"] for s in failed)
     st.warning(f"Yahoo не върна данни за {len(failed)} акции (най-често временно ограничение на заявките). "
                f"Пример: {first_error}")
     if st.button(f"🔄 Дотегли липсващите ({len(failed)})", key="ph_fund_retry"):
-        with st.spinner("Дотеглям..."):
-            st.session_state["photon_fund"] = {**fund_data, **fund.fetch_analyst_data(failed)}
+        st.session_state["photon_fund_pending"] = tuple(failed)
         st.rerun()
 
 

@@ -79,12 +79,18 @@ def _analyst_info(symbol: str) -> dict:
     }
 
 
-def fetch_analyst_data(symbols) -> dict:
-    """{symbol: анализаторски данни или {"error": ...}} - по 3 паралелно
-    (повече нишки = по-често блокиране от Yahoo)."""
+def fetch_analyst_data(symbols, on_done=None) -> dict:
+    """{symbol: анализаторски данни или {"error": ...}} - по 4 паралелно
+    (повече нишки = по-често блокиране от Yahoo). on_done(готови, общо) - за прогрес."""
     symbols = list(symbols)
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        return dict(zip(symbols, pool.map(_analyst_info, symbols)))
+    out = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_analyst_info, s): s for s in symbols}
+        for i, future in enumerate(as_completed(futures), 1):
+            out[futures[future]] = future.result()
+            if on_done:
+                on_done(i, len(symbols))
+    return out
 
 
 def failed_symbols(fund_data: dict) -> list:
