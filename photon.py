@@ -18,7 +18,7 @@ import t212_portfolio as t212
 import universe_rules as rules
 from ai_client import AI_KEY_SECRETS, stream_ai
 from indicators import (
-    alternating_swings, average_true_range, bos_marks, detect_structure_events, drop_incomplete_week,
+    alternating_swings, average_true_range, bos_marks, detect_structure_events, drop_incomplete_week, ema_alignment,
     find_swing_points, pullback_choch, resample_ohlc, resample_session_halves, swing_structure,
 )
 from portfolio_ui import T212_ACCOUNTS
@@ -132,6 +132,8 @@ def analyze_photon_daily(daily_df: pd.DataFrame, p: dict):
         "current_price": current_price, "atr_daily": atr_daily, "daily_order": used_order,
         "daily_support": daily_s["strong_low"], "daily_resistance": daily_s["weak_high"],
         "pullback_start": daily_s["weak_high_idx"],  # дневният пулбек започва от слабия връх
+        "ema_aligned": (ema_alignment(daily_df["Close"]) or (None,))[0],
+        "atr_pct": round(100 * atr_daily / current_price, 2) if atr_daily and current_price else None,
         "weekly_resistance": weekly_s["weak_high"],
         "leg_speed": up_leg_speeds(daily_df, used_order),
     }, None
@@ -152,6 +154,10 @@ def up_leg_speeds(daily_df: pd.DataFrame, order: int, legs: int = 8):
         return None
     s = pd.Series(speeds)
     return float(s.quantile(0.75)), float(s.median()), float(s.quantile(0.25))
+
+
+def ema_label(aligned) -> str:
+    return "✓" if aligned else ("✗" if aligned is False else "—")
 
 
 @dataclass
@@ -182,6 +188,8 @@ class PhotonSetup:
     leg_speed: tuple | None = None  # (бърз, типичен, бавен) ръст/свещ на възходящите дневни swing-ове
     choch_tf: str = "4ч"            # рамката на CHoCH-а („1ч“ при включено по-ранно потвърждение)
     pullback_start: object = None   # датата на дневния слаб връх - началото на пулбека
+    ema_aligned: bool | None = None # EMA20 > EMA50 > EMA200 на дневната графика (Full Trend Alignment)
+    atr_pct: float | None = None    # дневен ATR(14) като % от цената - волатилността
 
     def to_row(self, held_by: str = "") -> dict:
         return {
@@ -193,6 +201,7 @@ class PhotonSetup:
             "Дневна подкрепа": round(self.daily_support, 2), "Дневна съпротива": round(self.daily_resistance, 2),
             "Ширина (x ATR)": self.width_atr, "Stop": round(self.stop, 2),
             "R/R (до дневна съпротива)": self.rr, "R/R (до седм. съпротива)": self.rr_weekly,
+            "📐 EMA": ema_label(getattr(self, "ema_aligned", None)), "🌊 ATR %": getattr(self, "atr_pct", None),
         }
 
 
@@ -283,6 +292,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
         stop=stop, rr=rr, rr_weekly=rr_weekly, ready=ready,
         poi_low=poi_low, poi_high=poi_high, daily_order=ctx["daily_order"], leg_speed=ctx.get("leg_speed"),
         choch_tf=choch_tf, pullback_start=ctx.get("pullback_start"),
+        ema_aligned=ctx.get("ema_aligned"), atr_pct=ctx.get("atr_pct"),
     ), None
 
 
@@ -425,7 +435,7 @@ PROFILE_HELP = {
 }
 
 # Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
-MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Лимит вход", "Валута", "Зона",
+MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Цена", "Лимит вход", "Валута", "Зона", "📐 EMA", "🌊 ATR %",
                 "Позиция в диапазона (%)", "R/R (до дневна съпротива)", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
 PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
 ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
@@ -535,6 +545,53 @@ def split_by_horizon(results: list, watch_list: list):
     return keep, moved + watch_list
 
 
+ATR_PCT_SLIDER_MAX = 10.0  # горната граница на плъзгача = без горен лимит
+
+
+def split_by_trend_volatility(results: list, watch_list: list):
+    """Филтри от настройките (по подразбиране изключени): само EMA20 > EMA50 > EMA200 и
+    ATR % в избрания диапазон. Готовите извън тях отиват в Watchlist с бележка."""
+    need_ema = st.session_state.get("ph_need_ema", False)
+    atr_lo, atr_hi = st.session_state.get("ph_atr_range", (0.0, ATR_PCT_SLIDER_MAX))
+    if not need_ema and atr_lo <= 0 and atr_hi >= ATR_PCT_SLIDER_MAX:
+        return results, watch_list
+    keep, moved = [], []
+    for x in results:
+        atr = getattr(x, "atr_pct", None)
+        why = None
+        if need_ema and not getattr(x, "ema_aligned", None):
+            why = "EMA20 > EMA50 > EMA200 не е изпълнено"
+        elif atr is not None and atr < atr_lo:
+            why = f"твърде спокойна (ATR {atr:.1f}% < {atr_lo:.1f}%)"
+        elif atr is not None and atr_hi < ATR_PCT_SLIDER_MAX and atr > atr_hi:
+            why = f"твърде волатилна (ATR {atr:.1f}% > {atr_hi:.1f}%)"
+        if why:
+            moved.append(dataclasses.replace(x, note=f"{why} · {x.note}"))
+        else:
+            keep.append(x)
+    return keep, moved + watch_list
+
+
+SORT_OPTIONS = {
+    "Потвърждение": None,
+    "📐 EMA подредени първо": lambda x: 0 if getattr(x, "ema_aligned", None) else 1,
+    "🌊 ATR % ↓": lambda x: -(getattr(x, "atr_pct", None) or 0),
+    "🌊 ATR % ↑": lambda x: getattr(x, "atr_pct", None) if getattr(x, "atr_pct", None) is not None else 999,
+}
+
+
+def sort_control(setups: list, key: str) -> list:
+    """Избор „Подреди по“ над таблицата/картите; „Потвърждение“ = досегашният ред
+    (зона, после фундамент/новини). Сортирането е стабилно - в рамките на равните
+    остава редът по потвърждение."""
+    st.session_state.setdefault(key, "Потвърждение")
+    choice = st.segmented_control("Подреди по", list(SORT_OPTIONS), key=key,
+                                  help="📐 EMA = EMA20 > EMA50 > EMA200 (Full Trend Alignment); "
+                                       "🌊 ATR % = среден дневен ход като % от цената (волатилност)")
+    sort_key = SORT_OPTIONS.get(choice)
+    return sorted(setups, key=sort_key) if sort_key else setups
+
+
 def pnl_line_html(plan: dict) -> str:
     """Бледият ред „при 1000 €: цел 1 +78 € · цел 2 +120 € · stop −25 €“."""
     return (f'<div class="pnl-hint">при {plan["amount"]:,.0f} €: '.replace(",", " ")
@@ -581,6 +638,18 @@ def render_settings_tab():
         help="Готовите, при които типичният срок до цел 1 е по-дълъг, отиват в Watchlist с бележка. Срокът е "
              "ориентировъчен - по скоростта на досегашните възходящи swing-ове на акцията.",
     )
+
+    st.markdown("##### 📐 Тренд и волатилност")
+    t1, t2 = st.columns([1, 2])
+    with t1:
+        st.toggle("Само с EMA20 > EMA50 > EMA200", value=False, key="ph_need_ema",
+                  help="Full Trend Alignment на дневната. Изключено по подразбиране: в дълбок Photon пулбек (Phase B) "
+                       "EMA20 често пада под EMA50, а точно там са най-добрите входове. Готовите без него отиват в Watchlist.")
+    with t2:
+        st.slider("ATR % (дневен ход като % от цената)", 0.0, ATR_PCT_SLIDER_MAX, value=(0.0, ATR_PCT_SLIDER_MAX),
+                  step=0.5, key="ph_atr_range",
+                  help="Готовите извън диапазона отиват в Watchlist. 10 = без горна граница. Ориентир за swing до месец: "
+                       "под ~1% е бавна, 1.5-4% е добре, над ~5% е нервна (широк stop).")
 
     with st.expander("🔧 Разширени настройки на сигналите"):
         c1, c2 = st.columns(2)
@@ -835,6 +904,8 @@ LEGEND_MD = f"""
 | **Лимит вход** | предложената цена за поръчка; ако е **над** текущата цена, това е buy stop - Phase B, който чака пробив на CHoCH |
 | **⏱ До цел 1** | ориентировъчен срок в търговски дни (типичен и диапазон бързо-бавно) по скоростта на досегашните възходящи swing-ове на акцията; готовите над избрания хоризонт отиват в Watchlist |
 | **💶 Цел 1 / Цел 2** | ориентировъчна печалба до дневната / седмичната съпротива при сумата от настройките |
+| **📐 EMA ✓** | EMA20 > EMA50 > EMA200 на дневната - пълно подреждане на тренда (Full Trend Alignment) |
+| **🌊 ATR %** | среден дневен ход (ATR 14) като % от цената: 100 € и ход 4 € = 4%; под ~1% бавна, 1.5-4% добре за swing, над ~5% нервна |
 | **Отчет ⚠️** | следващият отчет е до {fund.EARNINGS_WARN_DAYS} дни - риск от гап |
 """
 
@@ -850,6 +921,7 @@ def render_photon_strategy():
     st.session_state.setdefault("ph_horizon", "~1 месец")
     results, watch_list = split_by_horizon(st.session_state.get("photon_results", []),
                                            st.session_state.get("photon_watchlist", []))
+    results, watch_list = split_by_trend_volatility(results, watch_list)
     positions = fetch_held_positions()
     labels = [
         f"✅ Готови ({len(results)})", f"👀 Watchlist ({len(watch_list)})",
@@ -890,10 +962,11 @@ def render_photon_strategy():
             render_legend()
             st.caption("Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума. "
                        "Зелено = потвърдено и от анализаторите.")
+            shown_ready = sort_control(results, "ph_sort_ready")
             if st.toggle("Табличен изглед", key="ph_ready_as_table"):
-                render_setup_table(results, "ph_ready_table", held, fund_data, news)
+                render_setup_table(shown_ready, "ph_ready_table", held, fund_data, news)
             else:
-                render_setup_cards(results, held, fund_data, news)
+                render_setup_cards(shown_ready, held, fund_data, news)
     df_ready = setups_dataframe(results, held, fund_data, news)  # за AI анализа
 
     with tab_watch:
@@ -910,7 +983,7 @@ def render_photon_strategy():
             )
             shown_watch = shown_order if show_far else [x for x in shown_order if x.range_pos <= FAR_ABOVE_RANGE_PCT]
             news_targets += shown_watch[:NEWS_WATCHLIST_TOP]  # ниво 2 - преди подреждането по новини
-            shown_watch = sort_by_confirmation(shown_watch, fund_data, news)
+            shown_watch = sort_control(sort_by_confirmation(shown_watch, fund_data, news), "ph_sort_watch")
             if len(shown_watch) < len(watch_list):
                 st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
             df_watch = render_setup_table(shown_watch, "ph_watch_table", held, fund_data, news)
@@ -1057,6 +1130,10 @@ def render_setup_cards(setups: list, held: dict, fund_data: dict, news: dict):
                     badges.append(f"💼 {held_by}")
                 if fcols["Отчет"].startswith("⚠️"):
                     badges.append(f"Отчет {fcols['Отчет']}")
+                if getattr(x, "ema_aligned", None):
+                    badges.append("📐 EMA 20>50>200")
+                if getattr(x, "atr_pct", None) is not None:
+                    badges.append(f"🌊 ATR {x.atr_pct:.1f}%")
                 st.markdown(" ".join(f'<span class="badge">{b}</span>' for b in badges), unsafe_allow_html=True)
                 plan = trade_plan(x)
                 st.markdown(levels_html([
@@ -1372,6 +1449,7 @@ NUMBER_FORMATS = {
     "Цена": "{:.2f}", "Лимит вход": "{:.2f}", "Позиция в диапазона (%)": "{:.1f}", "Дневна подкрепа": "{:.2f}", "Дневна съпротива": "{:.2f}",
     "Stop": "{:.2f}", "Ширина (x ATR)": "{:.1f}", "R/R (до дневна съпротива)": "{:.2f}",
     "R/R (до седм. съпротива)": "{:.2f}", "Потенциал до целта (%)": "{:.1f}", "Ръст EPS (%)": "{:.1f}",
+    "🌊 ATR %": "{:.1f}",
 }
 
 
@@ -1407,6 +1485,9 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
             "Ръст EPS (%)": st.column_config.Column(help="Прогнозна спрямо последната годишна печалба на акция"),
             "Отчет": st.column_config.TextColumn(help=f"Следващ отчет; ⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап)"),
             "4ч CHoCH сега": st.column_config.CheckboxColumn("4ч CHoCH сега"),
+            "📐 EMA": st.column_config.TextColumn("📐 EMA", help="✓ = EMA20 > EMA50 > EMA200 на дневната (Full Trend Alignment)"),
+            "🌊 ATR %": st.column_config.NumberColumn("🌊 ATR %", format="%.1f",
+                                                     help="Среден дневен ход (ATR 14) като % от цената - волатилността"),
             "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
         },
         on_select=lambda: _open_selected(key, items), selection_mode="single-row", key=key,

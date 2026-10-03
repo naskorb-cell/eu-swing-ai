@@ -82,6 +82,15 @@ def average_true_range(df: pd.DataFrame, period: int = 14):
     return float(atr) if pd.notna(atr) else None
 
 
+def ema_alignment(close: pd.Series):
+    """Full Trend Alignment: EMA20 > EMA50 > EMA200 по затварянията.
+    Връща (aligned, ema20, ema50, ema200) или None при под 200 свещи."""
+    if len(close) < 200:
+        return None
+    e20, e50, e200 = (float(close.ewm(span=n, adjust=False).mean().iloc[-1]) for n in (20, 50, 200))
+    return e20 > e50 > e200, e20, e50, e200
+
+
 def is_overextended(df_with_swings: pd.DataFrame, lookback_swings: int = 4):
     """Правило 'спри след 3+ CP модела в една посока': поредни по-високи
     swing highs без сериозна корекция = пренатегнат тренд, риск от изчерпване."""
