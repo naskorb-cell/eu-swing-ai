@@ -8,6 +8,7 @@ import streamlit as st
 
 from photon import render_photon_strategy
 from portfolio_ui import render_portfolio_section
+from trend_scanner import render_trend_section
 from ai_client import AI_PROVIDERS
 from ui_common import hide_st_style
 
@@ -36,6 +37,7 @@ with nav_col:
         "Избери секция:",
         [
             "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
+            "📈 Възходящ тренд (D + W)",
             "💼 Портфолио & P&L",
         ],
         horizontal=True,
@@ -56,5 +58,7 @@ st.divider()
 
 if strategy.startswith("🧭"):
     render_photon_strategy()
+elif strategy.startswith("📈"):
+    render_trend_section()
 else:
     render_portfolio_section()
