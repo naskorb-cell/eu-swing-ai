@@ -29,6 +29,12 @@
       "symbol": "GALP.LS",
       "added": "2026-10-04",
       "price": 21.72
+    },
+    {
+      "name": "YCP (ConocoPhillips)",
+      "symbol": "COP",
+      "added": "2026-10-04",
+      "price": 126.75
     }
   ]
 }
