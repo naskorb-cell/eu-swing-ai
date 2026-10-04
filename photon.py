@@ -1046,9 +1046,12 @@ def open_instrument(name: str, symbol: str):
     st.session_state["ph_dialog"] = (name, symbol)
 
 
-def instrument_dialog(name: str, symbol: str):
+def instrument_dialog(name: str, symbol: str, actions=None):
+    """actions - по избор функция без аргументи, рисувана най-горе (напр. „⭐ Добави в Селектирани“)."""
     @st.dialog(name, width="large")
     def body():
+        if actions:
+            actions()
         setup = st.session_state.get("ph_setups_by_name", {}).get(name)
         fund_data = st.session_state.get("photon_fund", {})
         news = today_news()

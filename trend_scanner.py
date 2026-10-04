@@ -5,21 +5,89 @@
     логаритъма на цената (метод на Андреас Кленов) - високо е само при бърз И равномерен ръст.
 И при двата - ATR % (дневен ход като % от цената) за волатилността."""
 
+import json
+from datetime import date
+from pathlib import Path
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 
+import fundamentals as fund
 import universe_rules as rules
 from indicators import average_true_range, ema_alignment, resample_ohlc
-from photon import fetch_ohlc_many, install_chart_scripts, instrument_dialog
+from photon import fetch_ohlc_many, install_chart_scripts, instrument_dialog, render_news_section, today_news
 from ui_common import section_header
 from universe import (
-    apply_manual_universe, curated_file_mtime, load_curated_symbol_info, load_manual_universe, load_universe,
+    apply_manual_universe, curated_file_mtime, github_get_file, github_write_file, load_curated_symbol_info,
+    load_manual_universe, load_universe,
 )
 
 TREND_PERIOD = "5y"  # седмичната EMA200 иска ~4 години история
 QUALITY_BARS_DAILY, QUALITY_BARS_WEEKLY = 90, 52  # ~4 месеца дневни / 1 година седмични свещи
 ATR_SLIDER_MAX = 10.0  # горната граница на плъзгача = без горен лимит
+
+
+SELECTED_FILE = "selected_trends.json"  # „⭐ Селектирани“ - трайно в repo-то (като manual_universe.json)
+
+
+# ---------------------------------------------------------------- ⭐ Селектирани
+
+def load_selected(force: bool = False) -> list:
+    """Списъкът „⭐ Селектирани“ [{name, symbol, added, price}]. Чете се веднъж на сесия от
+    GitHub (актуалният, ако е променян от друго устройство), иначе от локалния файл."""
+    if "tr_selected" in st.session_state and not force:
+        return st.session_state["tr_selected"]
+    text = None
+    token = st.secrets.get("GITHUB_TOKEN", None)
+    if token:
+        text, _ = github_get_file(SELECTED_FILE, token)
+    if text is None and Path(SELECTED_FILE).exists():
+        text = Path(SELECTED_FILE).read_text(encoding="utf-8")
+    try:
+        items = json.loads(text).get("items", []) if text else []
+    except (json.JSONDecodeError, AttributeError):
+        items = []
+    st.session_state["tr_selected"] = items
+    return items
+
+
+def save_selected(items: list, message: str) -> bool:
+    token = st.secrets.get("GITHUB_TOKEN", None)
+    if not token:
+        st.error("Липсва GITHUB_TOKEN в Streamlit Secrets - селектираните не могат да се запишат трайно.")
+        return False
+    ok, msg = github_write_file(SELECTED_FILE, json.dumps({"items": items}, ensure_ascii=False, indent=2),
+                                token, message)
+    if not ok:
+        st.error(msg)
+        return False
+    st.session_state["tr_selected"] = items
+    return True
+
+
+def selection_actions(name: str, symbol: str, price=None):
+    """Бутонът в прозореца с графиката: добави в / премахни от „⭐ Селектирани“."""
+    items = load_selected()
+    if any(x["symbol"] == symbol for x in items):
+        if st.button("🗑 Премахни от ⭐ Селектирани", key=f"tr_unsel_{symbol}", width="stretch"):
+            if save_selected([x for x in items if x["symbol"] != symbol], f"Селектирани: махнат {name}"):
+                st.toast(f"{name} е премахнат от селектираните")
+                st.rerun()
+    elif st.button("⭐ Добави в Селектирани", key=f"tr_sel_{symbol}", type="primary", width="stretch"):
+        item = {"name": name, "symbol": symbol, "added": date.today().isoformat(),
+                "price": round(float(price), 4) if price is not None else None}
+        if save_selected(items + [item], f"Селектирани: добавен {name}"):
+            st.toast(f"⭐ {name} е добавен в селектираните")
+            st.rerun()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def selected_metrics(symbols: tuple) -> dict:
+    """Текущите показатели само за селектираните (за всекидневния преглед без пълен скан)."""
+    data = fetch_ohlc_many(list(symbols), TREND_PERIOD, "1d")
+    return {s: analyze_trend(data.get(s)) for s in symbols}
 
 
 def trend_quality(close: pd.Series, bars: int, periods_per_year: int):
@@ -97,7 +165,7 @@ def classify(df: pd.DataFrame, min_r2: float, min_slope: float, atr_range: tuple
     return out
 
 
-def display_table(df: pd.DataFrame) -> pd.DataFrame:
+def display_table(df: pd.DataFrame, news: dict) -> pd.DataFrame:
     def mark(v):
         return "✓" if v is True else ("✗" if v is False else "—")
     return pd.DataFrame({
@@ -107,7 +175,11 @@ def display_table(df: pd.DataFrame) -> pd.DataFrame:
         "📈 Качество D": df["quality_d"].round(0), "R² D": df["r2_d"].round(2), "Наклон D %/год": df["slope_d"].round(0),
         "📈 Качество W": df["quality_w"].round(0), "R² W": df["r2_w"].round(2), "Наклон W %/год": df["slope_w"].round(0),
         "🌊 ATR %": df["atr_pct"].round(1),
+        "📰 Новини": [(news.get(s) or {}).get("verdict", "") for s in df["Тикер"]],
     }).sort_values("📈 Качество D", ascending=False, na_position="last").reset_index(drop=True)
+
+
+NEWS_RANK = {fund.NEWS_POSITIVE: 0, fund.NEWS_NEUTRAL: 1, "": 1, fund.NEWS_NEGATIVE: 2}
 
 
 def _open_selected(key: str, table: pd.DataFrame):
@@ -117,11 +189,15 @@ def _open_selected(key: str, table: pd.DataFrame):
         st.session_state["tr_dialog"] = (table["Име"].iloc[rows[0]], table["Тикер"].iloc[rows[0]])
 
 
-def render_table(df: pd.DataFrame, key: str):
+def render_table(df: pd.DataFrame, key: str, news: dict):
     if df.empty:
         st.info("Няма инструменти в тази група.")
         return
-    table = display_table(df)
+    table = display_table(df, news)
+    selected = {x["symbol"] for x in load_selected()}
+    table.insert(0, "⭐", ["⭐" if s in selected else "" for s in table["Тикер"]])
+    # положителните новини най-отгоре (при равни - по качество D)
+    table = table.sort_values("📰 Новини", key=lambda c: c.map(NEWS_RANK).fillna(1), kind="stable").reset_index(drop=True)
     st.dataframe(
         table, hide_index=True, width="stretch", key=key, selection_mode="single-row",
         on_select=lambda: _open_selected(key, table),
@@ -135,7 +211,8 @@ def render_table(df: pd.DataFrame, key: str):
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f", help="Среден дневен ход (ATR 14) като % от цената"),
         },
     )
-    st.caption("👆 Кликни ред за графиката. Подреждане по колона - клик върху заглавието ѝ.")
+    st.caption("👆 Кликни ред за графиката - там е и бутонът „⭐ Добави в Селектирани“. "
+               "Подреждане по колона - клик върху заглавието ѝ.")
 
 
 def render_trend_section():
@@ -164,37 +241,110 @@ def render_trend_section():
         progress.empty()
     info_col.markdown(f"Универс: **{len(tickers)}** инструмента · 5 години дневни цени (седмичната EMA200 иска ~4 г.)")
 
+    news = today_news()
+    selected = load_selected()
     raw = st.session_state.get("tr_results")
-    if raw is None:
-        st.info("Натисни **🔍 Сканирай за възходящ тренд**. Първият скан тегли 5 години история - 1-3 минути.")
-        return
-    if raw.empty:
+    scanned = raw is not None and not raw.empty
+    if scanned:
+        df = classify(raw, min_r2, min_slope, atr_range)
+        both, only_a, only_b = df[df["А"] & df["Б"]], df[df["А"] & ~df["Б"]], df[df["Б"] & ~df["А"]]
+        m = st.columns(4)
+        m[0].metric("Сканирани", len(df))
+        m[1].metric("📐 Метод А", int(df["А"].sum()))
+        m[2].metric("📈 Метод Б", int(df["Б"].sum()))
+        m[3].metric("🤝 И двата", len(both))
+        young = int(df["ema_w"].isna().sum())
+        if young:
+            st.caption(f"{young} инструмента са с под ~4 години история - седмичната EMA200 не се смята и не минават метод А.")
+    elif raw is not None:
         st.warning("Няма данни - опитай пак след малко (Yahoo понякога ограничава заявките).")
-        return
 
-    df = classify(raw, min_r2, min_slope, atr_range)
-    both, only_a, only_b = df[df["А"] & df["Б"]], df[df["А"] & ~df["Б"]], df[df["Б"] & ~df["А"]]
-    m = st.columns(4)
-    m[0].metric("Сканирани", len(df))
-    m[1].metric("📐 Метод А", int(df["А"].sum()))
-    m[2].metric("📈 Метод Б", int(df["Б"].sum()))
-    m[3].metric("🤝 И двата", len(both))
-    young = int(df["ema_w"].isna().sum())
-    if young:
-        st.caption(f"{young} инструмента са с под ~4 години история - седмичната EMA200 не се смята и не минават метод А.")
-
-    t_both, t_a, t_b = st.tabs([f"🤝 И двата ({len(both)})", f"📐 Само А - EMA ({len(only_a)})",
-                                f"📈 Само Б - качество ({len(only_b)})"])
-    with t_both:
-        render_table(both, "tr_tbl_both")
-    with t_a:
-        st.caption("EMA-тата са подредени, но ръстът е накъсан или бавен (нисък R² или наклон).")
-        render_table(only_a, "tr_tbl_a")
-    with t_b:
-        st.caption("Равномерен ръст, но EMA20/50/200 не са подредени - често след скорошен пулбек или млад тренд.")
-        render_table(only_b, "tr_tbl_b")
+    labels = [f"⭐ Селектирани ({len(selected)})"]
+    if scanned:
+        labels += [f"🤝 И двата ({len(both)})", f"📐 Само А - EMA ({len(only_a)})", f"📈 Само Б - качество ({len(only_b)})"]
+    tabs = st.tabs(labels)
+    with tabs[0]:
+        render_selected(selected, news, raw if scanned else None, (min_r2, min_slope, atr_range))
+    if scanned:
+        with tabs[1]:
+            st.caption("Минават и двата метода. Провери новините, разгледай графиката и добави най-добрите в ⭐ Селектирани.")
+            render_table(both, "tr_tbl_both", news)
+            if not both.empty:
+                st.divider()
+                section_header("📰 Новинарска подкрепа", status="info", subtitle="Само за групата „И двата“ (А + Б)")
+                render_news_section([SimpleNamespace(name=n, symbol=sym) for n, sym in zip(both["Име"], both["Тикер"])],
+                                    news, key="tr_news")
+        with tabs[2]:
+            st.caption("EMA-тата са подредени, но ръстът е накъсан или бавен (нисък R² или наклон).")
+            render_table(only_a, "tr_tbl_a", news)
+        with tabs[3]:
+            st.caption("Равномерен ръст, но EMA20/50/200 не са подредени - често след скорошен пулбек или млад тренд.")
+            render_table(only_b, "tr_tbl_b", news)
+    elif raw is None:
+        st.info("Натисни **🔍 Сканирай за възходящ тренд** за нови кандидати. Първият скан тегли 5 години история - "
+                "1-3 минути. „⭐ Селектирани“ работи и без скан.")
 
     install_chart_scripts()  # стрелката назад затваря прозореца с графиката
-    pending = st.session_state.pop("tr_dialog", None)
+    # прозорецът: от клик по ред тук или по ред в таблицата с новините (тя ползва ph_dialog)
+    pending = st.session_state.pop("tr_dialog", None) or st.session_state.pop("ph_dialog", None)
     if pending:
-        instrument_dialog(*pending)
+        name, symbol = pending
+        price = None
+        if scanned and symbol in set(raw["Тикер"]):
+            price = float(raw.loc[raw["Тикер"] == symbol, "price"].iloc[0])
+        instrument_dialog(name, symbol, actions=lambda: selection_actions(name, symbol, price))
+
+
+def render_selected(selected: list, news: dict, raw, thresholds):
+    """Таб „⭐ Селектирани“: стоят, докато не ги премахнеш ръчно; текущите показатели
+    се теглят само за тях (без пълен скан), за всекидневен преглед."""
+    if not selected:
+        st.info("Още няма селектирани. Отвори графиката на инструмент от „🤝 И двата“ (клик по ред) и натисни "
+                "**⭐ Добави в Селектирани** - ще стои тук, докато не го премахнеш.")
+        return
+    c1, c2 = st.columns([3, 1], vertical_alignment="center")
+    c1.caption("Записани трайно (в repo-то) - стоят, докато не ги премахнеш от прозореца с графиката. "
+               "Показателите са актуални (последна цена, до 1 час кеш).")
+    if c2.button("🔄 Опресни", key="tr_sel_reload", width="stretch", help="Презареди списъка (ако е променян от друго устройство)"):
+        load_selected(force=True)
+        selected_metrics.clear()
+        st.rerun()
+    symbols = tuple(x["symbol"] for x in selected)
+    with st.spinner("Тегля актуалните цени на селектираните..."):
+        metrics = selected_metrics(symbols)
+    currencies, _, _ = load_curated_symbol_info(curated_file_mtime())
+    rows = []
+    for x in selected:
+        m = metrics.get(x["symbol"]) or {}
+        rows.append({"Име": x["name"], "Тикер": x["symbol"], "Валута": currencies.get(x["symbol"], "EUR"),
+                     "added": x.get("added"), "price_added": x.get("price"), **m})
+    df = pd.DataFrame(rows)
+    for col in ("price", "ema_d", "ema_w", "slope_d", "r2_d", "quality_d", "slope_w", "r2_w", "quality_w", "atr_pct",
+                "price_added"):
+        if col not in df:
+            df[col] = None
+        if col not in ("ema_d", "ema_w"):
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = classify(df, *thresholds)
+    table = display_table(df, news)
+    extra = df.set_index("Тикер")
+    table.insert(2, "Добавен", [extra.at[s, "added"] for s in table["Тикер"]])
+    change = []
+    for s in table["Тикер"]:
+        p0, p1 = extra.at[s, "price_added"], extra.at[s, "price"]
+        change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
+    table.insert(5, "Промяна от добавяне %", change)
+    st.dataframe(
+        table, hide_index=True, width="stretch", key="tr_tbl_sel", selection_mode="single-row",
+        on_select=lambda: _open_selected("tr_tbl_sel", table),
+        column_config={
+            "Име": st.column_config.TextColumn(pinned=True),
+            "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
+            "Промяна от добавяне %": st.column_config.NumberColumn(format="%+.1f"),
+            "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
+        },
+    )
+    st.caption("👆 Кликни ред за графиката (там е и „🗑 Премахни от ⭐ Селектирани“).")
+    st.divider()
+    section_header("📰 Новини за селектираните", status="info")
+    render_news_section([SimpleNamespace(name=x["name"], symbol=x["symbol"]) for x in selected], news, key="tr_sel_news")
