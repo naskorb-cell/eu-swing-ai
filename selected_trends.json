@@ -65,6 +65,12 @@
       "symbol": "BBVA.MC",
       "added": "2026-10-04",
       "price": 23.73
+    },
+    {
+      "name": "ENX (Euronext)",
+      "symbol": "ENX.PA",
+      "added": "2026-10-04",
+      "price": 160.5
     }
   ]
 }
