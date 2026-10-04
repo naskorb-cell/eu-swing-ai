@@ -89,6 +89,12 @@
       "symbol": "AGS.BR",
       "added": "2026-10-04",
       "price": 73.35
+    },
+    {
+      "name": "CCC3 (Coca-Cola)",
+      "symbol": "KO",
+      "added": "2026-10-04",
+      "price": 85.65
     }
   ]
 }
