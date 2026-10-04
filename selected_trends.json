@@ -59,6 +59,12 @@
       "symbol": "MRK",
       "added": "2026-10-04",
       "price": 144.3
+    },
+    {
+      "name": "BBVA (Banco Bilbao Vizcaya Argentaria)",
+      "symbol": "BBVA.MC",
+      "added": "2026-10-04",
+      "price": 23.73
     }
   ]
 }
