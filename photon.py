@@ -1029,6 +1029,7 @@ def render_photon_strategy():
             # анализът остава видим и след други кликове (всеки клик = rerun)
             st.markdown(st.session_state["photon_ai_text"])
 
+    install_chart_scripts()  # преди прозореца - за да го затваря стрелката назад
     # изскачащият прозорец с графика/новини (от клик по ред, карта или новина)
     pending = st.session_state.pop("ph_dialog", None)
     if pending:
@@ -1684,11 +1685,17 @@ CROSSHAIR_JS = """
     gd.__phX = {box, v, h, tag, date};
     return gd.__phX;
   }
-  function draw(gd, ev) {
+  function draw(gd, ev) {  // по позицията на мишката
+    const r = gd.getBoundingClientRect();
+    drawAt(gd, ev.clientX - r.left, ev.clientY - r.top, false);
+  }
+  function drawAt(gd, px, py, clamp) {  // px/py - спрямо графиката; clamp = задържа кръста в полето
     const L = gd._fullLayout; if (!L || !L.yaxis) return;
-    const s = L._size, r = gd.getBoundingClientRect(), o = overlay(gd);
-    const px = ev.clientX - r.left, py = ev.clientY - r.top;
-    if (px < s.l || px > s.l + s.w || py < s.t || py > s.t + s.h) { o.box.style.display = 'none'; return; }
+    const s = L._size, o = overlay(gd);
+    if (clamp) {
+      px = Math.min(Math.max(px, s.l), s.l + s.w); py = Math.min(Math.max(py, s.t), s.t + s.h);
+    } else if (px < s.l || px > s.l + s.w || py < s.t || py > s.t + s.h) { o.box.style.display = 'none'; return; }
+    gd.__phPos = {px, py};
     o.box.style.display = 'block';
     o.v.style.left = px + 'px'; o.v.style.top = s.t + 'px'; o.v.style.height = s.h + 'px';
     o.h.style.top = py + 'px'; o.h.style.left = s.l + 'px'; o.h.style.width = s.w + 'px';
@@ -1756,8 +1763,43 @@ CROSSHAIR_JS = """
   });
   doc.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') hideAll(); }, true);
 
-  // телефон: задържане на пръста ~0.5 сек = кръст; пръстът го мести; стрелката назад го скрива
-  let timer = null, start = null, touchGd = null, pushed = false;
+  // „назад“ (стрелката на телефона / браузъра): записи в историята за кръста (телефон) и за
+  // изскачащия прозорец с графиката; назад първо скрива кръста, после затваря прозореца -
+  // вместо да излиза от приложението
+  const stack = [];
+  let ignorePops = 0;
+  const pushEntry = (kind) => { w.history.pushState({ph: kind}, ''); stack.push(kind); };
+  const dialogOpen = () => doc.querySelector('[role="dialog"]');
+  const closeDialog = () => {
+    const dlg = dialogOpen(); if (!dlg) return;
+    const btn = dlg.querySelector('button[aria-label="Close"], button[aria-label="close"], [data-testid="stDialogCloseButton"]');
+    if (btn) btn.click(); else doc.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  };
+  let wasOpen = false;
+  const watchDialog = () => {
+    const open = !!dialogOpen();
+    if (open && !wasOpen) pushEntry('dialog');
+    if (!open && wasOpen && stack.includes('dialog')) {
+      // затворен с X - махаме нашите записи (и на кръста вътре), за да не остане „празно“ назад
+      const n = stack.length - stack.indexOf('dialog');
+      stack.splice(stack.length - n, n);
+      ignorePops += 1;
+      w.history.go(-n);
+    }
+    wasOpen = open;
+  };
+  new MutationObserver(watchDialog).observe(doc.body, {childList: true, subtree: true});
+  watchDialog();
+  w.addEventListener('popstate', () => {
+    if (ignorePops > 0) { ignorePops -= 1; return; }
+    const kind = stack.pop();
+    if (kind === 'cross') hideAll();
+    else if (kind === 'dialog') { wasOpen = false; closeDialog(); }
+  });
+
+  // телефон: задържане на пръста ~0.5 сек = кръст; после пръстът го МЕСТИ (относително, като
+  // тъчпад) - не прескача там, където е пипнал; стрелката назад го скрива
+  let timer = null, start = null, touchGd = null, posStart = null;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   doc.addEventListener('touchstart', (ev) => {
     const gd = plotOf(ev.target);
@@ -1765,30 +1807,38 @@ CROSSHAIR_JS = """
     if (!gd || ev.touches.length !== 1) return;
     const t = ev.touches[0];
     start = {x: t.clientX, y: t.clientY}; touchGd = gd;
-    if (gd.__phOn) { draw(gd, t); return; }
+    if (gd.__phOn) { posStart = gd.__phPos; return; }
     timer = setTimeout(() => {
       timer = null;
       hideAll();
-      gd.__phOn = true; draw(gd, {clientX: start.x, clientY: start.y});
+      const r = gd.getBoundingClientRect();
+      gd.__phOn = true;
+      drawAt(gd, start.x - r.left, start.y - r.top, true);
+      posStart = gd.__phPos;
       if (navigator.vibrate) navigator.vibrate(15);
-      if (!pushed) { w.history.pushState({phCrosshair: true}, ''); pushed = true; }
+      if (!stack.includes('cross')) pushEntry('cross');
     }, 450);
   }, {capture: true, passive: true});
   doc.addEventListener('touchmove', (ev) => {
     const t = ev.touches[0];
     if (timer && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) cancel();
-    if (touchGd && touchGd.__phOn) { ev.preventDefault(); ev.stopPropagation(); draw(touchGd, t); }
+    if (touchGd && touchGd.__phOn && posStart) {
+      ev.preventDefault(); ev.stopPropagation();
+      drawAt(touchGd, posStart.px + (t.clientX - start.x), posStart.py + (t.clientY - start.y), true);
+    }
   }, {capture: true, passive: false});
   doc.addEventListener('touchend', cancel, true);
   doc.addEventListener('touchcancel', cancel, true);
   doc.addEventListener('contextmenu', (ev) => { if (plotOf(ev.target)) ev.preventDefault(); }, true);
-  w.addEventListener('popstate', () => {
-    if (!pushed) return;
-    pushed = false; hideAll();
-  });
 })();
 </script>
 """
+def install_chart_scripts():
+    """Кръстът, разтягането на скалите и „назад“ за прозореца - инсталира се веднъж на страница
+    (скриптът сам пази да не се закачи два пъти)."""
+    st.html(CROSSHAIR_JS, unsafe_allow_javascript=True)
+
+
 CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото (на телефон: задръж пръста) = кръст с цената; пак колелото / Esc / стрелката назад = скрий · "
@@ -1832,7 +1882,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                              help="Височина на графиката: S / M / L / XL")
     with hint_col:
         st.caption(CHART_HINT)
-    st.html(CROSSHAIR_JS, unsafe_allow_javascript=True)
+    install_chart_scripts()
     height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
 
     tab_w, tab_d, tab_4h = st.tabs(["W", "D", "4h"], default="D")
