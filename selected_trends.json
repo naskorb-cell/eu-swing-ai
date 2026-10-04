@@ -11,6 +11,12 @@
       "symbol": "INGA.AS",
       "added": "2026-10-04",
       "price": 30.685
+    },
+    {
+      "name": "12DA (Dell Technologies)",
+      "symbol": "DELL",
+      "added": "2026-10-04",
+      "price": 562.52
     }
   ]
 }
