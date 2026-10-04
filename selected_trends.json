@@ -23,6 +23,12 @@
       "symbol": "CVX",
       "added": "2026-10-04",
       "price": 206.69
+    },
+    {
+      "name": "GALP (Galp Energia)",
+      "symbol": "GALP.LS",
+      "added": "2026-10-04",
+      "price": 21.72
     }
   ]
 }
