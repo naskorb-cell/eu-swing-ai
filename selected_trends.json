@@ -53,6 +53,12 @@
       "symbol": "QDVF.DE",
       "added": "2026-10-04",
       "price": 11.796
+    },
+    {
+      "name": "6MK (Merck & Co)",
+      "symbol": "MRK",
+      "added": "2026-10-04",
+      "price": 144.3
     }
   ]
 }
