@@ -71,6 +71,12 @@
       "symbol": "ENX.PA",
       "added": "2026-10-04",
       "price": 160.5
+    },
+    {
+      "name": "LOCK (iShares Digital Security (Acc))",
+      "symbol": "LOCK.MI",
+      "added": "2026-10-04",
+      "price": 11.854
     }
   ]
 }
