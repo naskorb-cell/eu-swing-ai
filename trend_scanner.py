@@ -7,6 +7,7 @@
 
 import json
 from datetime import date
+from statistics import median
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,9 +17,13 @@ import streamlit as st
 
 import fundamentals as fund
 import universe_rules as rules
+import valuation as val
+from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
-from photon import fetch_ohlc_many, install_chart_scripts, instrument_dialog, render_news_section, today_news
-from ui_common import section_header
+from photon import (
+    fetch_ohlc_many, install_chart_scripts, instrument_dialog, news_provider, render_news_section, today_news,
+)
+from ui_common import claude_news_model, gemini_model, gemini_news_model, section_header
 from universe import (
     apply_manual_universe, curated_file_mtime, github_get_file, github_write_file, load_curated_symbol_info,
     load_manual_universe, load_universe,
@@ -88,6 +93,123 @@ def selected_metrics(symbols: tuple) -> dict:
     """Текущите показатели само за селектираните (за всекидневния преглед без пълен скан)."""
     data = fetch_ohlc_many(list(symbols), TREND_PERIOD, "1d")
     return {s: analyze_trend(data.get(s)) for s in symbols}
+
+
+# ---------------------------------------------------------------- 💎 справедлива цена
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def selected_valuations(symbols: tuple) -> dict:
+    return val.valuation_many(symbols)
+
+
+@st.cache_resource
+def _valuation_ai_store() -> dict:
+    """AI оценките за деня - общи за всички сесии (обновяване не плаща повторно)."""
+    return val.new_ai_store()
+
+
+def today_ai_valuations() -> dict:
+    store = val.ai_store_today(_valuation_ai_store())
+    return dict(store["by_provider"].get(news_provider(), {}))
+
+
+def check_ai_valuations(items: list):
+    provider = news_provider()
+    api_key = st.secrets.get(AI_KEY_SECRETS[provider], None)
+    if not api_key:
+        st.error(f"Липсва {AI_KEY_SECRETS[provider]} в Streamlit Secrets.")
+        return
+    bar = st.progress(0.0, text=f"Търся оценки на справедливата цена за {len(items)} акции - 20-60 сек. всяка...")
+    found = fund.research_news_many(
+        [(x["name"], x["symbol"], False) for x in items], provider, api_key, gemini_model=gemini_news_model(),
+        gemini_fallback_model=gemini_model(), claude_model=claude_news_model(),
+        make_prompt=val.valuation_prompt, parse=val.parse_valuation,
+        on_done=lambda i, n: bar.progress(i / n, text=f"Проверени {i}/{n}"))
+    bar.empty()
+    store = val.ai_store_today(_valuation_ai_store())
+    with store["lock"]:
+        store["by_provider"].setdefault(provider, {}).update(found)
+        store["checks"][provider] = store["checks"].get(provider, 0) + len(found)
+
+
+def render_valuation(selected: list):
+    """💎 Справедлива цена на селектираните: А) безплатно от Yahoo, Б) AI проверка (по желание)."""
+    section_header("💎 Справедлива цена", status="info",
+                   subtitle="Подценени ли са спрямо справедливата цена - няколко метода + по желание AI с източници")
+    with st.spinner("Тегля показателите от Yahoo..."):
+        vals = selected_valuations(tuple(x["symbol"] for x in selected))
+    ai = today_ai_valuations()
+    rows = []
+    for x in selected:
+        v = vals.get(x["symbol"]) or {}
+        m = v.get("methods") or {}
+        a = ai.get(x["symbol"]) or {}
+        est = [e["fair_value"] for e in a.get("estimates") or []]
+        rows.append({
+            "Име": x["name"], "Цена": v.get("price"),
+            "💎 Оценка": v.get("verdict", val.VALUE_NO_DATA), "До справедливата %": v.get("median_upside"),
+            "Гласове": val.votes_text(v),
+            "Анализатори": m.get("Анализатори"), "Греъм": m.get("Греъм"), "Линч": m.get("Линч (P/E = ръст)"),
+            f"FCF {val.REQUIRED_FCF_YIELD:.0%}": m.get(f"FCF {val.REQUIRED_FCF_YIELD:.0%}"),
+            "PEG": v.get("peg"), "P/E": v.get("pe"), "Fwd P/E": v.get("fwd_pe"), "P/B": v.get("pb"),
+            "EV/EBITDA": v.get("ev_ebitda"), "FCF доходност %": v.get("fcf_yield"),
+            "🤖 AI оценка": ("⚠️ Грешка" if "error" in a else a.get("verdict", "")) if a else "",
+            "🤖 AI справедлива": round(median(est), 2) if est else None,
+        })
+    money = st.column_config.NumberColumn(format="%.2f")
+    st.dataframe(
+        pd.DataFrame(rows), hide_index=True, width="stretch",
+        column_config={
+            "Име": st.column_config.TextColumn(pinned=True),
+            "💎 Оценка": st.column_config.TextColumn(help=f"По медианата на методите: над +{val.MARGIN_PCT}% до справедливата "
+                                                         f"и поне половината гласове = подценена; под -{val.MARGIN_PCT}% = надценена"),
+            "До справедливата %": st.column_config.NumberColumn(format="%+.1f", help="Медианата на методите спрямо цената"),
+            "Гласове": st.column_config.TextColumn(help="Колко метода (и PEG) казват подценена / около / надценена"),
+            "Цена": money, "Анализатори": st.column_config.NumberColumn(format="%.2f", help="Средна целева цена (поне 3 анализатора)"),
+            "Греъм": st.column_config.NumberColumn(format="%.2f", help="√(22.5 × печалба на акция × балансова стойност на акция)"),
+            "Линч": st.column_config.NumberColumn(format="%.2f", help="Справедливо P/E = ръстът на печалбата в % (5-25) × прогнозна печалба"),
+            f"FCF {val.REQUIRED_FCF_YIELD:.0%}": st.column_config.NumberColumn(
+                format="%.2f", help="Цената, при която свободният паричен поток дава 5% доходност"),
+            "PEG": st.column_config.NumberColumn(format="%.2f", help="P/E ÷ ръст; под 1 = евтина, над 2 = скъпа"),
+            "P/E": st.column_config.NumberColumn(format="%.1f"), "Fwd P/E": st.column_config.NumberColumn(format="%.1f"),
+            "P/B": st.column_config.NumberColumn(format="%.2f"), "EV/EBITDA": st.column_config.NumberColumn(format="%.1f"),
+            "FCF доходност %": st.column_config.NumberColumn(format="%.1f"),
+            "🤖 AI справедлива": st.column_config.NumberColumn(format="%.2f", help="Медианата на намерените в интернет оценки"),
+        },
+    )
+    st.caption("Цените са във валутата на акцията. Методите са ориентир - при банки, застрахователи и бързо растящи "
+               "компании Греъм и FCF често подценяват; гледай съгласието между методите и AI източниците.")
+
+    provider = news_provider()
+    missing = [x for x in selected if x["symbol"] not in ai or "error" in ai[x["symbol"]]]
+    if st.button(f"🤖 Провери справедливата цена в интернет с {provider} ({len(missing)} акции)", key="tr_val_btn",
+                 disabled=not missing, width="stretch",
+                 help="Morningstar, Simply Wall St, GuruFocus, анализатори - с линкове. Платено; пази се до края на деня."):
+        st.session_state["tr_val_confirm"] = True
+    if st.session_state.get("tr_val_confirm") and missing:
+        with st.container(border=True):
+            st.warning(f"Ще се направят **{len(missing)} платени проверки** с {provider}. Продължаваме ли?")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Да, провери", key="tr_val_yes", type="primary", width="stretch"):
+                st.session_state.pop("tr_val_confirm", None)
+                check_ai_valuations(missing)
+                st.rerun()
+            if c2.button("✖ Откажи", key="tr_val_no", width="stretch"):
+                st.session_state.pop("tr_val_confirm", None)
+                st.rerun()
+    for x in selected:
+        a = ai.get(x["symbol"])
+        if not a:
+            continue
+        with st.expander(f"🤖 {x['name']}: {('⚠️ Грешка' if 'error' in a else a['verdict'])}"):
+            if "error" in a:
+                st.error(a["error"])
+                continue
+            st.markdown(a["summary"] or "—")
+            if a["estimates"]:
+                st.markdown(" · ".join(f"**{e['source']}**: {e['fair_value']:.2f} {e['currency']}" for e in a["estimates"]))
+            if a["sources"]:
+                st.markdown("Източници: " + " · ".join(f"[{s_['title']}]({s_['url']})" for s_ in a["sources"]))
 
 
 def trend_quality(close: pd.Series, bars: int, periods_per_year: int):
@@ -345,6 +467,8 @@ def render_selected(selected: list, news: dict, raw, thresholds):
         },
     )
     st.caption("👆 Кликни ред за графиката (там е и „🗑 Премахни от ⭐ Селектирани“).")
+    st.divider()
+    render_valuation(selected)  # ETF-ите излизат като „— ETF“
     st.divider()
     section_header("📰 Новини за селектираните", status="info")
     render_news_section([SimpleNamespace(name=x["name"], symbol=x["symbol"]) for x in selected], news, key="tr_sel_news")

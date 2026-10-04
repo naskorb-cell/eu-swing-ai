@@ -223,7 +223,8 @@ def _is_config_error(error: Exception) -> bool:
 
 
 def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str,
-                         model: str = GEMINI_NEWS_DEFAULT_MODEL, fallback_model: str = GEMINI_DEFAULT_MODEL) -> dict:
+                         model: str = GEMINI_NEWS_DEFAULT_MODEL, fallback_model: str = GEMINI_DEFAULT_MODEL,
+                         prompt: str = None, parse=None) -> dict:
     """Една компания: Gemini с Google Search grounding, възможно най-евтино:
     Lite модел + минимално „мислене“; ако моделът/нивото не се поддържат - по-стандартна
     комбинация. Източниците са от grounding метаданните (реално намерените страници)."""
@@ -232,13 +233,15 @@ def research_news_gemini(name: str, symbol: str, is_etf: bool, api_key: str,
         attempts.append((fallback_model, "LOW"))
     result = None
     for attempt_model, level in attempts:
-        result = _research_news_gemini_once(name, symbol, is_etf, api_key, attempt_model, level)
+        result = _research_news_gemini_once(name, symbol, is_etf, api_key, attempt_model, level, prompt, parse)
         if "error" not in result or not _is_config_error(result["error"]):
             break
     return result
 
 
-def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level) -> dict:
+def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level, prompt=None, parse=None) -> dict:
+    """prompt / parse(data, sources, searches) - по избор друг промпт и обработка на отговора
+    (напр. оценката на справедливата цена); по подразбиране - новините."""
     try:
         # импортът е тук, а не най-горе: без инсталиран google-genai приложението
         # трябва да работи (Gemini е само по избор)
@@ -248,7 +251,7 @@ def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level) -> d
         # collection) още преди заявката -> "the client has been closed"
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model=model, contents=_build_prompt(name, symbol, is_etf),
+            model=model, contents=prompt or _build_prompt(name, symbol, is_etf),
             config=genai_types.GenerateContentConfig(
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
                 thinking_config=gemini_thinking_config(model, level),
@@ -266,7 +269,7 @@ def _research_news_gemini_once(name, symbol, is_etf, api_key, model, level) -> d
             seen.add(web.uri)
             sources.append({"title": web.title or web.domain or web.uri, "url": web.uri})
     searches = len(meta.web_search_queries or []) if meta else 0
-    return _news_result(data, sources, searches)
+    return (parse or _news_result)(data, sources, searches)
 
 
 def _claude_news_options(model: str) -> dict:
@@ -282,24 +285,26 @@ def _claude_news_options(model: str) -> dict:
 
 
 def research_news(name: str, symbol: str, is_etf: bool, api_key: str,
-                  model: str = CLAUDE_NEWS_DEFAULT_MODEL, fallback_model: str = CLAUDE_MODEL) -> dict:
+                  model: str = CLAUDE_NEWS_DEFAULT_MODEL, fallback_model: str = CLAUDE_MODEL,
+                  prompt: str = None, parse=None) -> dict:
     """Една компания: Claude с web search - по-евтиният модел, без мислене; при
     недостъпен модел/настройка (не се таксува) - основният модел."""
     result = None
     for attempt_model in dict.fromkeys([model, fallback_model]):
-        result = _research_news_claude_once(name, symbol, is_etf, api_key, attempt_model)
+        result = _research_news_claude_once(name, symbol, is_etf, api_key, attempt_model, prompt, parse)
         if "error" not in result or not _is_config_error(result["error"]):
             break
     return result
 
 
-def _research_news_claude_once(name: str, symbol: str, is_etf: bool, api_key: str, model: str) -> dict:
+def _research_news_claude_once(name: str, symbol: str, is_etf: bool, api_key: str, model: str,
+                               prompt: str = None, parse=None) -> dict:
     """Връща {verdict, summary, analyst_actions, next_earnings, sources, searches}
     или {error}. Линковете се пазят само ако са от реално намерените резултати."""
     # таймаут на заявка: web search отнема десетки секунди, но не бива да виси безкрай
     # 1 опит до 4 мин.: при таймаут повторният клик на бутона проверява само неуспелите
     client = Anthropic(api_key=api_key, timeout=240.0, max_retries=0)
-    messages = [{"role": "user", "content": _build_prompt(name, symbol, is_etf)}]
+    messages = [{"role": "user", "content": prompt or _build_prompt(name, symbol, is_etf)}]
     options = _claude_news_options(model)
     tools = [{"type": options["tool_type"], "name": "web_search", "max_uses": NEWS_MAX_SEARCHES}]
     found_urls, searches, response = {}, 0, None
@@ -323,18 +328,21 @@ def _research_news_claude_once(name: str, symbol: str, is_etf: bool, api_key: st
     sources = [s for s in data.get("sources") or [] if isinstance(s, dict) and s.get("url") in found_urls]
     if not sources:
         sources = [{"title": t, "url": u} for u, t in list(found_urls.items())[:3]]
-    return _news_result(data, sources, searches)
+    return (parse or _news_result)(data, sources, searches)
 
 
 def research_news_many(items: list, provider: str, api_key: str, gemini_model: str = GEMINI_NEWS_DEFAULT_MODEL,
                        on_done=None, gemini_fallback_model: str = GEMINI_DEFAULT_MODEL,
-                       claude_model: str = CLAUDE_NEWS_DEFAULT_MODEL) -> dict:
+                       claude_model: str = CLAUDE_NEWS_DEFAULT_MODEL, make_prompt=None, parse=None) -> dict:
     """items = [(name, symbol, is_etf)] -> {symbol: резултат}; паралелно по NEWS_WORKERS.
-    provider = "Claude" или "Gemini" (api_key е ключът на съответния доставчик)."""
+    provider = "Claude" или "Gemini" (api_key е ключът на съответния доставчик).
+    make_prompt(name, symbol, is_etf) / parse - по избор друг промпт и обработка (по подразбиране новините)."""
     def one(name, symbol, is_etf):
+        prompt = make_prompt(name, symbol, is_etf) if make_prompt else None
         if provider == "Gemini":
-            return research_news_gemini(name, symbol, is_etf, api_key, gemini_model, gemini_fallback_model)
-        return research_news(name, symbol, is_etf, api_key, claude_model)
+            return research_news_gemini(name, symbol, is_etf, api_key, gemini_model, gemini_fallback_model,
+                                        prompt=prompt, parse=parse)
+        return research_news(name, symbol, is_etf, api_key, claude_model, prompt=prompt, parse=parse)
 
     out = {}
     with ThreadPoolExecutor(max_workers=NEWS_WORKERS) as pool:
