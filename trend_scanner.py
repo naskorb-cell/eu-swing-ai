@@ -11,7 +11,7 @@ import streamlit as st
 
 import universe_rules as rules
 from indicators import average_true_range, ema_alignment, resample_ohlc
-from photon import fetch_ohlc_many, instrument_dialog
+from photon import fetch_ohlc_many, install_chart_scripts, instrument_dialog
 from ui_common import section_header
 from universe import (
     apply_manual_universe, curated_file_mtime, load_curated_symbol_info, load_manual_universe, load_universe,
@@ -194,6 +194,7 @@ def render_trend_section():
         st.caption("Равномерен ръст, но EMA20/50/200 не са подредени - често след скорошен пулбек или млад тренд.")
         render_table(only_b, "tr_tbl_b")
 
+    install_chart_scripts()  # стрелката назад затваря прозореца с графиката
     pending = st.session_state.pop("tr_dialog", None)
     if pending:
         instrument_dialog(*pending)
