@@ -77,6 +77,12 @@
       "symbol": "LOCK.MI",
       "added": "2026-10-04",
       "price": 11.854
+    },
+    {
+      "name": "DCO (Deere & Co)",
+      "symbol": "DE",
+      "added": "2026-10-04",
+      "price": 687.0
     }
   ]
 }
