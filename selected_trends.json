@@ -41,6 +41,12 @@
       "symbol": "BCP.LS",
       "added": "2026-10-04",
       "price": 1.1615
+    },
+    {
+      "name": "ZPDE (State Street SPDR S&P U.S. Energy Select Sector (Acc))",
+      "symbol": "ZPDE.DE",
+      "added": "2026-10-04",
+      "price": 45.12
     }
   ]
 }
