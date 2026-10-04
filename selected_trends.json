@@ -5,6 +5,12 @@
       "symbol": "PSX",
       "added": "2026-10-04",
       "price": 264.58
+    },
+    {
+      "name": "INGA (ING Groep)",
+      "symbol": "INGA.AS",
+      "added": "2026-10-04",
+      "price": 30.685
     }
   ]
 }
