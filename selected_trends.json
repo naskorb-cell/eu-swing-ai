@@ -35,6 +35,12 @@
       "symbol": "COP",
       "added": "2026-10-04",
       "price": 126.75
+    },
+    {
+      "name": "BCP (Banco Comercial Portugues)",
+      "symbol": "BCP.LS",
+      "added": "2026-10-04",
+      "price": 1.1615
     }
   ]
 }
