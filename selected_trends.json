@@ -47,6 +47,12 @@
       "symbol": "ZPDE.DE",
       "added": "2026-10-04",
       "price": 45.12
+    },
+    {
+      "name": "QDVF (iShares S&P 500 Energy Sector (Acc))",
+      "symbol": "QDVF.DE",
+      "added": "2026-10-04",
+      "price": 11.796
     }
   ]
 }
