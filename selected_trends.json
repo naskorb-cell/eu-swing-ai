@@ -83,6 +83,12 @@
       "symbol": "DE",
       "added": "2026-10-04",
       "price": 687.0
+    },
+    {
+      "name": "AGS (Ageas)",
+      "symbol": "AGS.BR",
+      "added": "2026-10-04",
+      "price": 73.35
     }
   ]
 }
