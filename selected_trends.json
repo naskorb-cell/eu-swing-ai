@@ -17,6 +17,12 @@
       "symbol": "DELL",
       "added": "2026-10-04",
       "price": 562.52
+    },
+    {
+      "name": "CHV (Chevron)",
+      "symbol": "CVX",
+      "added": "2026-10-04",
+      "price": 206.69
     }
   ]
 }
