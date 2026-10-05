@@ -1784,7 +1784,7 @@ CROSSHAIR_JS = """
   const flushPending = () => {
     while (pending.length && activeNow()) {
       const kind = pending.shift();
-      if ((kind === 'dialog' && dialogOpen()) || (kind === 'cross' && crossOn())) pushEntry(kind);
+      if (kind === 'dialog' && dialogOpen()) pushEntry(kind);
     }
   };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach((t) => doc.addEventListener(t, () => setTimeout(flushPending, 0), true));
@@ -1816,15 +1816,17 @@ CROSSHAIR_JS = """
   w.addEventListener('popstate', (ev) => {
     if (ignorePops > 0) { ignorePops -= 1; return; }
     const depth = (ev.state && ev.state.phDepth) || 0;
-    const kind = stack.pop();
-    if (kind === 'cross') hideAll();
-    else if (kind === 'dialog') { wasOpen = false; closeDialog(); }
-    // едно „назад“ = една стъпка: ако браузърът е прескочил запис (стигнал е по-назад),
-    // не затваряме и прозореца - връщаме му записа, за да го затвори следващото „назад“
-    if (stack.length > depth) {
-      const keep = stack.splice(depth);
-      keep.forEach((k) => requestEntry(k));
+    const dialogDepth = stack.indexOf('dialog') + 1;  // 0 = прозорецът няма запис
+    if (crossOn()) {
+      // кръстът няма собствен запис (Chrome прескача записи, добавени при задържане на пръста):
+      // „назад“ само го скрива и се връща напред до записа на прозореца - без нов pushState,
+      // затова прозорецът остава отворен, а следващото „назад“ го затваря
+      hideAll();
+      if (dialogDepth && depth < dialogDepth) { ignorePops += 1; w.history.go(dialogDepth - depth); }
+      return;
     }
+    if (dialogDepth && depth < dialogDepth) { wasOpen = false; closeDialog(); }
+    stack.splice(depth);
   });
 
   // телефон: задържане на пръста ~0.5 сек = кръст; после пръстът го МЕСТИ (относително, като
@@ -1846,8 +1848,6 @@ CROSSHAIR_JS = """
       drawAt(gd, start.x - r.left, start.y - r.top, true);
       posStart = gd.__phPos;
       if (navigator.vibrate) navigator.vibrate(15);
-      // записът в историята - при вдигането на пръста (тогава Chrome го брои за докосване)
-      if (!stack.includes('cross') && !pending.includes('cross')) pending.push('cross');
     }, 450);
   }, {capture: true, passive: true});
   doc.addEventListener('touchmove', (ev) => {
