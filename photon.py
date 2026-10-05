@@ -1769,9 +1769,26 @@ CROSSHAIR_JS = """
   // „назад“ (стрелката на телефона / браузъра): записи в историята за кръста (телефон) и за
   // изскачащия прозорец с графиката; назад първо скрива кръста, после затваря прозореца -
   // вместо да излиза от приложението
+  // Chrome на телефона ПРЕСКАЧА при „назад“ записи, добавени без истинско докосване
+  // (user activation) - затова записите се добавят само при активно докосване/клик, а ако
+  // в момента няма такова - при следващото (pending).
   const stack = [];
+  const pending = [];
   let ignorePops = 0;
-  const pushEntry = (kind) => { w.history.pushState({ph: kind}, ''); stack.push(kind); };
+  const activeNow = () => !navigator.userActivation || navigator.userActivation.isActive;
+  const pushEntry = (kind) => { stack.push(kind); w.history.pushState({ph: kind, phDepth: stack.length}, ''); };
+  const requestEntry = (kind) => {
+    if (stack.includes(kind) || pending.includes(kind)) return;
+    if (activeNow()) pushEntry(kind); else pending.push(kind);
+  };
+  const flushPending = () => {
+    while (pending.length && activeNow()) {
+      const kind = pending.shift();
+      if ((kind === 'dialog' && dialogOpen()) || (kind === 'cross' && crossOn())) pushEntry(kind);
+    }
+  };
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach((t) => doc.addEventListener(t, () => setTimeout(flushPending, 0), true));
+  const crossOn = () => [...doc.querySelectorAll('.js-plotly-plot')].some((p) => p.__phOn);
   const dialogOpen = () => doc.querySelector('[role="dialog"]');
   const closeDialog = () => {
     const dlg = dialogOpen(); if (!dlg) return;
@@ -1781,7 +1798,10 @@ CROSSHAIR_JS = """
   let wasOpen = false;
   const watchDialog = () => {
     const open = !!dialogOpen();
-    if (open && !wasOpen) pushEntry('dialog');
+    if (open && !wasOpen) requestEntry('dialog');
+    if (!open && wasOpen) {
+      const i = pending.indexOf('dialog'); if (i >= 0) pending.splice(i, 1);
+    }
     if (!open && wasOpen && stack.includes('dialog')) {
       // затворен с X - махаме нашите записи (и на кръста вътре), за да не остане „празно“ назад
       const n = stack.length - stack.indexOf('dialog');
@@ -1793,11 +1813,18 @@ CROSSHAIR_JS = """
   };
   new MutationObserver(watchDialog).observe(doc.body, {childList: true, subtree: true});
   watchDialog();
-  w.addEventListener('popstate', () => {
+  w.addEventListener('popstate', (ev) => {
     if (ignorePops > 0) { ignorePops -= 1; return; }
+    const depth = (ev.state && ev.state.phDepth) || 0;
     const kind = stack.pop();
     if (kind === 'cross') hideAll();
     else if (kind === 'dialog') { wasOpen = false; closeDialog(); }
+    // едно „назад“ = една стъпка: ако браузърът е прескочил запис (стигнал е по-назад),
+    // не затваряме и прозореца - връщаме му записа, за да го затвори следващото „назад“
+    if (stack.length > depth) {
+      const keep = stack.splice(depth);
+      keep.forEach((k) => requestEntry(k));
+    }
   });
 
   // телефон: задържане на пръста ~0.5 сек = кръст; после пръстът го МЕСТИ (относително, като
@@ -1819,7 +1846,8 @@ CROSSHAIR_JS = """
       drawAt(gd, start.x - r.left, start.y - r.top, true);
       posStart = gd.__phPos;
       if (navigator.vibrate) navigator.vibrate(15);
-      if (!stack.includes('cross')) pushEntry('cross');
+      // записът в историята - при вдигането на пръста (тогава Chrome го брои за докосване)
+      if (!stack.includes('cross') && !pending.includes('cross')) pending.push('cross');
     }, 450);
   }, {capture: true, passive: true});
   doc.addEventListener('touchmove', (ev) => {
