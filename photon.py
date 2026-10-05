@@ -1788,7 +1788,6 @@ CROSSHAIR_JS = """
     }
   };
   ['touchend', 'pointerup', 'click', 'keydown'].forEach((t) => doc.addEventListener(t, () => setTimeout(flushPending, 0), true));
-  const crossOn = () => [...doc.querySelectorAll('.js-plotly-plot')].some((p) => p.__phOn);
   const dialogOpen = () => doc.querySelector('[role="dialog"]');
   const closeDialog = () => {
     const dlg = dialogOpen(); if (!dlg) return;
@@ -1817,20 +1816,14 @@ CROSSHAIR_JS = """
     if (ignorePops > 0) { ignorePops -= 1; return; }
     const depth = (ev.state && ev.state.phDepth) || 0;
     const dialogDepth = stack.indexOf('dialog') + 1;  // 0 = прозорецът няма запис
-    if (crossOn()) {
-      // кръстът няма собствен запис (Chrome прескача записи, добавени при задържане на пръста):
-      // „назад“ само го скрива и се връща напред до записа на прозореца - без нов pushState,
-      // затова прозорецът остава отворен, а следващото „назад“ го затваря
-      hideAll();
-      if (dialogDepth && depth < dialogDepth) { ignorePops += 1; w.history.go(dialogDepth - depth); }
-      return;
-    }
+    // кръстът се изключва с повторно задържане на пръста; „назад“ затваря прозореца с графиката
+    hideAll();
     if (dialogDepth && depth < dialogDepth) { wasOpen = false; closeDialog(); }
     stack.splice(depth);
   });
 
   // телефон: задържане на пръста ~0.5 сек = кръст; после пръстът го МЕСТИ (относително, като
-  // тъчпад) - не прескача там, където е пипнал; стрелката назад го скрива
+  // тъчпад) - не прескача там, където е пипнал; ново задържане без движение го изключва
   let timer = null, start = null, touchGd = null, posStart = null;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   doc.addEventListener('touchstart', (ev) => {
@@ -1839,7 +1832,18 @@ CROSSHAIR_JS = """
     if (!gd || ev.touches.length !== 1) return;
     const t = ev.touches[0];
     start = {x: t.clientX, y: t.clientY}; touchGd = gd;
-    if (gd.__phOn) { posStart = gd.__phPos; return; }
+    if (gd.__phOn) {
+      // кръстът е включен: движение на пръста го мести, а повторно задържане (без
+      // движение) го изключва - както се и включва
+      posStart = gd.__phPos;
+      timer = setTimeout(() => {
+        timer = null;
+        gd.__phOn = false;
+        if (gd.__phX) gd.__phX.box.style.display = 'none';
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, 450);
+      return;
+    }
     timer = setTimeout(() => {
       timer = null;
       hideAll();
@@ -1872,7 +1876,8 @@ def install_chart_scripts():
 
 CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
-              "натисни колелото (на телефон: задръж пръста) = кръст с цената; пак колелото / Esc / стрелката назад = скрий · "
+              "натисни колелото = кръст с цената (пак колелото / Esc = скрий); на телефон задръж пръста = кръст, "
+              "пак задръж = скрий, стрелката назад = затвори графиката · "
               "⛶ горе вдясно на графиката = цял екран")
 
 
