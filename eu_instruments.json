@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-04 09:22:58",
+  "fetched_at": "2026-10-05 10:03:40",
   "total": 6029,
   "instruments": [
     {
@@ -38447,7 +38447,7 @@
       "ticker": "M8Gd_EQ",
       "type": "STOCK",
       "workingScheduleId": 54,
-      "isin": "SE0018538068",
+      "isin": "IE000ZVY0237",
       "currencyCode": "EUR",
       "name": "Verve Group Media",
       "shortName": "VRV",
@@ -39759,7 +39759,7 @@
     {
       "ticker": "B4Bd_EQ",
       "type": "STOCK",
-      "workingScheduleId": 125,
+      "workingScheduleId": 73,
       "isin": "DE000A41YD16",
       "currencyCode": "EUR",
       "name": "METRO",
@@ -39767,7 +39767,7 @@
       "maxOpenQuantity": 1011.0,
       "extendedHours": false,
       "addedOn": "2020-01-23T20:57:45.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
+      "exchangeName": "Wiener Börse"
     },
     {
       "ticker": "LYY8d_EQ",
