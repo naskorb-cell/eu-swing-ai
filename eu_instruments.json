@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-05 10:03:40",
+  "fetched_at": "2026-10-06 09:48:36",
   "total": 6029,
   "instruments": [
     {
@@ -4189,19 +4189,6 @@
       "exchangeName": "Euronext Paris"
     },
     {
-      "ticker": "UIM4d_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "LU0147308422",
-      "currencyCode": "EUR",
-      "name": "UBS Core MSCI EMU (Dist)",
-      "shortName": "EMUEUA",
-      "maxOpenQuantity": 20845.0,
-      "extendedHours": false,
-      "addedOn": "2018-06-29T14:55:31.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "FLXUd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -4212,6 +4199,19 @@
       "maxOpenQuantity": 70323.0,
       "extendedHours": false,
       "addedOn": "2026-01-15T15:51:56.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "UIM4d_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "LU0147308422",
+      "currencyCode": "EUR",
+      "name": "UBS Core MSCI EMU (Dist)",
+      "shortName": "EMUEUA",
+      "maxOpenQuantity": 20845.0,
+      "extendedHours": false,
+      "addedOn": "2018-06-29T14:55:31.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
@@ -5684,19 +5684,6 @@
       "exchangeName": "Gettex"
     },
     {
-      "ticker": "IPRPa_EQ",
-      "type": "ETF",
-      "workingScheduleId": 164,
-      "isin": "IE00B0M63284",
-      "currencyCode": "EUR",
-      "name": "iShares European Property Yield (Dist)",
-      "shortName": "IPRP",
-      "maxOpenQuantity": 132625.0,
-      "extendedHours": false,
-      "addedOn": "2023-06-21T16:25:04.000+03:00",
-      "exchangeName": "Euronext Amsterdam"
-    },
-    {
       "ticker": "IG34d_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -5708,6 +5695,19 @@
       "extendedHours": false,
       "addedOn": "2025-08-05T16:56:55.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "IPRPa_EQ",
+      "type": "ETF",
+      "workingScheduleId": 164,
+      "isin": "IE00B0M63284",
+      "currencyCode": "EUR",
+      "name": "iShares European Property Yield (Dist)",
+      "shortName": "IPRP",
+      "maxOpenQuantity": 132625.0,
+      "extendedHours": false,
+      "addedOn": "2023-06-21T16:25:04.000+03:00",
+      "exchangeName": "Euronext Amsterdam"
     },
     {
       "ticker": "HEDLd_EQ",
@@ -23592,7 +23592,7 @@
       "currencyCode": "EUR",
       "name": "Ibiden",
       "shortName": "IBI",
-      "maxOpenQuantity": 6.0,
+      "maxOpenQuantity": 12.0,
       "extendedHours": false,
       "addedOn": "2026-09-17T18:29:02.000+03:00",
       "exchangeName": "Gettex"
@@ -23845,19 +23845,6 @@
       "exchangeName": "Borsa Italiana"
     },
     {
-      "ticker": "LYXDd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "LU1287023185",
-      "currencyCode": "EUR",
-      "name": "Amundi Euro Government Bond 7-10Y (Acc)",
-      "shortName": "LYXD",
-      "maxOpenQuantity": 25133.0,
-      "extendedHours": false,
-      "addedOn": "2025-08-01T15:24:16.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "IUQd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -23869,6 +23856,19 @@
       "extendedHours": false,
       "addedOn": "2026-09-16T18:15:21.000+03:00",
       "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "LYXDd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "LU1287023185",
+      "currencyCode": "EUR",
+      "name": "Amundi Euro Government Bond 7-10Y (Acc)",
+      "shortName": "LYXD",
+      "maxOpenQuantity": 25133.0,
+      "extendedHours": false,
+      "addedOn": "2025-08-01T15:24:16.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "HJAPd_EQ",
@@ -28837,19 +28837,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "4VLd_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 172,
-      "isin": "JE00B55Q3P39",
-      "currencyCode": "EUR",
-      "name": "Genel Energy",
-      "shortName": "4VL",
-      "maxOpenQuantity": 926.0,
-      "extendedHours": false,
-      "addedOn": "2026-09-23T17:42:50.000+03:00",
-      "exchangeName": "Gettex"
-    },
-    {
       "ticker": "3IBd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -28860,6 +28847,19 @@
       "maxOpenQuantity": 508.0,
       "extendedHours": false,
       "addedOn": "2026-09-21T19:07:39.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "4VLd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "JE00B55Q3P39",
+      "currencyCode": "EUR",
+      "name": "Genel Energy",
+      "shortName": "4VL",
+      "maxOpenQuantity": 926.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-23T17:42:50.000+03:00",
       "exchangeName": "Gettex"
     },
     {
@@ -29422,19 +29422,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "EUFGd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE00078SFIQ6",
-      "currencyCode": "EUR",
-      "name": "iShares Europe Foreign Focus (Acc)",
-      "shortName": "EUFG",
-      "maxOpenQuantity": 1023123.0,
-      "extendedHours": false,
-      "addedOn": "2026-05-05T13:09:08.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "C8MQd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -29446,6 +29433,19 @@
       "extendedHours": false,
       "addedOn": "2026-09-23T17:42:18.000+03:00",
       "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "EUFGd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE00078SFIQ6",
+      "currencyCode": "EUR",
+      "name": "iShares Europe Foreign Focus (Acc)",
+      "shortName": "EUFG",
+      "maxOpenQuantity": 1023123.0,
+      "extendedHours": false,
+      "addedOn": "2026-05-05T13:09:08.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "RY6d_EQ",
@@ -30475,19 +30475,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "9SG0d_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 172,
-      "isin": "AU0000364754",
-      "currencyCode": "EUR",
-      "name": "SGH",
-      "shortName": "9SG0",
-      "maxOpenQuantity": 29.0,
-      "extendedHours": false,
-      "addedOn": "2026-09-23T17:42:36.000+03:00",
-      "exchangeName": "Gettex"
-    },
-    {
       "ticker": "213d_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -30498,6 +30485,19 @@
       "maxOpenQuantity": 2579.0,
       "extendedHours": false,
       "addedOn": "2026-09-22T17:59:31.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "9SG0d_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "AU0000364754",
+      "currencyCode": "EUR",
+      "name": "SGH",
+      "shortName": "9SG0",
+      "maxOpenQuantity": 29.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-23T17:42:36.000+03:00",
       "exchangeName": "Gettex"
     },
     {
@@ -31229,19 +31229,6 @@
       "exchangeName": "Gettex"
     },
     {
-      "ticker": "IS3Rd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE00BP3QZ825",
-      "currencyCode": "EUR",
-      "name": "iShares Edge MSCI World Momentum Factor (Acc)",
-      "shortName": "IS3R",
-      "maxOpenQuantity": 47637.0,
-      "extendedHours": false,
-      "addedOn": "2021-04-05T20:24:16.000+03:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "3LPAp_EQ",
       "type": "ETF",
       "workingScheduleId": 75,
@@ -31253,6 +31240,19 @@
       "extendedHours": false,
       "addedOn": "2021-09-07T16:27:01.000+03:00",
       "exchangeName": "Borsa Italiana"
+    },
+    {
+      "ticker": "IS3Rd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE00BP3QZ825",
+      "currencyCode": "EUR",
+      "name": "iShares Edge MSCI World Momentum Factor (Acc)",
+      "shortName": "IS3R",
+      "maxOpenQuantity": 47637.0,
+      "extendedHours": false,
+      "addedOn": "2021-04-05T20:24:16.000+03:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "XCJDd_EQ",
@@ -33712,19 +33712,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "UHRNd_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 172,
-      "isin": "CH0012255144",
-      "currencyCode": "EUR",
-      "name": "Swatch",
-      "shortName": "UHRN",
-      "maxOpenQuantity": 18.0,
-      "extendedHours": false,
-      "addedOn": "2026-09-18T18:42:59.000+03:00",
-      "exchangeName": "Gettex"
-    },
-    {
       "ticker": "M0LYd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -33735,6 +33722,19 @@
       "maxOpenQuantity": 624.0,
       "extendedHours": false,
       "addedOn": "2026-09-21T19:07:48.000+03:00",
+      "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "UHRNd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "CH0012255144",
+      "currencyCode": "EUR",
+      "name": "Swatch",
+      "shortName": "UHRN",
+      "maxOpenQuantity": 18.0,
+      "extendedHours": false,
+      "addedOn": "2026-09-18T18:42:59.000+03:00",
       "exchangeName": "Gettex"
     },
     {
@@ -44858,7 +44858,7 @@
       "workingScheduleId": 54,
       "isin": "DE000A3H2135",
       "currencyCode": "EUR",
-      "name": "Binect",
+      "name": "Maxx26",
       "shortName": "MA10",
       "maxOpenQuantity": 378.0,
       "extendedHours": false,
@@ -46959,19 +46959,6 @@
       "exchangeName": "Gettex"
     },
     {
-      "ticker": "XTZSd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "GB00BMWB4803",
-      "currencyCode": "EUR",
-      "name": "CoinShares Tezos Staking",
-      "shortName": "XTZS",
-      "maxOpenQuantity": 2403035.0,
-      "extendedHours": false,
-      "addedOn": "2025-02-13T12:58:22.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "ALTTUp_EQ",
       "type": "STOCK",
       "workingScheduleId": 76,
@@ -46983,6 +46970,19 @@
       "extendedHours": false,
       "addedOn": "2022-10-20T16:17:08.000+03:00",
       "exchangeName": "Euronext Paris"
+    },
+    {
+      "ticker": "XTZSd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "GB00BMWB4803",
+      "currencyCode": "EUR",
+      "name": "CoinShares Tezos Staking",
+      "shortName": "XTZS",
+      "maxOpenQuantity": 2403035.0,
+      "extendedHours": false,
+      "addedOn": "2025-02-13T12:58:22.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "XMTWd_EQ",
@@ -47180,19 +47180,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "LITUm_EQ",
-      "type": "ETF",
-      "workingScheduleId": 75,
-      "isin": "IE00BLCHJN13",
-      "currencyCode": "EUR",
-      "name": "Global X Lithium & Battery Tech (Acc)",
-      "shortName": "LITU",
-      "maxOpenQuantity": 343088.0,
-      "extendedHours": false,
-      "addedOn": "2022-03-17T16:33:02.000+02:00",
-      "exchangeName": "Borsa Italiana"
-    },
-    {
       "ticker": "9GAGd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -47204,6 +47191,19 @@
       "extendedHours": false,
       "addedOn": "2023-10-04T11:41:22.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "LITUm_EQ",
+      "type": "ETF",
+      "workingScheduleId": 75,
+      "isin": "IE00BLCHJN13",
+      "currencyCode": "EUR",
+      "name": "Global X Lithium & Battery Tech (Acc)",
+      "shortName": "LITU",
+      "maxOpenQuantity": 343088.0,
+      "extendedHours": false,
+      "addedOn": "2022-03-17T16:33:02.000+02:00",
+      "exchangeName": "Borsa Italiana"
     },
     {
       "ticker": "ERAp_EQ",
@@ -54642,19 +54642,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "LUNA_AT_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 73,
-      "isin": "DK0061804697",
-      "currencyCode": "EUR",
-      "name": "H Lundbeck (Class A)",
-      "shortName": "LUNA",
-      "maxOpenQuantity": 137.0,
-      "extendedHours": false,
-      "addedOn": "2026-06-03T14:13:32.000+03:00",
-      "exchangeName": "Wiener Börse"
-    },
-    {
       "ticker": "BCYd_EQ",
       "type": "STOCK",
       "workingScheduleId": 54,
@@ -54666,6 +54653,19 @@
       "extendedHours": false,
       "addedOn": "2024-12-31T14:45:44.000+02:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "LUNA_AT_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 73,
+      "isin": "DK0061804697",
+      "currencyCode": "EUR",
+      "name": "H Lundbeck (Class A)",
+      "shortName": "LUNA",
+      "maxOpenQuantity": 137.0,
+      "extendedHours": false,
+      "addedOn": "2026-06-03T14:13:32.000+03:00",
+      "exchangeName": "Wiener Börse"
     },
     {
       "ticker": "8ZId_EQ",
@@ -63976,19 +63976,6 @@
       "exchangeName": "Deutsche Börse Xetra"
     },
     {
-      "ticker": "SEUAd_EQ",
-      "type": "ETF",
-      "workingScheduleId": 166,
-      "isin": "IE000IUNJSL2",
-      "currencyCode": "EUR",
-      "name": "SPDR Bloomberg 0-3 Year Euro Corporate Bond (Acc)",
-      "shortName": "SEUA",
-      "maxOpenQuantity": 395527.0,
-      "extendedHours": false,
-      "addedOn": "2026-01-14T17:34:07.000+02:00",
-      "exchangeName": "Deutsche Börse Xetra"
-    },
-    {
       "ticker": "SEG1d_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -64000,6 +63987,19 @@
       "extendedHours": false,
       "addedOn": "2026-09-18T18:42:28.000+03:00",
       "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "SEUAd_EQ",
+      "type": "ETF",
+      "workingScheduleId": 166,
+      "isin": "IE000IUNJSL2",
+      "currencyCode": "EUR",
+      "name": "SPDR Bloomberg 0-3 Year Euro Corporate Bond (Acc)",
+      "shortName": "SEUA",
+      "maxOpenQuantity": 395527.0,
+      "extendedHours": false,
+      "addedOn": "2026-01-14T17:34:07.000+02:00",
+      "exchangeName": "Deutsche Börse Xetra"
     },
     {
       "ticker": "ORPp_EQ",
@@ -74961,19 +74961,6 @@
       "exchangeName": "Gettex"
     },
     {
-      "ticker": "CAFe_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 74,
-      "isin": "ES0121975009",
-      "currencyCode": "EUR",
-      "name": "Construcciones y Auxiliar de Ferrocarriles",
-      "shortName": "CAF",
-      "maxOpenQuantity": 1474.0,
-      "extendedHours": false,
-      "addedOn": "2020-11-20T12:35:57.000+02:00",
-      "exchangeName": "Bolsa de Madrid"
-    },
-    {
       "ticker": "6BFd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
@@ -74985,6 +74972,19 @@
       "extendedHours": false,
       "addedOn": "2025-01-24T14:51:26.000+02:00",
       "exchangeName": "Gettex"
+    },
+    {
+      "ticker": "CAFe_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 74,
+      "isin": "ES0121975009",
+      "currencyCode": "EUR",
+      "name": "Construcciones y Auxiliar de Ferrocarriles",
+      "shortName": "CAF",
+      "maxOpenQuantity": 1474.0,
+      "extendedHours": false,
+      "addedOn": "2020-11-20T12:35:57.000+02:00",
+      "exchangeName": "Bolsa de Madrid"
     },
     {
       "ticker": "PLNWp_EQ",
