@@ -1074,7 +1074,9 @@ def instrument_dialog(name: str, symbol: str, actions=None):
         if cols["Отчет"]:
             facts.append(f"Отчет: {cols['Отчет']}")
         st.markdown(" · ".join(facts))
-        tab_chart, tab_news = st.tabs(["📈 Графика", "📰 Новини"])
+        tab_chart, tab_news, tab_help = st.tabs(["📈 Графика", "📰 Новини", "ℹ️ Помощ"])
+        with tab_help:
+            st.markdown("**Как се работи с графиката**\n\n" + "\n".join(f"- {part}" for part in CHART_HINT.split(" · ")))
         with tab_chart:
             swing_order_daily, min_range_atr = st.session_state.get("ph_chart_params", (3, 3.0))
             render_photon_chart(symbol, setup, swing_order_daily, min_range_atr)
@@ -1874,6 +1876,7 @@ def install_chart_scripts():
     st.html(CROSSHAIR_JS, unsafe_allow_javascript=True)
 
 
+CHART_TIMEFRAMES = ["W", "D", "4h"]
 CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото = кръст с цената (пак колелото / Esc = скрий); на телефон задръж пръста = кръст, "
@@ -1907,22 +1910,22 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     poi = (setup.poi_low, setup.poi_high) if setup and setup.poi_low is not None else None
     t2_levels = ([("Цел 2 · седм. съпротива", target2(setup), fmt_pnl(plan["t2"]))]
                  if setup and target2(setup) and target2(setup) > (res_lvl or 0) else [])
-    target1_note = fmt_pnl(plan["t1"]) if setup else ""
-    if setup:
-        st.markdown(pnl_line_html(plan), unsafe_allow_html=True)
+    target1_note = fmt_pnl(plan["t1"]) if setup else ""  # редът „при 1000 €“ е в прозореца над табовете
 
-    size_col, hint_col = st.columns([1, 4], vertical_alignment="center")
+    # рамката (W / D / 4h) и височината - големи бутони един до друг; подсказките са в таба „ℹ️ Помощ“
+    tf_col, size_col = st.columns(2, vertical_alignment="center")
+    with tf_col:
+        st.session_state.setdefault("ph_chart_tf", "D")
+        tf = st.segmented_control("Рамка", CHART_TIMEFRAMES, key="ph_chart_tf", label_visibility="collapsed",
+                                  help="W = седмична · D = дневна · 4h = 4-часова") or "D"
     with size_col:
         st.session_state.setdefault("ph_chart_h", "M")
         st.segmented_control("Височина", list(CHART_HEIGHTS), key="ph_chart_h", label_visibility="collapsed",
                              help="Височина на графиката: S / M / L / XL")
-    with hint_col:
-        st.caption(CHART_HINT)
     install_chart_scripts()
     height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
 
-    tab_w, tab_d, tab_4h = st.tabs(["W", "D", "4h"], default="D")
-    with tab_w:
+    if tf == "W":
         weekly = resample_ohlc(daily, "W")
         levels = t2_levels + ([("Цел 1 · дневна съпротива", res_lvl, target1_note), ("Дневна подкрепа", sup_lvl)]
                             if sup_lvl and res_lvl else []) + stop + entry
@@ -1931,7 +1934,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                             **structure_annotations(find_swing_points(weekly, order=swo_w)))
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
         st.caption("Тренд по седмичните BOS (бичи, докато цената е над силното дъно) и цел 2 - седмичният слаб връх.")
-    with tab_d:
+    elif tf == "D":
         levels = list(t2_levels)
         if sup_lvl and res_lvl:
             levels += [("Цел 1 · дневна съпротива", res_lvl, target1_note),
@@ -1939,7 +1942,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order, height=height,
                             **structure_annotations(find_swing_points(daily, order=order)))
         st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
-    with tab_4h:
+    else:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
         if intraday is None or intraday.empty:
             st.info("Няма 4ч данни за този инструмент.")
