@@ -1859,7 +1859,7 @@ CROSSHAIR_JS = """
   doc.addEventListener('touchmove', (ev) => {
     const t = ev.touches[0];
     if (timer && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) cancel();
-    if (touchGd && touchGd.__phOn && posStart && ev.touches.length === 1) {
+    if (touchGd && touchGd.__phOn && posStart) {
       ev.preventDefault(); ev.stopPropagation();
       drawAt(touchGd, posStart.px + (t.clientX - start.x), posStart.py + (t.clientY - start.y), true);
     }
@@ -1867,58 +1867,6 @@ CROSSHAIR_JS = """
   doc.addEventListener('touchend', cancel, true);
   doc.addEventListener('touchcancel', cancel, true);
   doc.addEventListener('contextmenu', (ev) => { if (plotOf(ev.target)) ev.preventDefault(); }, true);
-
-  // два пръста: разтваряне = увеличаване, свиване = намаляване. В графиката - около средата
-  // между пръстите; върху ценовата скала - само вертикално; върху времевата ос - само
-  // хоризонтално (десният край остава на място, както при влаченето на оста с мишката).
-  // В графиката посоката се определя от наклона на линията между пръстите при допира: до 30° = хоризонтално
-  // (само времето), над 60° = вертикално (само цената), между тях - и двете
-  let pinch = null;
-  const clampK = (k) => Math.min(Math.max(k, 0.2), 5);
-  doc.addEventListener('touchstart', (ev) => {
-    if (ev.touches.length !== 2 || !w.Plotly) return;
-    const gd = plotOf(ev.target);
-    if (!gd || !gd._fullLayout || !gd._fullLayout.xaxis) return;
-    cancel();  // не е задържане за кръста
-    const L = gd._fullLayout, s = L._size, r = gd.getBoundingClientRect();
-    const a = ev.touches[0], b = ev.touches[1];
-    const mx = (a.clientX + b.clientX) / 2 - r.left, my = (a.clientY + b.clientY) / 2 - r.top;
-    const mode = mx > s.l + s.w ? 'y' : (my > s.t + s.h ? 'x' : 'plot');
-    const angle = Math.atan2(Math.abs(a.clientY - b.clientY), Math.abs(a.clientX - b.clientX)) * 180 / Math.PI;
-    const xa = L.xaxis, ya = L.yaxis;
-    pinch = {
-      gd, mode, xa, ya, frame: null,
-      zx: mode === 'x' || (mode === 'plot' && angle < 60),
-      zy: mode === 'y' || (mode === 'plot' && angle > 30),
-      d0: Math.max(Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), 10),
-      x0: xa.range.map((v) => xa.r2l(v)), y0: ya.range.map((v) => ya.r2l(v)),
-      ax: xa.p2l(Math.min(Math.max(mx, s.l), s.l + s.w) - s.l),
-      ay: ya.p2l(Math.min(Math.max(my, s.t), s.t + s.h) - s.t),
-    };
-  }, {capture: true, passive: true});
-  doc.addEventListener('touchmove', (ev) => {
-    if (!pinch || ev.touches.length !== 2) return;
-    ev.preventDefault(); ev.stopPropagation();  // без мащабиране на цялата страница и местене от Plotly
-    const p = pinch, a = ev.touches[0], b = ev.touches[1];
-    const k = clampK(Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / p.d0);
-    const kx = p.zx ? k : 1, ky = p.zy ? k : 1;
-    const upd = {};
-    if (p.mode === 'plot' || p.mode === 'x') {
-      const xr = p.mode === 'x'
-        ? [p.x0[1] - (p.x0[1] - p.x0[0]) / kx, p.x0[1]]
-        : p.x0.map((v) => p.ax + (v - p.ax) / kx);
-      upd['xaxis.range'] = xr.map((v) => p.xa.l2r(v));
-    }
-    if (p.mode === 'plot' || p.mode === 'y') {
-      const mid = p.mode === 'y' ? (p.y0[0] + p.y0[1]) / 2 : p.ay;
-      upd['yaxis.range'] = p.y0.map((v) => p.ya.l2r(mid + (v - mid) / ky));
-    }
-    if (p.frame) cancelAnimationFrame(p.frame);
-    p.frame = requestAnimationFrame(() => w.Plotly.relayout(p.gd, upd));
-  }, {capture: true, passive: false});
-  const endPinch = (ev) => { if (pinch && ev.touches.length < 2) pinch = null; };
-  doc.addEventListener('touchend', endPinch, true);
-  doc.addEventListener('touchcancel', endPinch, true);
 })();
 </script>
 """
@@ -1933,8 +1881,6 @@ CHART_HINT = ("↕ влачи ценовата скала (вдясно) = ра�
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото = кръст с цената (пак колелото / Esc = скрий); на телефон задръж пръста = кръст, "
               "пак задръж = скрий, стрелката назад = затвори графиката · "
-              "два пръста в графиката = зуум (хоризонтално - времето, вертикално - цената), "
-              "върху ценовата скала = разтягане вертикално, върху времевата ос = разтягане хоризонтално · "
               "⛶ горе вдясно на графиката = цял екран")
 
 
