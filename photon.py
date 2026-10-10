@@ -1,6 +1,7 @@
 """Photon Phases стратегията (SMC/MTF, Phase A/B, само long): анализ, скан, таблици, графики."""
 
 import dataclasses
+import hashlib
 import json
 import threading
 from dataclasses import dataclass
@@ -1671,8 +1672,12 @@ CROSSHAIR_JS = """
   // само прозорецът на приложението: в Streamlit Cloud то е в iframe, а родителят е
   // обвивката на хостинга (с „Manage app“) - там графиките ги няма
   const w = window;
-  if (w.__phCrosshair) return;
-  w.__phCrosshair = true;
+  // версия на скрипта: след нова версия на приложението (рестарт без презареждане на страницата)
+  // в прозореца още стои старият скрипт - тогава страницата се презарежда веднъж
+  const VERSION = '__PH_VERSION__';
+  if (w.__phCrosshair === VERSION) return;
+  if (w.__phCrosshair) { w.location.reload(); return; }
+  w.__phCrosshair = VERSION;
   const doc = w.document;
   const plotOf = (el) => el && el.closest ? el.closest('.js-plotly-plot') : null;
   const fmt = (v) => v.toFixed(2);
@@ -1859,7 +1864,7 @@ CROSSHAIR_JS = """
   doc.addEventListener('touchmove', (ev) => {
     const t = ev.touches[0];
     if (timer && start && Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) cancel();
-    if (touchGd && touchGd.__phOn && posStart) {
+    if (touchGd && touchGd.__phOn && posStart && ev.touches.length === 1) {
       ev.preventDefault(); ev.stopPropagation();
       drawAt(touchGd, posStart.px + (t.clientX - start.x), posStart.py + (t.clientY - start.y), true);
     }
@@ -1867,13 +1872,87 @@ CROSSHAIR_JS = """
   doc.addEventListener('touchend', cancel, true);
   doc.addEventListener('touchcancel', cancel, true);
   doc.addEventListener('contextmenu', (ev) => { if (plotOf(ev.target)) ev.preventDefault(); }, true);
+
+  // два пръста: разтваряне = увеличаване, свиване = намаляване. В графиката - около средата
+  // между пръстите; върху ценовата скала - само вертикално; върху времевата ос - само
+  // хоризонтално (десният край остава на място, както при влаченето на оста с мишката).
+  // В графиката посоката се определя от наклона на линията между пръстите при допира: до 30° = хоризонтално
+  // (само времето), над 60° = вертикално (само цената), между тях - и двете
+  let pinch = null, pinchGesture = null;  // pinchGesture - докато има пръст след двупръстов жест
+  const clampK = (k) => Math.min(Math.max(k, 0.2), 5);
+  doc.addEventListener('touchstart', (ev) => {
+    if (ev.touches.length !== 2 || !w.Plotly) return;
+    const a = ev.touches[0], b = ev.touches[1];
+    const gd = plotOf(a.target) || plotOf(b.target);
+    if (!gd || !gd._fullLayout || !gd._fullLayout.xaxis) return;
+    cancel();  // не е задържане за кръста
+    ev.stopPropagation();  // вторият пръст не стига до Plotly (иначе го брои за двоен клик)
+    const L = gd._fullLayout, s = L._size, r = gd.getBoundingClientRect();
+    const mx = (a.clientX + b.clientX) / 2 - r.left, my = (a.clientY + b.clientY) / 2 - r.top;
+    const mode = mx > s.l + s.w ? 'y' : (my > s.t + s.h ? 'x' : 'plot');
+    const angle = Math.atan2(Math.abs(a.clientY - b.clientY), Math.abs(a.clientX - b.clientX)) * 180 / Math.PI;
+    const xa = L.xaxis, ya = L.yaxis;
+    pinchGesture = gd;
+    pinch = {
+      gd, mode, xa, ya, frame: null, last: null,
+      zx: mode === 'x' || (mode === 'plot' && angle < 60),
+      zy: mode === 'y' || (mode === 'plot' && angle > 30),
+      d0: Math.max(Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), 10),
+      x0: xa.range.map((v) => xa.r2l(v)), y0: ya.range.map((v) => ya.r2l(v)),
+      ax: xa.p2l(Math.min(Math.max(mx, s.l), s.l + s.w) - s.l),
+      ay: ya.p2l(Math.min(Math.max(my, s.t), s.t + s.h) - s.t),
+    };
+  }, {capture: true, passive: true});
+  doc.addEventListener('touchmove', (ev) => {
+    if (!pinchGesture) return;
+    ev.preventDefault(); ev.stopPropagation();  // без мащабиране на цялата страница и местене от Plotly
+    if (!pinch || ev.touches.length !== 2) return;  // останалият пръст не мести графиката
+    const p = pinch, a = ev.touches[0], b = ev.touches[1];
+    const k = clampK(Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / p.d0);
+    const kx = p.zx ? k : 1, ky = p.zy ? k : 1;
+    const upd = {};
+    if (p.mode === 'plot' || p.mode === 'x') {
+      const xr = p.mode === 'x'
+        ? [p.x0[1] - (p.x0[1] - p.x0[0]) / kx, p.x0[1]]
+        : p.x0.map((v) => p.ax + (v - p.ax) / kx);
+      upd['xaxis.range'] = xr.map((v) => p.xa.l2r(v));
+    }
+    if (p.mode === 'plot' || p.mode === 'y') {
+      const mid = p.mode === 'y' ? (p.y0[0] + p.y0[1]) / 2 : p.ay;
+      upd['yaxis.range'] = p.y0.map((v) => p.ya.l2r(mid + (v - mid) / ky));
+    }
+    p.last = upd;
+    if (p.frame) cancelAnimationFrame(p.frame);
+    p.frame = requestAnimationFrame(() => w.Plotly.relayout(p.gd, upd));
+  }, {capture: true, passive: false});
+  const endPinch = (ev) => {
+    if (!pinchGesture) return;
+    const gd = pinchGesture;
+    gd._dragged = false;  // Plotly да не довърши своето местене от първия пръст (връща стария диапазон)
+    if (pinch && ev.touches.length < 2) {
+      const last = pinch.last;
+      pinch = null;
+      // за всеки случай - нашият диапазон пак, след като Plotly приключи жеста
+      if (last) setTimeout(() => w.Plotly.relayout(gd, last), 60);
+    }
+    if (ev.touches.length === 0) pinchGesture = null;
+  };
+  doc.addEventListener('touchend', endPinch, true);
+  doc.addEventListener('touchcancel', endPinch, true);
+  // браузърът да не мащабира/скролира страницата върху графиката - жестовете са на скрипта
+  const css = doc.createElement('style');
+  css.textContent = '.js-plotly-plot, .js-plotly-plot * { touch-action: none; }';
+  doc.head.appendChild(css);
 })();
 </script>
 """
+_CHART_JS_VERSION = hashlib.md5(CROSSHAIR_JS.encode()).hexdigest()[:10]
+
+
 def install_chart_scripts():
     """Кръстът, разтягането на скалите и „назад“ за прозореца - инсталира се веднъж на страница
     (скриптът сам пази да не се закачи два пъти)."""
-    st.html(CROSSHAIR_JS, unsafe_allow_javascript=True)
+    st.html(CROSSHAIR_JS.replace("__PH_VERSION__", _CHART_JS_VERSION), unsafe_allow_javascript=True)
 
 
 CHART_TIMEFRAMES = ["W", "D", "4h"]
@@ -1881,6 +1960,8 @@ CHART_HINT = ("↕ влачи ценовата скала (вдясно) = ра�
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото = кръст с цената (пак колелото / Esc = скрий); на телефон задръж пръста = кръст, "
               "пак задръж = скрий, стрелката назад = затвори графиката · "
+              "два пръста в графиката = зуум (хоризонтално - времето, вертикално - цената), "
+              "върху ценовата скала = разтягане вертикално, върху времевата ос = разтягане хоризонтално · "
               "⛶ горе вдясно на графиката = цял екран")
 
 
