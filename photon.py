@@ -917,8 +917,8 @@ LEGEND_MD = f"""
 
 
 def render_legend():
-    with st.expander("ℹ️ Легенда на символите"):
-        st.markdown(LEGEND_MD)
+    """Легендата - в отделен таб „ℹ️ Легенда“ до настройките (не като падащо меню над таблиците)."""
+    st.markdown(LEGEND_MD)
 
 
 def render_photon_strategy(universe: dict = None):
@@ -936,9 +936,11 @@ def render_photon_strategy(universe: dict = None):
     labels = [
         f"✅ Готови ({len(results)})", f"👀 Watchlist ({len(watch_list)})",
         "💼 Позиции" + (f" ({len(positions)})" if positions else ""), "🤖 AI план",
-        "🛠 Настройки" if embedded else "🛠 Универс и настройки",
+        "🛠 Настройки" if embedded else "🛠 Универс и настройки", "ℹ️ Легенда",
     ]
-    tab_ready, tab_watch, tab_pos, tab_ai, tab_settings = st.tabs(labels)
+    tab_ready, tab_watch, tab_pos, tab_ai, tab_settings, tab_legend = st.tabs(labels)
+    with tab_legend:
+        render_legend()
 
     with tab_settings:
         params, liquidity, flags, uploaded_universe = render_settings_tab(universe_controls=not embedded)
@@ -973,7 +975,6 @@ def render_photon_strategy(universe: dict = None):
         elif not results:
             st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента - виж Watchlist.")
         else:
-            render_legend()
             st.caption("Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума. "
                        "Зелено = потвърдено и от анализаторите.")
             shown_ready = sort_control(results, "ph_sort_ready")
@@ -989,7 +990,6 @@ def render_photon_strategy(universe: dict = None):
             st.info(f"Натисни **{scan_label}** горе.")
             df_watch = pd.DataFrame()
         else:
-            render_legend()
             st.caption("Pro Swing потвърден - колоната „Бележка“ казва какво чакаме. Кликни ред за графика и новини.")
             show_far = st.toggle(
                 f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
@@ -1015,7 +1015,6 @@ def render_photon_strategy(universe: dict = None):
         elif "photon_statuses" not in st.session_state:
             st.info("Пусни скан, за да видиш къде е всяка отворена позиция спрямо сигналите.")
         else:
-            render_legend()
             render_positions_status(positions, st.session_state["photon_statuses"], set(tickers.values()), filtered_out,
                                     fund_data, news)
             held_targets = [SimpleNamespace(name=p["name"], symbol=p["symbol"]) for p in positions if p["symbol"]]
