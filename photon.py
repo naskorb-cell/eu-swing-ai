@@ -619,9 +619,10 @@ def current_profile_label() -> str:
     return f"{selected} (с ръчни промени)" if changed else selected
 
 
-def render_settings_tab():
+def render_settings_tab(universe_controls: bool = True):
     """Таб „🛠 Универс и настройки“: профил, разширени плъзгачи, филтри,
     ликвидност, CSV, ръчен списък, обновяване и търсене в универса.
+    universe_controls=False - само настройките на сигналите (универсът е подаден отвън).
     Връща (params, liquidity, filter flags, качения универс)."""
     for k, v in PROFILE_DEFAULTS.items():
         st.session_state.setdefault(k, v)
@@ -672,6 +673,21 @@ def render_settings_tab():
                   help="Ако 4ч CHoCH още няма, но на 1ч цената вече е пробила силния lower high в discount зоната, "
                        "сетъпът е готов: по-ранен вход и по-ниско CHoCH ниво (по-висок R/R), но повече фалшиви сигнали.")
 
+    st.number_input(
+        "💶 Сума за ориентировъчната печалба (€)", min_value=100, max_value=1_000_000, value=DEFAULT_INVESTMENT,
+        step=100, key="ph_invest", help="Колко би вложил в една сделка - за бледите сметки „цел 1 / цел 2 / stop“.",
+    )
+
+    params = {
+        "swing_order_weekly": st.session_state["ph_swo_w"], "swing_order_daily": st.session_state["ph_swo_d"],
+        "min_range_atr": st.session_state["ph_min_range"], "closed_weeks_only": st.session_state.get("ph_closed_w", True),
+        "choch_max_age": st.session_state["ph_choch_age"], "poi_atr_mult": st.session_state["ph_poi_atr"],
+        "stop_atr_buffer": st.session_state["ph_stop_buf"], "min_rr": st.session_state["ph_min_rr"],
+        "choch_1h": st.session_state.get("ph_choch_1h", False),
+    }
+    if not universe_controls:
+        return params, None, None, None
+
     st.markdown("##### 🧹 Филтри на универса")
     f1, f2, f3 = st.columns(3)
     exclude_leveraged = f1.toggle(
@@ -686,11 +702,6 @@ def render_settings_tab():
         "Само Европа + САЩ", value=True, key="ph_excl_overseas",
         help="Скрива акции с основна борса в Азия/Австралия, Канада и др. (.T, .HK, .AX, .TO...): в T212 се търгуват, "
              "когато основната им борса е затворена. Ръчно добавените се сканират винаги.",
-    )
-
-    st.number_input(
-        "💶 Сума за ориентировъчната печалба (€)", min_value=100, max_value=1_000_000, value=DEFAULT_INVESTMENT,
-        step=100, key="ph_invest", help="Колко би вложил в една сделка - за бледите сметки „цел 1 / цел 2 / stop“.",
     )
 
     with st.expander("💧 Ликвидност (месечната селекция вече е филтрирана - тук само вдигаш праговете)"):
@@ -719,13 +730,6 @@ def render_settings_tab():
     with st.expander("📤 Качи списък от InvestingPro (CSV/Excel)"):
         uploaded_universe = render_universe_uploader(key="ph")
 
-    params = {
-        "swing_order_weekly": st.session_state["ph_swo_w"], "swing_order_daily": st.session_state["ph_swo_d"],
-        "min_range_atr": st.session_state["ph_min_range"], "closed_weeks_only": st.session_state.get("ph_closed_w", True),
-        "choch_max_age": st.session_state["ph_choch_age"], "poi_atr_mult": st.session_state["ph_poi_atr"],
-        "stop_atr_buffer": st.session_state["ph_stop_buf"], "min_rr": st.session_state["ph_min_rr"],
-        "choch_1h": st.session_state.get("ph_choch_1h", False),
-    }
     liquidity = (stock_min_cap, stock_min_turnover, etf_min_aum, etf_min_turnover)
     return params, liquidity, (exclude_leveraged, exclude_cash_bond, exclude_overseas), uploaded_universe
 
@@ -836,12 +840,13 @@ def fetch_pending_fund_data(slot):
     st.rerun()
 
 
-def render_status_box(tickers: dict, params: dict):
+def render_status_box(tickers: dict, params: dict, scan_label: str = "🔍 Сканирай пазара"):
     """Горната част: голям бутон за скан, ред със статус и фунията."""
     currencies, _, types = load_curated_symbol_info(curated_file_mtime())
     scan_col, info_col = st.columns([1, 2], vertical_alignment="center")
     with scan_col:
-        clicked = st.button("🔍 Сканирай пазара", type="primary", key="ph_scan_btn", width="stretch")
+        clicked = st.button(scan_label, type="primary", key="ph_scan_btn", width="stretch",
+                            disabled=not tickers)
     with info_col:
         last = st.session_state.get("photon_funnel")
         last_txt = f"Последен скан: **{last[2]}**" if last else "Още няма скан в тази сесия"
@@ -916,7 +921,11 @@ def render_legend():
         st.markdown(LEGEND_MD)
 
 
-def render_photon_strategy():
+def render_photon_strategy(universe: dict = None):
+    """universe={име: символ} - сканират се само те (таб в „📈 Възходящ тренд“ за „⭐ Селектирани“):
+    без настройките на универса, а прозорецът с графиката се отваря от извикващата секция."""
+    embedded = universe is not None
+    scan_label = "🔍 Сканирай Селектираните" if embedded else "🔍 Сканирай пазара"
     status_box = st.container()
     # хоризонтът е в таба с настройките (рисува се по-долу) - стойността е от сесията
     st.session_state.setdefault("ph_horizon", "~1 месец")
@@ -926,13 +935,17 @@ def render_photon_strategy():
     positions = fetch_held_positions()
     labels = [
         f"✅ Готови ({len(results)})", f"👀 Watchlist ({len(watch_list)})",
-        "💼 Позиции" + (f" ({len(positions)})" if positions else ""), "🤖 AI план", "🛠 Универс и настройки",
+        "💼 Позиции" + (f" ({len(positions)})" if positions else ""), "🤖 AI план",
+        "🛠 Настройки" if embedded else "🛠 Универс и настройки",
     ]
     tab_ready, tab_watch, tab_pos, tab_ai, tab_settings = st.tabs(labels)
 
     with tab_settings:
-        params, liquidity, flags, uploaded_universe = render_settings_tab()
-        tickers, filtered_out = build_scan_universe(liquidity, flags, uploaded_universe)
+        params, liquidity, flags, uploaded_universe = render_settings_tab(universe_controls=not embedded)
+        if embedded:
+            tickers, filtered_out = dict(universe), {}
+        else:
+            tickers, filtered_out = build_scan_universe(liquidity, flags, uploaded_universe)
         st.markdown("##### 📈 Графика на произволен инструмент")
         if tickers:
             selected_name = st.selectbox("Инструмент", list(tickers.keys()), key="ph_chart_select", index=None,
@@ -941,7 +954,7 @@ def render_photon_strategy():
                 open_instrument(selected_name, tickers[selected_name])
 
     with status_box:
-        render_status_box(tickers, params)
+        render_status_box(tickers, params, scan_label)
         fund_slot = st.empty()
 
     held = held_symbols(positions)
@@ -956,7 +969,7 @@ def render_photon_strategy():
 
     with tab_ready:
         if not scanned:
-            st.info("Натисни **🔍 Сканирай пазара** горе.")
+            st.info(f"Натисни **{scan_label}** горе.")
         elif not results:
             st.info("Няма Phase A/B сетъпи с пълно потвърждение в момента - виж Watchlist.")
         else:
@@ -973,7 +986,7 @@ def render_photon_strategy():
     with tab_watch:
         news_targets = list(results)
         if not scanned:
-            st.info("Натисни **🔍 Сканирай пазара** горе.")
+            st.info(f"Натисни **{scan_label}** горе.")
             df_watch = pd.DataFrame()
         else:
             render_legend()
@@ -1030,6 +1043,12 @@ def render_photon_strategy():
             # анализът остава видим и след други кликове (всеки клик = rerun)
             st.markdown(st.session_state["photon_ai_text"])
 
+    if embedded:
+        # прозорецът се отваря от „📈 Възходящ тренд“ (с бутона за Селектирани); анализаторите - само ако
+        # няма чакащ прозорец (тегленето прерисува страницата)
+        if not (st.session_state.get("ph_dialog") or st.session_state.get("tr_dialog")):
+            fetch_pending_fund_data(fund_slot)
+        return
     install_chart_scripts()  # преди прозореца - за да го затваря стрелката назад
     # изскачащият прозорец с графика/новини (от клик по ред, карта или новина)
     pending = st.session_state.pop("ph_dialog", None)
