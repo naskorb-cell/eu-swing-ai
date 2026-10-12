@@ -95,6 +95,12 @@
       "symbol": "KO",
       "added": "2026-10-04",
       "price": 85.65
+    },
+    {
+      "name": "OMV (OMV)",
+      "symbol": "OMV.VI",
+      "added": "2026-10-12",
+      "price": 71.65
     }
   ]
 }
