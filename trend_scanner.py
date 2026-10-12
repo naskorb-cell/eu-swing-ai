@@ -21,7 +21,8 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    fetch_ohlc_many, install_chart_scripts, instrument_dialog, news_provider, render_news_section, today_news,
+    fetch_ohlc_many, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
+    render_photon_strategy, today_news,
 )
 from ui_common import claude_news_model, gemini_model, gemini_news_model, section_header
 from universe import (
@@ -381,14 +382,22 @@ def render_trend_section():
     elif raw is not None:
         st.warning("Няма данни - опитай пак след малко (Yahoo понякога ограничава заявките).")
 
-    labels = [f"⭐ Селектирани ({len(selected)})"]
+    labels = [f"⭐ Селектирани ({len(selected)})", f"🧭 Photon вход ({len(selected)})"]
     if scanned:
         labels += [f"🤝 И двата ({len(both)})", f"📐 Само А - EMA ({len(only_a)})", f"📈 Само Б - качество ({len(only_b)})"]
     tabs = st.tabs(labels)
     with tabs[0]:
         render_selected(selected, news, raw if scanned else None, (min_r2, min_slope, atr_range))
+    with tabs[1]:
+        # Photon Phases (BOS/CHoCH, Phase A/B) - само за селектираните: къде и кога да се влезе
+        st.caption("Photon Phases (BOS/CHoCH, Phase A/B, само long) сканира **само ⭐ Селектирани** - "
+                   "кога и на каква цена да се влезе в избраните трендове.")
+        if selected:
+            render_photon_strategy(universe={x["name"]: x["symbol"] for x in selected})
+        else:
+            st.info("Още няма селектирани - добави от „🤝 И двата“ (клик по ред → ⭐ Добави в Селектирани).")
     if scanned:
-        with tabs[1]:
+        with tabs[2]:
             st.caption("Минават и двата метода. Провери новините, разгледай графиката и добави най-добрите в ⭐ Селектирани.")
             render_table(both, "tr_tbl_both", news)
             if not both.empty:
@@ -396,10 +405,10 @@ def render_trend_section():
                 section_header("📰 Новинарска подкрепа", status="info", subtitle="Само за групата „И двата“ (А + Б)")
                 render_news_section([SimpleNamespace(name=n, symbol=sym) for n, sym in zip(both["Име"], both["Тикер"])],
                                     news, key="tr_news")
-        with tabs[2]:
+        with tabs[3]:
             st.caption("EMA-тата са подредени, но ръстът е накъсан или бавен (нисък R² или наклон).")
             render_table(only_a, "tr_tbl_a", news)
-        with tabs[3]:
+        with tabs[4]:
             st.caption("Равномерен ръст, но EMA20/50/200 не са подредени - често след скорошен пулбек или млад тренд.")
             render_table(only_b, "tr_tbl_b", news)
     elif raw is None:

@@ -6,7 +6,6 @@ indicators, portfolio_ui, ai_client, ui_common; legacy_strategies пази
 
 import streamlit as st
 
-from photon import render_photon_strategy
 from portfolio_ui import render_portfolio_section
 from trend_scanner import render_trend_section
 from ai_client import AI_PROVIDERS
@@ -36,7 +35,6 @@ with nav_col:
     strategy = st.radio(
         "Избери секция:",
         [
-            "🧭 Photon Phases (BOS/CHoCH, Phase A/B, long-only)",
             "📈 Възходящ тренд (D + W)",
             "💼 Портфолио & P&L",
         ],
@@ -56,9 +54,8 @@ with ai_col:
 
 st.divider()
 
-if strategy.startswith("🧭"):
-    render_photon_strategy()
-elif strategy.startswith("📈"):
+# Photon Phases вече е таб в „📈 Възходящ тренд“ и сканира само „⭐ Селектирани“ (решение на Наско)
+if strategy.startswith("📈"):
     render_trend_section()
 else:
     render_portfolio_section()
