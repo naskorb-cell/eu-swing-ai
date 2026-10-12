@@ -73,20 +73,30 @@ def save_selected(items: list, message: str) -> bool:
     return True
 
 
+# бутонът за Селектирани - само символ горе в прозореца, на реда на името (до X), а не цял ред
+SELECTION_ACTION_CSS = """<style>
+div[role="dialog"] { position: relative; }
+.st-key-tr_sel_action { position: absolute; top: 8px; right: 64px; z-index: 50; width: auto !important; }
+.st-key-tr_sel_action button { min-height: 36px; padding: 2px 10px; font-size: 1.15rem; }
+</style>"""
+
+
 def selection_actions(name: str, symbol: str, price=None):
-    """Бутонът в прозореца с графиката: добави в / премахни от „⭐ Селектирани“."""
+    """Символът в прозореца с графиката: ⭐ добави в / 🗑 премахни от „⭐ Селектирани“."""
     items = load_selected()
-    if any(x["symbol"] == symbol for x in items):
-        if st.button("🗑 Премахни от ⭐ Селектирани", key=f"tr_unsel_{symbol}", width="stretch"):
-            if save_selected([x for x in items if x["symbol"] != symbol], f"Селектирани: махнат {name}"):
-                st.toast(f"{name} е премахнат от селектираните")
+    with st.container(key="tr_sel_action"):
+        st.markdown(SELECTION_ACTION_CSS, unsafe_allow_html=True)  # вътре - да не заема ред в прозореца
+        if any(x["symbol"] == symbol for x in items):
+            if st.button("🗑", key=f"tr_unsel_{symbol}", help="Премахни от ⭐ Селектирани"):
+                if save_selected([x for x in items if x["symbol"] != symbol], f"Селектирани: махнат {name}"):
+                    st.toast(f"{name} е премахнат от селектираните")
+                    st.rerun()
+        elif st.button("⭐", key=f"tr_sel_{symbol}", type="primary", help="Добави в ⭐ Селектирани"):
+            item = {"name": name, "symbol": symbol, "added": date.today().isoformat(),
+                    "price": round(float(price), 4) if price is not None else None}
+            if save_selected(items + [item], f"Селектирани: добавен {name}"):
+                st.toast(f"⭐ {name} е добавен в селектираните")
                 st.rerun()
-    elif st.button("⭐ Добави в Селектирани", key=f"tr_sel_{symbol}", type="primary", width="stretch"):
-        item = {"name": name, "symbol": symbol, "added": date.today().isoformat(),
-                "price": round(float(price), 4) if price is not None else None}
-        if save_selected(items + [item], f"Селектирани: добавен {name}"):
-            st.toast(f"⭐ {name} е добавен в селектираните")
-            st.rerun()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

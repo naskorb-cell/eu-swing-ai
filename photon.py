@@ -1092,7 +1092,8 @@ def instrument_dialog(name: str, symbol: str, actions=None):
             facts.append(f"Потенциал до целта: {cols['Потенциал до целта (%)']:.1f}%")
         if cols["Отчет"]:
             facts.append(f"Отчет: {cols['Отчет']}")
-        st.markdown(" · ".join(facts))
+        if cols["Анализатори"] or cols["Отчет"] or cols["Потенциал до целта (%)"] is not None:
+            st.markdown(" · ".join(facts))  # без празния ред „— няма данни“ (ETF / без покритие)
         tab_chart, tab_news, tab_help = st.tabs(["📈 Графика", "📰 Новини", "ℹ️ Помощ"])
         with tab_help:
             st.markdown("**Как се работи с графиката**\n\n" + "\n".join(f"- {part}" for part in CHART_HINT.split(" · ")))
