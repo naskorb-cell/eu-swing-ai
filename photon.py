@@ -1678,8 +1678,11 @@ def choch_annotations(df_with_swings: pd.DataFrame, pullback_start) -> dict:
     }
 
 
+# лентата на Plotly горе вдясно - само „автомащаб“ и „начален изглед“: зуумът и местенето са с колелото,
+# влаченето и двата пръста, а вляво в същата ивица стоят бутоните W/D/4h и S/M/L
 CHART_CONFIG = {"displaylogo": False, "scrollZoom": True,
-                "modeBarButtonsToRemove": ["select2d", "lasso2d", "toggleSpikelines"]}
+                "modeBarButtonsToRemove": ["select2d", "lasso2d", "toggleSpikelines", "zoom2d", "pan2d",
+                                           "zoomIn2d", "zoomOut2d", "toImage"]}
 CHART_HEIGHTS = {"S": 420, "M": 560, "L": 720, "XL": 900}
 # Кръст при натискане на средния бутон (колелото): линии през цялата графика + цената на
 # курсора върху ценовата скала. Plotly няма такъв режим, затова е малък скрипт върху
@@ -1974,6 +1977,15 @@ def install_chart_scripts():
 
 
 CHART_TIMEFRAMES = ["W", "D", "4h"]
+CHART_CTRL_STRIP = 52  # px празна ивица горе в графиката - там стоят бутоните W/D/4h и S/M/L
+# бутоните - слой в горния ляв ъгъл на графиката (контейнерите с key получават клас st-key-<key>)
+CHART_CTRL_CSS = """<style>
+.st-key-ph_chart_box { position: relative; gap: 0; }
+.st-key-ph_chart_ctrl { position: absolute; top: 8px; left: 10px; z-index: 30; width: auto !important;
+  flex-wrap: nowrap; }
+.st-key-ph_chart_slot .stAlert { margin-top: 52px; }
+.st-key-ph_chart_ctrl button { min-height: 32px; padding: 2px 10px; background: rgba(13, 18, 24, .85); }
+</style>"""
 CHART_HINT = ("↕ влачи ценовата скала (вдясно) = разтягане вертикално · ↔ влачи времевата "
               "ос (долу) = разтягане хоризонтално · влачи в графиката = местене · колелото = zoom · двоен клик = връщане · "
               "натисни колелото = кръст с цената (пак колелото / Esc = скрий); на телефон задръж пръста = кръст, "
@@ -2011,18 +2023,20 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                  if setup and target2(setup) and target2(setup) > (res_lvl or 0) else [])
     target1_note = fmt_pnl(plan["t1"]) if setup else ""  # редът „при 1000 €“ е в прозореца над табовете
 
-    # рамката (W / D / 4h) и височината - големи бутони един до друг; подсказките са в таба „ℹ️ Помощ“
-    tf_col, size_col = st.columns(2, vertical_alignment="center")
-    with tf_col:
+    # рамката (W / D / 4h) и височината - бутони ВЪРХУ графиката (горе вляво, в празна ивица над свещите),
+    # за да се местят заедно с нея; подсказките са в таба „ℹ️ Помощ“
+    st.markdown(CHART_CTRL_CSS, unsafe_allow_html=True)
+    box = st.container(key="ph_chart_box")
+    with box.container(key="ph_chart_ctrl", horizontal=True, gap="small"):
         st.session_state.setdefault("ph_chart_tf", "D")
         tf = st.segmented_control("Рамка", CHART_TIMEFRAMES, key="ph_chart_tf", label_visibility="collapsed",
                                   help="W = седмична · D = дневна · 4h = 4-часова") or "D"
-    with size_col:
         st.session_state.setdefault("ph_chart_h", "M")
         st.segmented_control("Височина", list(CHART_HEIGHTS), key="ph_chart_h", label_visibility="collapsed",
                              help="Височина на графиката: S / M / L / XL")
     install_chart_scripts()
     height = CHART_HEIGHTS.get(st.session_state.get("ph_chart_h") or "M", 560)
+    chart_slot = box.container(key="ph_chart_slot")
 
     if tf == "W":
         weekly = resample_ohlc(daily, "W")
@@ -2031,7 +2045,8 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
         swo_w = st.session_state.get("ph_swo_w", 2)
         fig = candle_figure(weekly, levels, visible_bars=104, swings_order=swo_w, height=height,
                             **structure_annotations(find_swing_points(weekly, order=swo_w)))
-        st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
+        fig.update_layout(margin_t=CHART_CTRL_STRIP)
+        chart_slot.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_w_{symbol}")
         st.caption("Тренд по седмичните BOS (бичи, докато цената е над силното дъно) и цел 2 - седмичният слаб връх.")
     elif tf == "D":
         levels = list(t2_levels)
@@ -2040,18 +2055,20 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
                        ("Equilibrium 50%", sup_lvl + (res_lvl - sup_lvl) / 2), ("Дневна подкрепа", sup_lvl)]
         fig = candle_figure(daily, levels + stop + entry, poi=poi, visible_bars=130, swings_order=order, height=height,
                             **structure_annotations(find_swing_points(daily, order=order)))
-        st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
+        fig.update_layout(margin_t=CHART_CTRL_STRIP)
+        chart_slot.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_d_{symbol}")
     else:
         intraday = fetch_ohlc_batch((symbol,), "60d", "60m").get(symbol)
         if intraday is None or intraday.empty:
-            st.info("Няма 4ч данни за този инструмент.")
+            chart_slot.info("Няма 4ч данни за този инструмент.")
         else:
             h4 = resample_session_halves(intraday)
             levels = ([(f"CHoCH ниво ({setup.choch_tf})" if setup.choch_tf != "4ч" else "CHoCH ниво", setup.choch_level)]
                       if setup else []) + stop + entry
             fig = candle_figure(h4, levels, poi=poi, visible_bars=60, categorical=True, swings_order=1, height=height,
                                 **choch_annotations(find_swing_points(h4, order=1), setup.pullback_start if setup else None))
-            st.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
+            fig.update_layout(margin_t=CHART_CTRL_STRIP)
+            chart_slot.plotly_chart(fig, width="stretch", config=CHART_CONFIG, key=f"chart_4h_{symbol}")
             if setup:
                 st.caption("Phase B: вход при затваряне над CHoCH нивото" + (" - ✓ вече пробито" if setup.choch_now else "")
                            + " · Phase A: вход в POI зоната.")
