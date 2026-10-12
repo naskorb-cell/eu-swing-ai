@@ -339,30 +339,29 @@ def render_table(df: pd.DataFrame, key: str, news: dict):
 
 
 def render_trend_section():
-    section_header(
-        "📈 Възходящ тренд на дневна и седмична графика", status="info",
-        subtitle="Два метода един до друг - за нагледно сравнение. Само показва, не дава вход/stop.",
-    )
-    c1, c2 = st.columns(2)
-    c1.markdown("**Метод А · 📐 EMA подреждане** (твоят)  \nEMA20 > EMA50 > EMA200 и на дневната, и на седмичната.")
-    c2.markdown("**Метод Б · 📈 Качество на тренда** (моят)  \nГодишен наклон × R² на права линия през цената: "
-                "90 дни на дневната и 52 седмици на седмичната.")
-
-    with st.expander("⚙️ Прагове"):
-        p1, p2, p3 = st.columns(3)
-        min_r2 = p1.slider("Метод Б: мин. R²", 0.3, 0.95, 0.6, 0.05, key="tr_min_r2",
-                           help="Колко равномерен трябва да е ръстът (1 = идеална права линия).")
-        min_slope = p2.slider("Метод Б: мин. наклон (% годишно)", 0, 60, 10, 5, key="tr_min_slope")
-        atr_range = p3.slider("ATR % (и двата метода)", 0.0, ATR_SLIDER_MAX, (0.0, ATR_SLIDER_MAX), 0.5,
-                              key="tr_atr", help="10 = без горна граница. За swing до месец ~1.5-4% е добре.")
-
     tickers = trend_universe()
-    scan_col, info_col = st.columns([1, 2], vertical_alignment="center")
-    if scan_col.button("🔍 Сканирай за възходящ тренд", type="primary", key="tr_scan", width="stretch"):
+    # чист начален екран: бутонът за скан, а праговете и обяснението на методите - в изскачащи панели
+    scan_col, thr_col, info_col = st.columns([2, 1, 1], vertical_alignment="center")
+    scan_clicked = scan_col.button("🔍 Сканирай за възходящ тренд", type="primary", key="tr_scan", width="stretch")
+    with thr_col.popover("⚙️ Прагове", width="stretch"):
+        min_r2 = st.slider("Метод Б: мин. R²", 0.3, 0.95, 0.6, 0.05, key="tr_min_r2",
+                           help="Колко равномерен трябва да е ръстът (1 = идеална права линия).")
+        min_slope = st.slider("Метод Б: мин. наклон (% годишно)", 0, 60, 10, 5, key="tr_min_slope")
+        atr_range = st.slider("ATR % (и двата метода)", 0.0, ATR_SLIDER_MAX, (0.0, ATR_SLIDER_MAX), 0.5,
+                              key="tr_atr", help="10 = без горна граница. За swing до месец ~1.5-4% е добре.")
+    with info_col.popover("ℹ️ Методите", width="stretch"):
+        st.markdown(
+            "**📈 Възходящ тренд на дневна и седмична графика** - два метода един до друг за нагледно "
+            "сравнение. Само показват тренда; входът и stop-ът са в таба „🧭 Photon вход“.\n\n"
+            "**Метод А · 📐 EMA подреждане** (твоят): EMA20 > EMA50 > EMA200 и на дневната, и на седмичната.\n\n"
+            "**Метод Б · 📈 Качество на тренда** (моят): годишен наклон × R² на права линия през цената - "
+            "90 дни на дневната и 52 седмици на седмичната.\n\n"
+            f"Универс: **{len(tickers)}** инструмента · 5 години дневни цени (седмичната EMA200 иска ~4 г.)."
+        )
+    if scan_clicked:
         progress = st.progress(0.0, text="Тегля дневни данни за 5 години...")
         st.session_state["tr_results"] = run_trend_scan(tickers, progress)
         progress.empty()
-    info_col.markdown(f"Универс: **{len(tickers)}** инструмента · 5 години дневни цени (седмичната EMA200 иска ~4 г.)")
 
     news = today_news()
     selected = load_selected()
