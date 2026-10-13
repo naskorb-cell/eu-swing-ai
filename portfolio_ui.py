@@ -1,13 +1,16 @@
 """Секция 💼 Портфолио & P&L (Trading 212, само четене) + AI анализ на представянето."""
 
 import hashlib
+import json
 import threading
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 import t212_portfolio as t212
+from universe import INSTRUMENTS_FILE
 from ai_client import AI_KEY_SECRETS, stream_ai
 from ui_common import ai_api_key, ai_provider, gemini_model, section_header, show_ai_error
 
@@ -153,6 +156,33 @@ T212_ACCOUNTS = [
 ]
 
 
+PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
+
+
+@st.cache_data(show_spinner=False)
+def instrument_names(mtime: float) -> dict:
+    """T212 тикер (напр. 'AMZd_EQ') -> име на актива (от eu_instruments.json)."""
+    try:
+        data = json.loads(Path(INSTRUMENTS_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {i["ticker"]: i.get("name") or i["ticker"] for i in data.get("instruments", []) if i.get("ticker")}
+
+
+def positions_table(df_open: pd.DataFrame):
+    """За показване: „Актив“ (името) вместо тикера, а частично в пай - оцветен ред вместо колона."""
+    path = Path(INSTRUMENTS_FILE)
+    names = instrument_names(path.stat().st_mtime if path.exists() else 0.0)
+    show = df_open.copy()
+    show.insert(0, "Актив", show["Тикер"].map(lambda t: names.get(t, t)))
+    show = show.drop(columns=["Тикер"])
+    partial = show.pop("Частично в пай") if "Частично в пай" in show.columns else pd.Series(False, index=show.index)
+    styled = show.style.apply(lambda r: [PARTIAL_PIE_BG if partial[r.name] else ""] * len(r), axis=1)
+    fmt = {c: "{:.2f}" for c in show.columns if c not in ("Актив", "Кол-во") and pd.api.types.is_numeric_dtype(show[c])}
+    fmt["Кол-во"] = lambda v: f"{v:g}"
+    return styled.format(fmt), bool(partial.any())
+
+
 def render_open_positions(df_open, slug: str):
     """Отворените позиции с текущата P&L; по подразбиране без частта в пайовете.
     Връща показаната таблица (тя отива и в AI анализа)."""
@@ -171,10 +201,12 @@ def render_open_positions(df_open, slug: str):
     col2.metric("Общо инвестирано (€)", round(total_invested, 2))
     col3.metric("Нереализирана P&L (€)", round(total_pl, 2),
                 delta=f"{total_pl / total_invested * 100:+.2f}%" if total_invested else None)
-    if no_pies and "Частично в пай" in df_open.columns and df_open["Частично в пай"].any():
-        st.caption("Инструментите с „Частично в пай“ са и в пай - за тях бройката и P&L са само за частта извън пая "
+    table, has_partial = positions_table(df_open)
+    if has_partial:
+        st.caption("🟪 Оцветените в лилаво са частично в пай - за тях бройката и P&L са само за частта извън пая "
                    "(пропорционално, ориентировъчно).")
-    st.dataframe(df_open, width="stretch", hide_index=True)
+    st.dataframe(table, width="stretch", hide_index=True,
+                 column_config={"Актив": st.column_config.TextColumn("Актив", width="medium")})
     return df_open
 
 
