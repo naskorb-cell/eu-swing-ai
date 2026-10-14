@@ -119,6 +119,12 @@
       "symbol": "2HP.DE",
       "added": "2026-10-14",
       "price": 61.14
+    },
+    {
+      "name": "TKA (thyssenkrupp)",
+      "symbol": "TKA.DE",
+      "added": "2026-10-14",
+      "price": 13.825
     }
   ]
 }
