@@ -137,6 +137,12 @@
       "symbol": "NTAP",
       "added": "2026-10-14",
       "price": 222.2
+    },
+    {
+      "name": "EVK (Evonik Industries)",
+      "symbol": "EVK.DE",
+      "added": "2026-10-14",
+      "price": 21.42
     }
   ]
 }
