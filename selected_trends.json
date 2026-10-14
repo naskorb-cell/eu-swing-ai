@@ -143,6 +143,12 @@
       "symbol": "EVK.DE",
       "added": "2026-10-14",
       "price": 21.42
+    },
+    {
+      "name": "SHELL (Shell)",
+      "symbol": "SHEL.L",
+      "added": "2026-10-14",
+      "price": 3911.5
     }
   ]
 }
