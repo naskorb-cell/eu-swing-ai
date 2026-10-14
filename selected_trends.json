@@ -131,6 +131,12 @@
       "symbol": "REP.MC",
       "added": "2026-10-14",
       "price": 29.62
+    },
+    {
+      "name": "NTA (NetApp)",
+      "symbol": "NTAP",
+      "added": "2026-10-14",
+      "price": 222.2
     }
   ]
 }
