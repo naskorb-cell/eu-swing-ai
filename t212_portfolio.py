@@ -76,6 +76,8 @@ def fetch_open_positions(base_url: str, auth_header: str) -> pd.DataFrame:
             "P&L (%)": round(ppl_pct, 2),
             "Инвестирано (€)": round(cost_basis, 2),
             "В пай (бр.)": in_pies,
+            # първата покупка на текущата позиция (за колко седмици е отворена)
+            "Отворена": pd.to_datetime(_pick(pos, "initialFillDate", "createdAt", "openedAt"), errors="coerce", utc=True),
         })
     df = pd.DataFrame(rows)
     if not df.empty:
