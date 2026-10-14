@@ -125,6 +125,12 @@
       "symbol": "TKA.DE",
       "added": "2026-10-14",
       "price": 13.825
+    },
+    {
+      "name": "REP (Repsol)",
+      "symbol": "REP.MC",
+      "added": "2026-10-14",
+      "price": 29.62
     }
   ]
 }
