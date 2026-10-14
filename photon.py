@@ -990,7 +990,7 @@ def render_photon_strategy(universe: dict = None):
             st.info(f"Натисни **{scan_label}** горе.")
             df_watch = pd.DataFrame()
         else:
-            st.caption("Pro Swing потвърден - колоната „Бележка“ казва какво чакаме. Кликни ред за графика и новини.")
+            st.caption("Pro Swing потвърден - колоната „Бележка“ казва какво чакаме. Кликни името за графика и новини.")
             show_far = st.toggle(
                 f"Покажи и далечните (над {FAR_ABOVE_RANGE_PCT}% от дневния диапазон)", value=False, key="ph_show_far",
                 help="Над съпротивата = след пробив нагоре; до вход има нужда от нов пулбек, често дълъг.",
@@ -1248,10 +1248,10 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
     rows = sorted(rows, key=order)
     items = [(r["Позиция"], r["Сканиран символ"]) for r in rows]
     if any(sym != "-" for _, sym in items):
-        st.caption("👆 Кликни позиция за графика, анализатори и новини.")
+        st.caption("👆 Кликни името на позицията за графика, анализатори и новини.")
     st.dataframe(
-        pd.DataFrame(rows), hide_index=True, width="stretch", key="ph_pos_table", selection_mode="single-row",
-        on_select=lambda: _open_selected("ph_pos_table", [it if it[1] != "-" else (None, None) for it in items]),
+        pd.DataFrame(rows), hide_index=True, width="stretch", key=(k := table_key("ph_pos_table")),
+        selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
                 help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
@@ -1425,20 +1425,40 @@ def render_news_section(targets: list, news: dict, key: str):
                      "Накратко": friendly_ai_error(r["error"], provider) if failed else r["summary"]})
         symbols.append((x.name, x.symbol))
     if rows:
-        st.caption("👆 Кликни ред за подробностите, анализаторите и източниците.")
+        st.caption("👆 Кликни името за подробностите, анализаторите и източниците.")
         st.dataframe(
-            pd.DataFrame(rows), hide_index=True, width="stretch", key=f"{key}_table",
+            pd.DataFrame(rows), hide_index=True, width="stretch", key=(tk := table_key(f"{key}_table")),
             column_config={"Накратко": st.column_config.TextColumn(width="large")},
-            on_select=lambda k=f"{key}_table", s=symbols: _open_selected(k, s), selection_mode="single-row",
+            on_select=lambda k=tk, s=symbols: _open_selected(k, s), selection_mode="single-cell",
         )
 
 
+NAME_COLUMNS = ("Име", "Позиция", "Инструмент", "Актив")  # клик по тях отваря графиката
+
+
+def table_key(base: str) -> str:
+    """Ключът на таблица с клик по името. След всеки клик се сменя (clicked_name_row) - така таблицата
+    се рисува наново без маркираната клетка и следващ клик по същото име пак отваря прозореца."""
+    return f"{base}~{st.session_state.get(f'_tk_{base}', 0)}"
+
+
+def clicked_name_row(key: str):
+    """Таблиците са с избор на клетка (без колона с отметки): редът, чието ИМЕ е кликнато, или None."""
+    event = st.session_state.get(key) or {}
+    cells = (event.get("selection") or {}).get("cells") or []
+    if not cells:
+        return None
+    base = key.split("~")[0]
+    st.session_state[f"_tk_{base}"] = st.session_state.get(f"_tk_{base}", 0) + 1
+    row, column = cells[0][0], cells[0][1]
+    return row if column in NAME_COLUMNS else None
+
+
 def _open_selected(table_key: str, items: list):
-    """Callback на избор на ред в таблица: отваря прозореца на инструмента."""
-    event = st.session_state.get(table_key) or {}
-    rows = (event.get("selection") or {}).get("rows") or []
-    if rows and rows[0] < len(items) and items[rows[0]][1]:
-        open_instrument(*items[rows[0]])
+    """Callback на клик в таблица: клик по името отваря прозореца на инструмента."""
+    row = clicked_name_row(table_key)
+    if row is not None and row < len(items) and items[row][1]:
+        open_instrument(*items[row])
 
 
 def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
@@ -1516,7 +1536,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
                                                      help="Среден дневен ход (ATR 14) като % от цената - волатилността"),
             "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
         },
-        on_select=lambda: _open_selected(key, items), selection_mode="single-row", key=key,
+        on_select=lambda: _open_selected(tk, items), selection_mode="single-cell", key=(tk := table_key(key)),
     )
     return df
 

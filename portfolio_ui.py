@@ -180,7 +180,20 @@ def positions_table(df_open: pd.DataFrame):
     styled = show.style.apply(lambda r: [PARTIAL_PIE_BG if partial[r.name] else ""] * len(r), axis=1)
     fmt = {c: "{:.2f}" for c in show.columns if c not in ("Актив", "Кол-во") and pd.api.types.is_numeric_dtype(show[c])}
     fmt["Кол-во"] = lambda v: f"{v:g}"
-    return styled.format(fmt), bool(partial.any())
+    return styled.format(fmt), bool(partial.any()), list(show["Актив"])
+
+
+def _open_position(key: str, tickers: list, names: list):
+    """Клик по името на актив в отворените позиции -> прозорецът с графиката (като в скенера)."""
+    import photon
+    row = photon.clicked_name_row(key)
+    if row is None or row >= len(tickers):
+        return
+    symbol = photon.t212_ticker_to_symbol().get(tickers[row], (None, None))[0]
+    if symbol:
+        st.session_state["pf_dialog"] = (names[row], symbol)
+    else:
+        st.toast(f"Няма графика за {names[row]} - инструментът не е в списъка с европейски листвания.")
 
 
 def render_open_positions(df_open, slug: str):
@@ -201,12 +214,20 @@ def render_open_positions(df_open, slug: str):
     col2.metric("Общо инвестирано (€)", round(total_invested, 2))
     col3.metric("Нереализирана P&L (€)", round(total_pl, 2),
                 delta=f"{total_pl / total_invested * 100:+.2f}%" if total_invested else None)
-    table, has_partial = positions_table(df_open)
+    table, has_partial, names = positions_table(df_open)
     if has_partial:
         st.caption("🟪 Оцветените в лилаво са частично в пай - за тях бройката и P&L са само за частта извън пая "
                    "(пропорционално, ориентировъчно).")
-    st.dataframe(table, width="stretch", hide_index=True,
+    import photon  # тук, а не горе: photon импортира T212_ACCOUNTS от този модул
+    key, tickers = photon.table_key(f"pf_open_table_{slug}"), list(df_open["Тикер"])
+    st.dataframe(table, width="stretch", hide_index=True, key=key, selection_mode="single-cell",
+                 on_select=lambda: _open_position(key, tickers, names),
                  column_config={"Актив": st.column_config.TextColumn("Актив", width="medium")})
+    st.caption("👆 Кликни името на актива за графиката.")
+    photon.install_chart_scripts()  # стрелката назад затваря прозореца с графиката
+    pending = st.session_state.pop("pf_dialog", None)
+    if pending:
+        photon.instrument_dialog(*pending)
     return df_open
 
 
