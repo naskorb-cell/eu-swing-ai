@@ -1446,9 +1446,8 @@ def numbered(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def table_key(base: str) -> str:
-    """Ключът на таблица с клик по името. След всеки клик се сменя (clicked_name_row) - така таблицата
-    се рисува наново без маркираната клетка и следващ клик по същото име пак отваря прозореца."""
-    return f"{base}~{st.session_state.get(f'_tk_{base}', 0)}"
+    """Ключът на таблица с клик по името - постоянен (смяната му рисува таблицата наново и губи сортирането)."""
+    return base
 
 
 def clicked_name_row(key: str):
@@ -1457,9 +1456,9 @@ def clicked_name_row(key: str):
     cells = (event.get("selection") or {}).get("cells") or []
     if not cells:
         return None
-    base = key.split("~")[0]
-    st.session_state[f"_tk_{base}"] = st.session_state.get(f"_tk_{base}", 0) + 1
     row, column = cells[0][0], cells[0][1]
+    # маркираната клетка се маха от скрипта на страницата при затваряне на прозореца (бутона „Clear selection“
+    # на таблицата) - иначе повторен клик по нея не праща събитие; ключът не се сменя - сортирането остава
     return row if column in NAME_COLUMNS else None
 
 
@@ -1853,12 +1852,20 @@ CROSSHAIR_JS = """
     const btn = dlg.querySelector('button[aria-label="Close"], button[aria-label="close"], [data-testid="stDialogCloseButton"]');
     if (btn) btn.click(); else doc.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
   };
+  // след затваряне на прозореца: маркираната клетка в таблиците (кликнатото име) се маха с бутона
+  // „Clear selection“ на таблицата - иначе повторен клик по същото име не праща събитие и не отваря нищо
+  const clearTableSelection = () => setTimeout(() => {
+    doc.querySelectorAll('[data-testid="stElementToolbar"] button[aria-label="Clear selection"]').forEach((b) => {
+      b.click(); b.blur();  // без фокус върху бутона - иначе на компютъра следващият клик в таблицата се губи
+    });
+  }, 400);
   let wasOpen = false;
   const watchDialog = () => {
     const open = !!dialogOpen();
     if (open && !wasOpen) requestEntry('dialog');
     if (!open && wasOpen) {
       const i = pending.indexOf('dialog'); if (i >= 0) pending.splice(i, 1);
+      clearTableSelection();
     }
     if (!open && wasOpen && stack.includes('dialog')) {
       // затворен с X - махаме нашите записи (и на кръста вътре), за да не остане „празно“ назад
@@ -1877,7 +1884,7 @@ CROSSHAIR_JS = """
     const dialogDepth = stack.indexOf('dialog') + 1;  // 0 = прозорецът няма запис
     // кръстът се изключва с повторно задържане на пръста; „назад“ затваря прозореца с графиката
     hideAll();
-    if (dialogDepth && depth < dialogDepth) { wasOpen = false; closeDialog(); }
+    if (dialogDepth && depth < dialogDepth) { wasOpen = false; closeDialog(); clearTableSelection(); }
     stack.splice(depth);
   });
 
