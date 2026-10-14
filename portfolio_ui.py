@@ -157,6 +157,30 @@ T212_ACCOUNTS = [
 
 
 PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
+# „Кол-во“ по възрастта на позицията (седмица 1 = първите 7 дни), нюансът се сменя всяка седмица:
+# 3 жълти до оранжевото, оранжево в средата (4-та), след него 3 към червено + 4-ти (8-ма и нататък)
+AGE_COLORS = [  # (до седмица включително, цвят)
+    (1, "rgba(254, 240, 138, 0.30)"), (2, "rgba(253, 224, 71, 0.40)"), (3, "rgba(251, 191, 36, 0.50)"),
+    (4, "rgba(249, 115, 22, 0.60)"),
+    (5, "rgba(234, 110, 12, 0.70)"), (6, "rgba(232, 70, 20, 0.72)"), (7, "rgba(220, 38, 38, 0.80)"),
+    (10 ** 6, "rgba(140, 20, 20, 1.0)"),
+]
+# „Актив“ по P&L в €: зелено при печалба, червено при загуба; по-силно при 100 / 200 / 300+ €
+PNL_STEPS = [(100, 0.15), (200, 0.32), (300, 0.50), (float("inf"), 0.72)]  # (под €, плътност)
+
+
+def age_color(week) -> str:
+    if week is None or pd.isna(week):
+        return ""
+    return "background-color: " + next(c for limit, c in AGE_COLORS if week <= limit)
+
+
+def pnl_color(pnl) -> str:
+    if pnl is None or pd.isna(pnl) or pnl == 0:
+        return ""
+    alpha = next(a for limit, a in PNL_STEPS if abs(pnl) < limit)
+    rgb = "34, 197, 94" if pnl > 0 else "239, 68, 68"
+    return f"background-color: rgba({rgb}, {alpha})"
 
 
 @st.cache_data(show_spinner=False)
@@ -177,9 +201,17 @@ def positions_table(df_open: pd.DataFrame):
     show.insert(0, "Актив", show["Тикер"].map(lambda t: names.get(t, t)))
     show = show.drop(columns=["Тикер"])
     partial = show.pop("Частично в пай") if "Частично в пай" in show.columns else pd.Series(False, index=show.index)
+    opened = show.pop("Отворена") if "Отворена" in show.columns else pd.Series(pd.NaT, index=show.index)
+    now = pd.Timestamp.now(tz="UTC")
+    weeks = opened.map(lambda d: None if pd.isna(d) else (now - d).days // 7 + 1)
+    show.insert(2, "Седмица", weeks.astype("Int64"))
     styled = show.style.apply(lambda r: [PARTIAL_PIE_BG if partial[r.name] else ""] * len(r), axis=1)
-    fmt = {c: "{:.2f}" for c in show.columns if c not in ("Актив", "Кол-во") and pd.api.types.is_numeric_dtype(show[c])}
+    styled = styled.apply(lambda col: [age_color(w) for w in weeks], subset=["Кол-во", "Седмица"], axis=0)
+    styled = styled.apply(lambda col: [pnl_color(v) for v in show["P&L (€)"]], subset=["Актив"], axis=0)
+    fmt = {c: "{:.2f}" for c in show.columns
+           if c not in ("Актив", "Кол-во", "Седмица") and pd.api.types.is_numeric_dtype(show[c])}
     fmt["Кол-во"] = lambda v: f"{v:g}"
+    fmt["Седмица"] = lambda v: "" if pd.isna(v) else f"{v}"
     return styled.format(fmt), bool(partial.any()), list(show["Актив"])
 
 
@@ -215,9 +247,10 @@ def render_open_positions(df_open, slug: str):
     col3.metric("Нереализирана P&L (€)", round(total_pl, 2),
                 delta=f"{total_pl / total_invested * 100:+.2f}%" if total_invested else None)
     table, has_partial, names = positions_table(df_open)
-    if has_partial:
-        st.caption("🟪 Оцветените в лилаво са частично в пай - за тях бройката и P&L са само за частта извън пая "
-                   "(пропорционално, ориентировъчно).")
+    st.caption("**Актив**: 🟩 печалба / 🟥 загуба - по-наситено при 100 / 200 / 300+ € · "
+               "**Кол-во и Седмица** (откога е отворена): 🟨 1-ва → 🟧 4-та седмица → 🟥 8-ма и нататък"
+               + (" · 🟪 лилав ред = частично в пай (бройката и P&L са само за частта извън пая, ориентировъчно)"
+                  if has_partial else ""))
     import photon  # тук, а не горе: photon импортира T212_ACCOUNTS от този модул
     key, tickers = photon.table_key(f"pf_open_table_{slug}"), list(df_open["Тикер"])
     st.dataframe(table, width="stretch", hide_index=True, key=key, selection_mode="single-cell",
