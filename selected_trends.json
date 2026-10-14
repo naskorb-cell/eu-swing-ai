@@ -107,6 +107,12 @@
       "symbol": "BRNT.MI",
       "added": "2026-10-14",
       "price": 95.12
+    },
+    {
+      "name": "8CF (Cloudflare)",
+      "symbol": "NET",
+      "added": "2026-10-14",
+      "price": 331.7
     }
   ]
 }
