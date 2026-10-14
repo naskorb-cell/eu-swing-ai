@@ -21,7 +21,7 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    fetch_ohlc_many, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
+    clicked_name_row, fetch_ohlc_many, table_key, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
     render_photon_strategy, today_news,
 )
 from ui_common import claude_news_model, gemini_model, gemini_news_model, section_header
@@ -316,10 +316,9 @@ NEWS_RANK = {fund.NEWS_POSITIVE: 0, fund.NEWS_NEUTRAL: 1, "": 1, fund.NEWS_NEGAT
 
 
 def _open_selected(key: str, table: pd.DataFrame):
-    event = st.session_state.get(key)
-    rows = event.selection.rows if event and event.selection else []
-    if rows and rows[0] < len(table):
-        st.session_state["tr_dialog"] = (table["Име"].iloc[rows[0]], table["Тикер"].iloc[rows[0]])
+    row = clicked_name_row(key)  # клик по името (колона „Име“) отваря графиката
+    if row is not None and row < len(table):
+        st.session_state["tr_dialog"] = (table["Име"].iloc[row], table["Тикер"].iloc[row])
 
 
 def render_table(df: pd.DataFrame, key: str, news: dict):
@@ -332,8 +331,8 @@ def render_table(df: pd.DataFrame, key: str, news: dict):
     # положителните новини най-отгоре (при равни - по качество D)
     table = table.sort_values("📰 Новини", key=lambda c: c.map(NEWS_RANK).fillna(1), kind="stable").reset_index(drop=True)
     st.dataframe(
-        table, hide_index=True, width="stretch", key=key, selection_mode="single-row",
-        on_select=lambda: _open_selected(key, table),
+        table, hide_index=True, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
+        on_select=lambda: _open_selected(tk, table),
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "Метод": st.column_config.TextColumn(help="А = EMA подреждане на D и W; Б = качество на тренда на D и W"),
@@ -344,7 +343,7 @@ def render_table(df: pd.DataFrame, key: str, news: dict):
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f", help="Среден дневен ход (ATR 14) като % от цената"),
         },
     )
-    st.caption("👆 Кликни ред за графиката - там е и бутонът „⭐ Добави в Селектирани“. "
+    st.caption("👆 Кликни името за графиката - там е и ⭐ за Селектирани. "
                "Подреждане по колона - клик върху заглавието ѝ.")
 
 
@@ -475,8 +474,8 @@ def render_selected(selected: list, news: dict, raw, thresholds):
         change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
     table.insert(5, "Промяна от добавяне %", change)
     st.dataframe(
-        table, hide_index=True, width="stretch", key="tr_tbl_sel", selection_mode="single-row",
-        on_select=lambda: _open_selected("tr_tbl_sel", table),
+        table, hide_index=True, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
+        on_select=lambda: _open_selected(tk, table),
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
@@ -484,7 +483,7 @@ def render_selected(selected: list, news: dict, raw, thresholds):
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
         },
     )
-    st.caption("👆 Кликни ред за графиката (там е и „🗑 Премахни от ⭐ Селектирани“).")
+    st.caption("👆 Кликни името за графиката (там е и 🗑 за премахване от Селектирани).")
     st.divider()
     render_valuation(selected)  # ETF-ите излизат като „— ETF“
     st.divider()
