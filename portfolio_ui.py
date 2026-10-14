@@ -204,7 +204,8 @@ def positions_table(df_open: pd.DataFrame):
     """За показване: „Актив“ (името) вместо тикера, а частично в пай - оцветен ред вместо колона."""
     path = Path(INSTRUMENTS_FILE)
     names = instrument_names(path.stat().st_mtime if path.exists() else 0.0)
-    show = df_open.copy()
+    import photon  # тук, а не горе: photon импортира T212_ACCOUNTS от този модул
+    show = photon.numbered(df_open)  # „№“ първа - иначе сортирането по колона отваря графиката
     show.insert(0, "Актив", show["Тикер"].map(lambda t: names.get(t, t)))
     show = show.drop(columns=["Тикер"])
     partial = show.pop("Частично в пай") if "Частично в пай" in show.columns else pd.Series(False, index=show.index)
@@ -260,7 +261,7 @@ def render_open_positions(df_open, slug: str):
                   if has_partial else ""))
     import photon  # тук, а не горе: photon импортира T212_ACCOUNTS от този модул
     key, tickers = photon.table_key(f"pf_open_table_{slug}"), list(df_open["Тикер"])
-    st.dataframe(table, width="stretch", hide_index=True, key=key, selection_mode="single-cell",
+    st.dataframe(table, width="stretch", hide_index=False, key=key, selection_mode="single-cell",
                  on_select=lambda: _open_position(key, tickers, names),
                  column_config={"Актив": st.column_config.TextColumn("Актив", width="medium")})
     st.caption("👆 Кликни името на актива за графиката.")

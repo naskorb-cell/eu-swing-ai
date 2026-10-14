@@ -1250,7 +1250,7 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
     if any(sym != "-" for _, sym in items):
         st.caption("👆 Кликни името на позицията за графика, анализатори и новини.")
     st.dataframe(
-        pd.DataFrame(rows), hide_index=True, width="stretch", key=(k := table_key("ph_pos_table")),
+        numbered(pd.DataFrame(rows)), hide_index=False, width="stretch", key=(k := table_key("ph_pos_table")),
         selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
@@ -1427,13 +1427,22 @@ def render_news_section(targets: list, news: dict, key: str):
     if rows:
         st.caption("👆 Кликни името за подробностите, анализаторите и източниците.")
         st.dataframe(
-            pd.DataFrame(rows), hide_index=True, width="stretch", key=(tk := table_key(f"{key}_table")),
+            numbered(pd.DataFrame(rows)), hide_index=False, width="stretch", key=(tk := table_key(f"{key}_table")),
             column_config={"Накратко": st.column_config.TextColumn(width="large")},
             on_select=lambda k=tk, s=symbols: _open_selected(k, s), selection_mode="single-cell",
         )
 
 
 NAME_COLUMNS = ("Име", "Позиция", "Инструмент", "Актив")  # клик по тях отваря графиката
+
+
+def numbered(df: pd.DataFrame) -> pd.DataFrame:
+    """Таблица с клик по името: първата колона е „№“ (индексът) - показва се с hide_index=False.
+    Нужно е, защото при сортиране (клик по заглавие) Streamlit сам маркира ПЪРВАТА клетка на най-горния
+    ред; ако първата колона е името, това отваряше графиката. Клетките на индекса не пращат избор."""
+    out = df.reset_index(drop=True)
+    out.index = pd.RangeIndex(1, len(out) + 1, name="№")
+    return out
 
 
 def table_key(base: str) -> str:
@@ -1515,8 +1524,9 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
 
     items = [(x.name, x.symbol) for x in setups]
     st.dataframe(
-        df.style.apply(highlight, axis=1).format({c: f for c, f in NUMBER_FORMATS.items() if c in df.columns}, na_rep="—"),
-        width="stretch", hide_index=True, column_order=order,
+        numbered(df).style.apply(highlight, axis=1).format({c: f for c, f in NUMBER_FORMATS.items() if c in df.columns},
+                                                           na_rep="—"),
+        width="stretch", hide_index=False, column_order=order,
         column_config={
             "Име": st.column_config.TextColumn("Име", pinned=True),
             "📊 Фундамент": st.column_config.TextColumn(

@@ -21,7 +21,7 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    clicked_name_row, fetch_ohlc_many, table_key, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
+    clicked_name_row, fetch_ohlc_many, numbered, table_key, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
     render_photon_strategy, today_news,
 )
 from ui_common import claude_news_model, gemini_model, gemini_news_model, section_header
@@ -331,7 +331,7 @@ def render_table(df: pd.DataFrame, key: str, news: dict):
     # положителните новини най-отгоре (при равни - по качество D)
     table = table.sort_values("📰 Новини", key=lambda c: c.map(NEWS_RANK).fillna(1), kind="stable").reset_index(drop=True)
     st.dataframe(
-        table, hide_index=True, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
+        numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table),
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
@@ -474,7 +474,7 @@ def render_selected(selected: list, news: dict, raw, thresholds):
         change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
     table.insert(5, "Промяна от добавяне %", change)
     st.dataframe(
-        table, hide_index=True, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
+        numbered(table), hide_index=False, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table),
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
