@@ -113,6 +113,12 @@
       "symbol": "NET",
       "added": "2026-10-14",
       "price": 331.7
+    },
+    {
+      "name": "2HP (Hewlett Packard Enterprise)",
+      "symbol": "2HP.DE",
+      "added": "2026-10-14",
+      "price": 61.14
     }
   ]
 }
