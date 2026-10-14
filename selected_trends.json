@@ -101,6 +101,12 @@
       "symbol": "OMV.VI",
       "added": "2026-10-12",
       "price": 71.65
+    },
+    {
+      "name": "BRNT (WisdomTree Brent Crude Oil)",
+      "symbol": "BRNT.MI",
+      "added": "2026-10-14",
+      "price": 95.12
     }
   ]
 }
