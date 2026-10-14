@@ -157,30 +157,37 @@ T212_ACCOUNTS = [
 
 
 PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
+# Цветовете са ПЛЪТНИ (не полупрозрачни): на тъмния фон прозрачното жълто става маслинено, а червените
+# нюанси се сливат. На светлите фонове текстът е тъмен, на тъмните - бял.
+DARK_TEXT, LIGHT_TEXT = "#111827", "#FFFFFF"
 # „Кол-во“ по възрастта на позицията (седмица 1 = първите 7 дни), нюансът се сменя всяка седмица:
 # 3 жълти до оранжевото, оранжево в средата (4-та), след него 3 към червено + 4-ти (8-ма и нататък)
-AGE_COLORS = [  # (до седмица включително, цвят)
-    (1, "rgba(254, 240, 138, 0.30)"), (2, "rgba(253, 224, 71, 0.40)"), (3, "rgba(251, 191, 36, 0.50)"),
-    (4, "rgba(249, 115, 22, 0.60)"),
-    (5, "rgba(234, 110, 12, 0.70)"), (6, "rgba(232, 70, 20, 0.72)"), (7, "rgba(220, 38, 38, 0.80)"),
-    (10 ** 6, "rgba(140, 20, 20, 1.0)"),
+AGE_COLORS = [  # (до седмица включително, фон, текст)
+    (1, "#FEF08A", DARK_TEXT), (2, "#FDE047", DARK_TEXT), (3, "#FBBF24", DARK_TEXT),
+    (4, "#F97316", DARK_TEXT),
+    (5, "#EA580C", LIGHT_TEXT), (6, "#C2410C", LIGHT_TEXT), (7, "#DC2626", LIGHT_TEXT),
+    (10 ** 6, "#7F1D1D", LIGHT_TEXT),
 ]
-# „Актив“ по P&L в €: зелено при печалба, червено при загуба; по-силно при 100 / 200 / 300+ €
-PNL_STEPS = [(100, 0.15), (200, 0.32), (300, 0.50), (float("inf"), 0.72)]  # (под €, плътност)
+# „Актив“ по P&L в €: зелено при печалба, червено при загуба; по-наситено при 100 / 200 / 300+ €
+PNL_STEPS = [  # (под €, фон при печалба, фон при загуба)
+    (100, "#14532D", "#4C1D1D"), (200, "#166534", "#7F1D1D"), (300, "#15803D", "#B91C1C"),
+    (float("inf"), "#22C55E", "#EF4444"),
+]
 
 
 def age_color(week) -> str:
     if week is None or pd.isna(week):
         return ""
-    return "background-color: " + next(c for limit, c in AGE_COLORS if week <= limit)
+    _, bg, fg = next(c for c in AGE_COLORS if week <= c[0])
+    return f"background-color: {bg}; color: {fg}"
 
 
 def pnl_color(pnl) -> str:
     if pnl is None or pd.isna(pnl) or pnl == 0:
         return ""
-    alpha = next(a for limit, a in PNL_STEPS if abs(pnl) < limit)
-    rgb = "34, 197, 94" if pnl > 0 else "239, 68, 68"
-    return f"background-color: rgba({rgb}, {alpha})"
+    _, gain, loss = next(c for c in PNL_STEPS if abs(pnl) < c[0])
+    fg = DARK_TEXT if abs(pnl) >= 300 and pnl > 0 else LIGHT_TEXT  # най-светлото зелено - с тъмен текст
+    return f"background-color: {gain if pnl > 0 else loss}; color: {fg}"
 
 
 @st.cache_data(show_spinner=False)
