@@ -215,6 +215,12 @@
       "symbol": "XD9U.DE",
       "added": "2026-10-15",
       "price": 204.04
+    },
+    {
+      "name": "AUM5 (Amundi S&P 500 Swap (Acc))",
+      "symbol": "AUM5.DE",
+      "added": "2026-10-15",
+      "price": 138.015
     }
   ]
 }
