@@ -209,6 +209,12 @@
       "symbol": "EUNL.DE",
       "added": "2026-10-15",
       "price": 130.785
+    },
+    {
+      "name": "XD9U (Xtrackers MSCI USA (Acc))",
+      "symbol": "XD9U.DE",
+      "added": "2026-10-15",
+      "price": 204.04
     }
   ]
 }
