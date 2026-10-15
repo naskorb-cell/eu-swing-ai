@@ -203,6 +203,12 @@
       "symbol": "6TVM.DE",
       "added": "2026-10-15",
       "price": 71.234
+    },
+    {
+      "name": "EUNL (iShares Core MSCI World (Acc))",
+      "symbol": "EUNL.DE",
+      "added": "2026-10-15",
+      "price": 130.785
     }
   ]
 }
