@@ -185,6 +185,12 @@
       "symbol": "SBIO.MI",
       "added": "2026-10-15",
       "price": 65.57
+    },
+    {
+      "name": "VPK (Vopak)",
+      "symbol": "VPK.AS",
+      "added": "2026-10-15",
+      "price": 52.7
     }
   ]
 }
