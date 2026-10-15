@@ -149,6 +149,12 @@
       "symbol": "SHEL.L",
       "added": "2026-10-14",
       "price": 3911.5
+    },
+    {
+      "name": "CRUDP (WisdomTree WTI Crude Oil)",
+      "symbol": "CRUDP.PA",
+      "added": "2026-10-15",
+      "price": 16.398
     }
   ]
 }
