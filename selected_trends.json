@@ -233,6 +233,12 @@
       "symbol": "IUSA.AS",
       "added": "2026-10-15",
       "price": 68.67
+    },
+    {
+      "name": "WSPX (WisdomTree S&P 500)",
+      "symbol": "WSPX.MI",
+      "added": "2026-10-15",
+      "price": 42.01
     }
   ]
 }
