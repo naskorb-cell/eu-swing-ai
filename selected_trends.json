@@ -155,6 +155,12 @@
       "symbol": "CRUDP.PA",
       "added": "2026-10-15",
       "price": 16.398
+    },
+    {
+      "name": "1170 (Arista Networks)",
+      "symbol": "ANET",
+      "added": "2026-10-15",
+      "price": 183.42
     }
   ]
 }
