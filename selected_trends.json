@@ -167,6 +167,12 @@
       "symbol": "NVDA",
       "added": "2026-10-15",
       "price": 217.21
+    },
+    {
+      "name": "SBMO (SBM Offshore)",
+      "symbol": "SBMO.AS",
+      "added": "2026-10-15",
+      "price": 34.48
     }
   ]
 }
