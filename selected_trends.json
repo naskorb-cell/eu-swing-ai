@@ -197,6 +197,12 @@
       "symbol": "VUSA.AS",
       "added": "2026-10-15",
       "price": 130.596
+    },
+    {
+      "name": "6TVM (Amundi S&P 500 Swap II (Dist))",
+      "symbol": "6TVM.DE",
+      "added": "2026-10-15",
+      "price": 71.234
     }
   ]
 }
