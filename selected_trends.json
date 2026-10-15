@@ -245,6 +245,12 @@
       "symbol": "SPPW.DE",
       "added": "2026-10-15",
       "price": 47.849
+    },
+    {
+      "name": "0OK (Okta)",
+      "symbol": "OKTA",
+      "added": "2026-10-15",
+      "price": 208.38
     }
   ]
 }
