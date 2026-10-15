@@ -161,6 +161,12 @@
       "symbol": "ANET",
       "added": "2026-10-15",
       "price": 183.42
+    },
+    {
+      "name": "NVD (Nvidia)",
+      "symbol": "NVDA",
+      "added": "2026-10-15",
+      "price": 217.21
     }
   ]
 }
