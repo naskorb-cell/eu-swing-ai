@@ -221,6 +221,12 @@
       "symbol": "AUM5.DE",
       "added": "2026-10-15",
       "price": 138.015
+    },
+    {
+      "name": "XDPU (Xtrackers S&P 500 (Acc))",
+      "symbol": "XDPU.DE",
+      "added": "2026-10-15",
+      "price": 13.3955
     }
   ]
 }
