@@ -173,6 +173,12 @@
       "symbol": "SBMO.AS",
       "added": "2026-10-15",
       "price": 34.48
+    },
+    {
+      "name": "XDBC (Xtrackers Bloomberg Commodity ex-Agriculture & Livestock Swap (Acc))",
+      "symbol": "XDBC.DE",
+      "added": "2026-10-15",
+      "price": 36.4
     }
   ]
 }
