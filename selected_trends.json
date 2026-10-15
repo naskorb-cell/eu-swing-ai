@@ -179,6 +179,12 @@
       "symbol": "XDBC.DE",
       "added": "2026-10-15",
       "price": 36.4
+    },
+    {
+      "name": "SBIO (Invesco NASDAQ Biotech (Acc))",
+      "symbol": "SBIO.MI",
+      "added": "2026-10-15",
+      "price": 65.57
     }
   ]
 }
