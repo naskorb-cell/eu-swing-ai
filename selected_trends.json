@@ -239,6 +239,12 @@
       "symbol": "WSPX.MI",
       "added": "2026-10-15",
       "price": 42.01
+    },
+    {
+      "name": "SPPW (SPDR MSCI World (Acc))",
+      "symbol": "SPPW.DE",
+      "added": "2026-10-15",
+      "price": 47.849
     }
   ]
 }
