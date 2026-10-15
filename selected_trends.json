@@ -227,6 +227,12 @@
       "symbol": "XDPU.DE",
       "added": "2026-10-15",
       "price": 13.3955
+    },
+    {
+      "name": "IUSA (iShares Core S&P 500 (Dist))",
+      "symbol": "IUSA.AS",
+      "added": "2026-10-15",
+      "price": 68.67
     }
   ]
 }
