@@ -191,6 +191,12 @@
       "symbol": "VPK.AS",
       "added": "2026-10-15",
       "price": 52.7
+    },
+    {
+      "name": "VUSA (Vanguard S&P 500 (Dist))",
+      "symbol": "VUSA.AS",
+      "added": "2026-10-15",
+      "price": 130.596
     }
   ]
 }
