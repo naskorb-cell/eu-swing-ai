@@ -1,11 +1,12 @@
-"""Telegram известия (пуска се от GitHub Actions - `.github/workflows/alerts.yml`, 3 пъти в работен ден).
+"""Telegram известия (пуска се от GitHub Actions - `.github/workflows/alerts.yml`, в работни дни в 10:00, 13:00
+и 16:30 централноевропейско време - 1 ч след отварянето, обед и 1 ч преди затварянето на борсите).
 
 Какво проверява:
   1. Photon „✅ Готов“ (Phase A/B, с хоризонта по подразбиране ~1 месец) за инструментите от ⭐ Селектирани -
      известие, когато инструмент СТАНЕ готов (не всеки път, докато е готов);
   2. отворените позиции в двата T212 акаунта (без пайовете): P&L минава ±100 / ±200 / ±300 € (всяко ниво
      веднъж, докато позицията е отворена) и позицията влиза в 4-та / 8-ма седмица;
-  3. само с `--trend` (вечерната проверка, след затварянето): нови инструменти в „🤝 И двата“ (метод А + Б,
+  3. само с `--trend` (проверката в 16:30): нови инструменти в „🤝 И двата“ (метод А + Б,
      праговете по подразбиране) - пълен скан на универса.
 
 Паметта (какво вече е пратено) е в alerts_state.json, който workflow-ът пази в кеша на Actions, НЕ в repo-то:
@@ -19,8 +20,9 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -34,6 +36,22 @@ AGE_WEEKS = (4, 8)            # седмица 1 = първите 7 дни (ка
 TREND_THRESHOLDS = (0.6, 10, (0.0, 10.0))  # мин. R², мин. наклон %/год, ATR % - по подразбиране в приложението
 TREND_LIST_MAX = 15           # най-много толкова имена в едно известие за „И двата“
 TELEGRAM_LIMIT = 3800         # знака на съобщение (лимитът на Telegram е 4096)
+# часовете на проверките по централноевропейско време (борсите: 9:00-17:30): 1 ч след отварянето, обед,
+# 1 ч преди затварянето (тогава и скана за „И двата“). GitHub графикът е в UTC, затова workflow-ът пуска и
+# двата варианта (лятно/зимно време), а тук се изпълнява само този, който съвпада с часа в Берлин.
+MARKET_TZ = ZoneInfo("Europe/Berlin")
+SLOTS = {(10, 0): False, (13, 0): False, (16, 30): True}  # (час, минута): с ли е скана за „И двата“
+SLOT_TOLERANCE_MIN = 45       # GitHub често закъснява 5-30 мин.; другото часово време е на 60 мин.
+
+
+def current_slot(now: datetime = None):
+    """(час, минута) на проверката, за която е това пускане, или None (пускането е за другото часово време)."""
+    now = (now or datetime.now(timezone.utc)).astimezone(MARKET_TZ)
+    for hour, minute in SLOTS:
+        delay = now - now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if timedelta(minutes=-5) <= delay <= timedelta(minutes=SLOT_TOLERANCE_MIN):
+            return hour, minute
+    return None
 
 
 class _NoProgress:
@@ -225,7 +243,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--trend", action="store_true", help="и пълния скан за нови в „И двата“ (вечерта)")
     parser.add_argument("--dry-run", action="store_true", help="само печата съобщенията, без Telegram и запис")
+    parser.add_argument("--scheduled", action="store_true",
+                        help="от графика: само ако е час за проверка по европейско време (скана за тренда - по часа)")
     args = parser.parse_args()
+    if args.scheduled:
+        slot = current_slot()
+        if slot is None:
+            print("Не е час за проверка (пускането е за другото часово време) - пропускам.")
+            return
+        args.trend = args.trend or SLOTS[slot]
+        print(f"Проверка за {slot[0]:02d}:{slot[1]:02d} европейско време" + (" + тренд" if args.trend else ""))
 
     state, messages, failed = load_state(), [], []
     checks = [("Photon", check_photon), ("Позиции", check_positions)] + ([("Тренд", check_trend)] if args.trend else [])
