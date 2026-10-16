@@ -251,6 +251,12 @@
       "symbol": "OKTA",
       "added": "2026-10-15",
       "price": 208.38
+    },
+    {
+      "name": "SPYN (SPDR MSCI Europe Energy (Acc))",
+      "symbol": "SPYN.DE",
+      "added": "2026-10-16",
+      "price": 338.6
     }
   ]
 }
