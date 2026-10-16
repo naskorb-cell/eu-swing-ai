@@ -299,6 +299,12 @@
       "symbol": "LI.PA",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "OVH (OVH Groupe)",
+      "symbol": "OVH.PA",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
