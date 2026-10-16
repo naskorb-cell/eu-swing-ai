@@ -173,18 +173,32 @@ def pnl_level(pnl: float) -> int:
     return (max(crossed) if crossed else 0) * (1 if pnl > 0 else -1)
 
 
+def error_reason(e: Exception) -> str:
+    """Кратка причина за грешка - за Telegram (личен чат); в публичния лог се печата само видът."""
+    response = getattr(e, "response", None)
+    if response is not None and getattr(response, "status_code", None):
+        return f"HTTP {response.status_code} от {getattr(response, 'url', '').split('?')[0]}"
+    return f"{type(e).__name__}: {str(e)[:160]}"
+
+
 def check_positions(state: dict, messages: list):
     import t212_portfolio as t212
     names = instrument_names()
     pnl_seen, age_seen = state.get("pnl", {}), state.get("age", {})
-    open_keys, now, accounts = set(), pd.Timestamp.now(tz="UTC"), 0
+    open_keys, now, accounts, failed = set(), pd.Timestamp.now(tz="UTC"), 0, []
     for label, key_env, secret_env in ACCOUNTS:
         key, secret = os.environ.get(key_env), os.environ.get(secret_env)
         if not key or not secret:
             continue
         accounts += 1
-        auth = t212.build_auth_header(key, secret)
-        df = t212.exclude_pies(t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth))
+        try:  # грешка в единия акаунт не спира другия
+            auth = t212.build_auth_header(key, secret)
+            df = t212.exclude_pies(t212.fetch_open_positions(t212.T212_ENV_TO_BASE_URL["live"], auth))
+        except Exception as e:  # noqa: BLE001
+            failed.append(label)
+            print(f"Позиции ({label}): грешка {type(e).__name__}")
+            messages.append(f"⚠️ Позиции ({label}): T212 не върна позициите - {error_reason(e)}")
+            continue
         for _, row in df.iterrows():
             k = secret_hash(f"{label}:{row['Тикер']}")
             open_keys.add(k)
@@ -207,10 +221,11 @@ def check_positions(state: dict, messages: list):
                     done.extend(due)
                     icon = "🟥" if max(due) >= 8 else "🟧"
                     messages.append(f"{icon} {name} ({label}): {ordinal(week)} седмица отворена")
-    # затворените позиции се забравят - при ново отваряне известията започват отначало
-    state["pnl"] = {k: v for k, v in pnl_seen.items() if k in open_keys}
-    state["age"] = {k: v for k, v in age_seen.items() if k in open_keys}
-    print(f"Позиции: {accounts} акаунта, {len(open_keys)} отворени позиции")
+    # затворените позиции се забравят - при ново отваряне известията започват отначало (но не и ако
+    # някой акаунт не е отговорил - тогава не знаем кои негови позиции са затворени)
+    state["pnl"] = {k: v for k, v in pnl_seen.items() if k in open_keys or failed}
+    state["age"] = {k: v for k, v in age_seen.items() if k in open_keys or failed}
+    print(f"Позиции: {accounts} акаунта ({len(failed)} с грешка), {len(open_keys)} отворени позиции")
 
 
 # ---------------------------------------------------------------- 3. Нови в „🤝 И двата“ (вечер)
@@ -260,7 +275,7 @@ def main():
         try:
             check(state, messages)
         except Exception as e:  # noqa: BLE001 - една счупена проверка не спира останалите
-            failed.append(title)
+            failed.append(f"{title} ({error_reason(e)})")
             print(f"{title}: грешка {type(e).__name__}")
     if failed:
         messages.append(f"⚠️ Проверката не мина за: {', '.join(failed)} (виж лога в GitHub Actions)")
