@@ -287,6 +287,12 @@
       "symbol": "AMZN",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "GOS (Goldman Sachs)",
+      "symbol": "GS",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
