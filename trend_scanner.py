@@ -21,10 +21,10 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    clicked_name_row, fetch_ohlc_many, numbered, table_key, install_chart_scripts, instrument_dialog, news_provider, render_news_section,
-    render_photon_strategy, today_news,
+    check_news, clicked_name_row, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
+    instrument_dialog, news_provider, render_news_item, render_news_section, render_photon_strategy, today_news,
 )
-from ui_common import claude_news_model, gemini_model, gemini_news_model, section_header
+from ui_common import claude_news_model, friendly_ai_error, gemini_model, gemini_news_model, section_header
 from universe import (
     apply_manual_universe, curated_file_mtime, github_get_file, github_write_file, load_curated_symbol_info,
     load_manual_universe, load_universe,
@@ -143,13 +143,25 @@ def check_ai_valuations(items: list):
         store["checks"][provider] = store["checks"].get(provider, 0) + len(found)
 
 
-def render_valuation(selected: list):
-    """💎 Справедлива цена на селектираните: А) безплатно от Yahoo, Б) AI проверка (по желание)."""
-    section_header("💎 Справедлива цена", status="info",
-                   subtitle="Подценени ли са спрямо справедливата цена - няколко метода + по желание AI с източници")
-    with st.spinner("Тегля показателите от Yahoo..."):
-        vals = selected_valuations(tuple(x["symbol"] for x in selected))
-    ai = today_ai_valuations()
+def valuation_summary(v: dict) -> str:
+    """За основната таблица: присъдата по методите от Yahoo + медианата до справедливата."""
+    verdict = v.get("verdict", val.VALUE_NO_DATA)
+    up = v.get("median_upside")
+    return f"{verdict} {up:+.0f}%" if up is not None else verdict
+
+
+def ai_valuation_summary(a: dict) -> str:
+    """За основната таблица: AI присъдата + медианата на намерените справедливи цени."""
+    if not a:
+        return ""
+    if "error" in a:
+        return "⚠️ Грешка"
+    est = [e["fair_value"] for e in a.get("estimates") or []]
+    return f"{a.get('verdict', '')} · {median(est):.2f}" if est else a.get("verdict", "")
+
+
+def render_valuation_table(selected: list, vals: dict, ai: dict):
+    """💎 Подробната таблица на справедливата цена (показва се само при поискване)."""
     rows = []
     for x in selected:
         v = vals.get(x["symbol"]) or {}
@@ -191,37 +203,51 @@ def render_valuation(selected: list):
     st.caption("Цените са във валутата на акцията. Методите са ориентир - при банки, застрахователи и бързо растящи "
                "компании Греъм и FCF често подценяват; гледай съгласието между методите и AI източниците.")
 
-    provider = news_provider()
-    missing = [x for x in selected if x["symbol"] not in ai or "error" in ai[x["symbol"]]]
-    if st.button(f"🤖 Провери справедливата цена в интернет с {provider} ({len(missing)} акции)", key="tr_val_btn",
-                 disabled=not missing, width="stretch",
-                 help="Morningstar, Simply Wall St, GuruFocus, анализатори - с линкове. Платено; пази се до края на деня."):
-        st.session_state["tr_val_confirm"] = True
-    if st.session_state.get("tr_val_confirm") and missing:
-        with st.container(border=True):
-            st.warning(f"Ще се направят **{len(missing)} платени проверки** с {provider}. Продължаваме ли?")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Да, провери", key="tr_val_yes", type="primary", width="stretch"):
-                st.session_state.pop("tr_val_confirm", None)
-                check_ai_valuations(missing)
-                st.rerun()
-            if c2.button("✖ Откажи", key="tr_val_no", width="stretch"):
-                st.session_state.pop("tr_val_confirm", None)
-                st.rerun()
-    for x in selected:
-        a = ai.get(x["symbol"])
-        if not a:
-            continue
-        with st.expander(f"🤖 {x['name']}: {('⚠️ Грешка' if 'error' in a else a['verdict'])}"):
-            if "error" in a:
-                st.error(a["error"])
-                continue
-            st.markdown(a["summary"] or "—")
-            if a["estimates"]:
-                st.markdown(" · ".join(f"**{e['source']}**: {e['fair_value']:.2f} {e['currency']}" for e in a["estimates"]))
-            if a["sources"]:
-                st.markdown("Източници: " + " · ".join(f"[{s_['title']}]({s_['url']})" for s_ in a["sources"]))
 
+def render_valuation_detail(v: dict, a: dict):
+    """Подробностите за справедливата цена на един инструмент (клик по клетката в основната таблица)."""
+    if v.get("verdict") == val.VALUE_ETF:
+        st.markdown("ETF - за фондовете няма „справедлива цена“.")
+    elif v.get("methods"):
+        price = v.get("price")
+        parts = [f"**{m}**: {fv:.2f}" + (f" ({100 * (fv / price - 1):+.0f}%)" if price else "")
+                 for m, fv in v["methods"].items()]
+        head = f"**{valuation_summary(v)}** · гласове {val.votes_text(v) or '—'}"
+        body = (f"Цена {price:.2f} · " if price else "") + " · ".join(parts)
+        if v.get("peg"):
+            body += f" · PEG {v['peg']:.2f}"
+        st.markdown(f"{head}  \n{body}")
+    else:
+        st.markdown(f"**{v.get('verdict', val.VALUE_NO_DATA)}** - Yahoo няма достатъчно данни за методите.")
+    if not a:
+        st.caption("🤖 AI проверка в интернет - с бутона „🤖 Справедлива цена AI“ горе.")
+    elif "error" in a:
+        st.error(friendly_ai_error(a["error"], news_provider()))
+    else:
+        st.markdown(f"**🤖 AI: {a['verdict']}** - {a['summary'] or '—'}")
+        if a["estimates"]:
+            st.markdown(" · ".join(f"**{e['source']}**: {e['fair_value']:.2f} {e['currency']}" for e in a["estimates"]))
+        if a["sources"]:
+            st.markdown("Източници: " + " · ".join(f"[{s_['title']}]({s_['url']})" for s_ in a["sources"]))
+
+
+def confirm_paid_check(key: str, count: int, what: str) -> bool:
+    """Потвърждение за платените AI проверки (на цяла ширина под бутоните). True = „Да, провери“."""
+    if not st.session_state.get(key):
+        return False
+    with st.container(border=True):
+        st.warning(f"Ще се направят **{count} платени проверки** ({what}) с {news_provider()}. Продължаваме ли?")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Да, провери", key=f"{key}_yes", type="primary", width="stretch"):
+            st.session_state.pop(key, None)
+            return True
+        if c2.button("✖ Откажи", key=f"{key}_no", width="stretch"):
+            st.session_state.pop(key, None)
+            st.rerun()
+    return False
+
+
+# ---------------------------------------------------------------- тренд
 
 def trend_quality(close: pd.Series, bars: int, periods_per_year: int):
     """(годишен наклон %, R², качество = наклон x R²) на права линия през ln(цена)
@@ -434,23 +460,54 @@ def render_trend_section():
         instrument_dialog(name, symbol, actions=lambda: selection_actions(name, symbol, price))
 
 
+SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна от добавяне %", "📰 Новини", "💎 Справедлива цена",
+                         "🤖 Справедлива AI"]
+SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива цена": "value", "🤖 Справедлива AI": "value"}
+
+
 def render_selected(selected: list, news: dict, raw, thresholds):
     """Таб „⭐ Селектирани“: стоят, докато не ги премахнеш ръчно; текущите показатели
-    се теглят само за тях (без пълен скан), за всекидневен преглед."""
+    се теглят само за тях (без пълен скан), за всекидневен преглед. Горе - бутоните за новините и
+    справедливата цена (AI), основната таблица е кратка (останалото с „Още колони“), клик по клетка
+    с новини / справедлива цена показва подробностите под таблицата, клик по името - графиката."""
     if not selected:
-        st.info("Още няма селектирани. Отвори графиката на инструмент от „🤝 И двата“ (клик по ред) и натисни "
-                "**⭐ Добави в Селектирани** - ще стои тук, докато не го премахнеш.")
+        st.info("Още няма селектирани. Отвори графиката на инструмент от „🤝 И двата“ (клик по името) и натисни "
+                "**⭐** горе до името - ще стои тук, докато не го премахнеш.")
         return
-    c1, c2 = st.columns([3, 1], vertical_alignment="center")
-    c1.caption("Записани трайно (в repo-то) - стоят, докато не ги премахнеш от прозореца с графиката. "
-               "Показателите са актуални (последна цена, до 1 час кеш).")
-    if c2.button("🔄 Опресни", key="tr_sel_reload", width="stretch", help="Презареди списъка (ако е променян от друго устройство)"):
+    provider = news_provider()
+    symbols = tuple(x["symbol"] for x in selected)
+    with st.spinner("Тегля актуалните цени и показателите на селектираните..."):
+        metrics = selected_metrics(symbols)
+        vals = selected_valuations(symbols)
+    ai = today_ai_valuations()
+    news_missing = [SimpleNamespace(name=x["name"], symbol=x["symbol"]) for x in selected
+                    if x["symbol"] not in news or "error" in news[x["symbol"]]]
+    val_missing = [x for x in selected if (vals.get(x["symbol"]) or {}).get("verdict") != val.VALUE_ETF
+                   and (x["symbol"] not in ai or "error" in ai[x["symbol"]])]
+
+    b1, b2, b3 = st.columns([2, 2, 1], vertical_alignment="center")
+    if b1.button(f"🔎 Новини ({len(news_missing)})", key="tr_sel_news_btn", disabled=not news_missing, width="stretch",
+                 help=f"Новини и анализи с {provider} (търсене в интернет, платено; пази се до края на деня за всички "
+                      f"сесии). Днес с {provider}: {news_checks_today(provider)} проверки."):
+        st.session_state["tr_sel_news_confirm"] = True
+    if b2.button(f"🤖 Справедлива цена AI ({len(val_missing)})", key="tr_val_btn", disabled=not val_missing,
+                 width="stretch", help="Morningstar, Simply Wall St, GuruFocus, анализатори - с линкове. Платено; "
+                                       "пази се до края на деня. Без ETF-ите."):
+        st.session_state["tr_val_confirm"] = True
+    if b3.button("🔄 Опресни", key="tr_sel_reload", width="stretch",
+                 help="Презареди списъка (ако е променян от друго устройство) и показателите"):
         load_selected(force=True)
         selected_metrics.clear()
         st.rerun()
-    symbols = tuple(x["symbol"] for x in selected)
-    with st.spinner("Тегля актуалните цени на селектираните..."):
-        metrics = selected_metrics(symbols)
+    if confirm_paid_check("tr_sel_news_confirm", len(news_missing), "новини"):
+        found = check_news(news_missing, news)
+        errors = sum(1 for r in found.values() if "error" in r)
+        st.toast(f"Новини: {len(found) - errors} проверени" + (f", {errors} с грешка (натисни пак)" if errors else ""))
+        st.rerun()
+    if confirm_paid_check("tr_val_confirm", len(val_missing), "справедлива цена"):
+        check_ai_valuations(val_missing)
+        st.rerun()
+
     currencies, _, _ = load_curated_symbol_info(curated_file_mtime())
     rows = []
     for x in selected:
@@ -467,25 +524,54 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     df = classify(df, *thresholds)
     table = display_table(df, news)
     extra = df.set_index("Тикер")
-    table.insert(2, "Добавен", [extra.at[s, "added"] for s in table["Тикер"]])
+    table.insert(1, "Добавен", [extra.at[s, "added"] for s in table["Тикер"]])
     change = []
     for s in table["Тикер"]:
         p0, p1 = extra.at[s, "price_added"], extra.at[s, "price"]
         change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
-    table.insert(5, "Промяна от добавяне %", change)
+    table.insert(2, "Промяна от добавяне %", change)
+    table["💎 Справедлива цена"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
+    table["🤖 Справедлива AI"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
+
+    show_all = st.toggle("Още колони", key="tr_sel_all_cols")
+    order = list(table.columns) if show_all else SELECTED_MAIN_COLUMNS
     st.dataframe(
         numbered(table), hide_index=False, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
-        on_select=lambda: _open_selected(tk, table),
+        on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
             "Промяна от добавяне %": st.column_config.NumberColumn(format="%+.1f"),
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
+            "📰 Новини": st.column_config.TextColumn(help="Кликни клетката за подробностите и източниците"),
+            "💎 Справедлива цена": st.column_config.TextColumn(
+                help="По методите от Yahoo (анализатори, Греъм, Линч, FCF, PEG) и медианата до справедливата. "
+                     "Кликни клетката за подробностите"),
+            "🤖 Справедлива AI": st.column_config.TextColumn(
+                help="От проверката в интернет (бутона горе): присъда · медианата на намерените справедливи цени. "
+                     "Кликни клетката за източниците"),
         },
     )
-    st.caption("👆 Кликни името за графиката (там е и 🗑 за премахване от Селектирани).")
-    st.divider()
-    render_valuation(selected)  # ETF-ите излизат като „— ETF“
-    st.divider()
-    section_header("📰 Новини за селектираните", status="info")
-    render_news_section([SimpleNamespace(name=x["name"], symbol=x["symbol"]) for x in selected], news, key="tr_sel_news")
+    st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 = подробностите тук отдолу.")
+
+    # подробностите за кликнатата клетка с новини / справедлива цена
+    cells = ((st.session_state.get(tk) or {}).get("selection") or {}).get("cells") or []
+    if cells and cells[0][1] in SELECTED_DETAIL_COLUMNS and cells[0][0] < len(table):
+        row, kind = cells[0][0], SELECTED_DETAIL_COLUMNS[cells[0][1]]
+        name, symbol = table["Име"].iloc[row], table["Тикер"].iloc[row]
+        with st.container(border=True):
+            if kind == "news":
+                st.markdown(f"##### 📰 {name}")
+                r = news.get(symbol)
+                if not r:
+                    st.caption("Още няма проверка за днес - бутона „🔎 Новини“ горе.")
+                elif "error" in r:
+                    st.error(friendly_ai_error(r["error"], provider))
+                else:
+                    render_news_item(r)
+            else:
+                st.markdown(f"##### 💎 {name}")
+                render_valuation_detail(vals.get(symbol) or {}, ai.get(symbol) or {})
+
+    if st.toggle("💎 Подробна таблица на справедливата цена", key="tr_val_table"):
+        render_valuation_table(selected, vals, ai)
