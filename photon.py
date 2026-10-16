@@ -1250,7 +1250,9 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
     if any(sym != "-" for _, sym in items):
         st.caption("👆 Кликни името на позицията за графика, анализатори и новини.")
     st.dataframe(
-        numbered(pd.DataFrame(rows)), hide_index=False, width="stretch", key=(k := table_key("ph_pos_table")),
+        # T212 тикерът и сканираният символ не се показват (служебни - за връзката с графиката)
+        numbered(pd.DataFrame(rows).drop(columns=["T212 тикер", "Сканиран символ"])), hide_index=False, width="stretch",
+        key=(k := table_key("ph_pos_table")),
         selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
