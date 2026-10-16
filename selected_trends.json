@@ -269,6 +269,12 @@
       "symbol": "SEC0.DE",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "V0IH (Vaneck Oil Services (Acc))",
+      "symbol": "V0IH.DE",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
