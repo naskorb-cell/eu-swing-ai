@@ -311,6 +311,12 @@
       "symbol": "PHAG.AS",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "SXFPEX (iShares STOXX Europe 600 Financial Services DE (Dist))",
+      "symbol": "SXFPEX.DE",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
