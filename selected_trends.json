@@ -305,6 +305,12 @@
       "symbol": "OVH.PA",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "PHAG (WisdomTree Physical Silver)",
+      "symbol": "PHAG.AS",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
