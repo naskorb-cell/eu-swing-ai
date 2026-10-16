@@ -1,0 +1,72 @@
+name: Telegram Alerts
+
+# В работни дни в 10:00, 13:00 и 16:30 централноевропейско време (борсите: 9:00-17:30) - 1 ч след
+# отварянето, обед и 1 ч преди затварянето (тогава и скана за нови в „И двата“). Графикът е в UTC, затова
+# всеки час е два пъти (лятно / зимно време); alerts.py --scheduled изпълнява само съвпадащия с часа в Берлин.
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"    # 10:00 лятно
+    - cron: "0 9 * * 1-5"    # 10:00 зимно
+    - cron: "0 11 * * 1-5"   # 13:00 лятно
+    - cron: "0 12 * * 1-5"   # 13:00 зимно
+    - cron: "30 14 * * 1-5"  # 16:30 лятно
+    - cron: "30 15 * * 1-5"  # 16:30 зимно
+  workflow_dispatch:
+    inputs:
+      trend:
+        description: "И пълния скан за нови в „🤝 И двата“ (5-10 мин.)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: telegram-alerts
+  cancel-in-progress: false
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # паметта (какво вече е пратено) - в кеша на Actions, не в repo-то (то е публично)
+      - name: Restore alerts state
+        uses: actions/cache/restore@v4
+        with:
+          path: alerts_state.json
+          key: alerts-state-${{ github.run_id }}
+          restore-keys: alerts-state-
+
+      - name: Run alerts
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          T212_API_KEY: ${{ secrets.T212_API_KEY }}
+          T212_API_SECRET: ${{ secrets.T212_API_SECRET }}
+          T212_API_KEY_WIFE: ${{ secrets.T212_API_KEY_WIFE }}
+          T212_API_SECRET_WIFE: ${{ secrets.T212_API_SECRET_WIFE }}
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python alerts.py --scheduled
+          elif [ "${{ inputs.trend }}" = "true" ]; then
+            python alerts.py --trend
+          else
+            python alerts.py
+          fi
+
+      - name: Save alerts state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: alerts_state.json
+          key: alerts-state-${{ github.run_id }}
