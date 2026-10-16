@@ -293,6 +293,12 @@
       "symbol": "GS",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "LI (Klepierre)",
+      "symbol": "LI.PA",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
