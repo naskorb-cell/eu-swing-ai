@@ -281,6 +281,12 @@
       "symbol": "8PSB.DE",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "AMZ (Amazon)",
+      "symbol": "AMZN",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
