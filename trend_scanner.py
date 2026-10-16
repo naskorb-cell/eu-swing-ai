@@ -144,10 +144,17 @@ def check_ai_valuations(items: list):
 
 
 def valuation_summary(v: dict) -> str:
-    """За основната таблица: присъдата по методите от Yahoo + медианата до справедливата."""
+    """За основната таблица - кратко: точката на присъдата по методите от Yahoo + % до справедливата."""
     verdict = v.get("verdict", val.VALUE_NO_DATA)
     up = v.get("median_upside")
-    return f"{verdict} {up:+.0f}%" if up is not None else verdict
+    if verdict == val.VALUE_ETF:
+        return "ETF"
+    if up is None:
+        return "—"
+    return f"{verdict.split()[0]} {up:+.0f}%"
+
+
+AI_VERDICT_SHORT = {val.VALUE_FAIR: "⚪ Неутрална"}  # „Около справедливата“ е дълго за колоната
 
 
 def ai_valuation_summary(a: dict) -> str:
@@ -156,8 +163,8 @@ def ai_valuation_summary(a: dict) -> str:
         return ""
     if "error" in a:
         return "⚠️ Грешка"
-    est = [e["fair_value"] for e in a.get("estimates") or []]
-    return f"{a.get('verdict', '')} · {median(est):.2f}" if est else a.get("verdict", "")
+    verdict = a.get("verdict", "")
+    return AI_VERDICT_SHORT.get(verdict, verdict)
 
 
 def render_valuation_table(selected: list, vals: dict, ai: dict):
@@ -212,7 +219,8 @@ def render_valuation_detail(v: dict, a: dict):
         price = v.get("price")
         parts = [f"**{m}**: {fv:.2f}" + (f" ({100 * (fv / price - 1):+.0f}%)" if price else "")
                  for m, fv in v["methods"].items()]
-        head = f"**{valuation_summary(v)}** · гласове {val.votes_text(v) or '—'}"
+        up = v.get("median_upside")
+        head = f"**{v.get('verdict')}{f' {up:+.0f}%' if up is not None else ''}** · гласове {val.votes_text(v) or '—'}"
         body = (f"Цена {price:.2f} · " if price else "") + " · ".join(parts)
         if v.get("peg"):
             body += f" · PEG {v['peg']:.2f}"
@@ -460,9 +468,9 @@ def render_trend_section():
         instrument_dialog(name, symbol, actions=lambda: selection_actions(name, symbol, price))
 
 
-SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна от добавяне %", "📰 Новини", "💎 Справедлива цена",
-                         "🤖 Справедлива AI"]
-SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива цена": "value", "🤖 Справедлива AI": "value"}
+SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна %", "📰 Новини", "💎 Справедлива", "🤖 AI оценка"]
+SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива": "value", "🤖 AI оценка": "value"}
+SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка"]  # най-горе - с най-много 🟢 в тях
 
 
 def render_selected(selected: list, news: dict, raw, thresholds):
@@ -529,9 +537,15 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     for s in table["Тикер"]:
         p0, p1 = extra.at[s, "price_added"], extra.at[s, "price"]
         change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
-    table.insert(2, "Промяна от добавяне %", change)
-    table["💎 Справедлива цена"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
-    table["🤖 Справедлива AI"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
+    table.insert(2, "Промяна %", change)
+    table["💎 Справедлива"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
+    table["🤖 AI оценка"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
+    # най-горе тези с най-много зелени точки (новини + справедлива + AI), после с най-малко червени
+    signals = table[SIGNAL_COLUMNS].astype(str)
+    greens = signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1)
+    reds = signals.apply(lambda c: c.str.startswith("🔴")).sum(axis=1)
+    table = table.assign(_g=-greens, _r=reds).sort_values(["_g", "_r"], kind="stable") \
+        .drop(columns=["_g", "_r"]).reset_index(drop=True)
 
     show_all = st.toggle("Още колони", key="tr_sel_all_cols")
     order = list(table.columns) if show_all else SELECTED_MAIN_COLUMNS
@@ -541,15 +555,19 @@ def render_selected(selected: list, news: dict, raw, thresholds):
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
-            "Промяна от добавяне %": st.column_config.NumberColumn(format="%+.1f"),
+            "Добавен": st.column_config.TextColumn(width="small"),
+            "Промяна %": st.column_config.NumberColumn(format="%+.1f", width="small",
+                                                       help="Промяна на цената от добавянето в Селектирани"),
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
-            "📰 Новини": st.column_config.TextColumn(help="Кликни клетката за подробностите и източниците"),
-            "💎 Справедлива цена": st.column_config.TextColumn(
-                help="По методите от Yahoo (анализатори, Греъм, Линч, FCF, PEG) и медианата до справедливата. "
-                     "Кликни клетката за подробностите"),
-            "🤖 Справедлива AI": st.column_config.TextColumn(
-                help="От проверката в интернет (бутона горе): присъда · медианата на намерените справедливи цени. "
-                     "Кликни клетката за източниците"),
+            "📰 Новини": st.column_config.TextColumn(width="small", help="Кликни клетката за подробностите и източниците"),
+            "💎 Справедлива": st.column_config.TextColumn(
+                width="small",
+                help="🟢 подценена / ⚪ около / 🔴 надценена по методите от Yahoo (анализатори, Греъм, Линч, FCF, PEG) "
+                     "и % до справедливата (медианата). Кликни клетката за подробностите"),
+            "🤖 AI оценка": st.column_config.TextColumn(
+                width="small",
+                help="От проверката в интернет (бутона горе): Morningstar, Simply Wall St, GuruFocus, анализатори. "
+                     "Кликни клетката за справедливите цени и източниците"),
         },
     )
     st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 = подробностите тук отдолу.")
