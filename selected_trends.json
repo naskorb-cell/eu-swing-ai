@@ -257,6 +257,12 @@
       "symbol": "SPYN.DE",
       "added": "2026-10-16",
       "price": 338.6
+    },
+    {
+      "name": "SAF (Safran)",
+      "symbol": "SAF.PA",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
