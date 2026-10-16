@@ -2014,7 +2014,7 @@ def install_chart_scripts():
     st.html(CROSSHAIR_JS.replace("__PH_VERSION__", _CHART_JS_VERSION), unsafe_allow_javascript=True)
 
 
-CHART_TIMEFRAMES = ["W", "D", "4h"]
+CHART_TIMEFRAMES = ["4h", "D", "W"]  # по-малката рамка вляво (решение на Наско)
 CHART_CTRL_STRIP = 52  # px празна ивица горе в графиката - там стоят бутоните W/D/4h и S/M/L
 # бутоните - слой в горния ляв ъгъл на графиката (контейнерите с key получават клас st-key-<key>)
 CHART_CTRL_CSS = """<style>
@@ -2068,7 +2068,7 @@ def render_photon_chart(symbol: str, setup, swing_order_daily: int, min_range_at
     with box.container(key="ph_chart_ctrl", horizontal=True, gap="small"):
         st.session_state.setdefault("ph_chart_tf", "D")
         tf = st.segmented_control("Рамка", CHART_TIMEFRAMES, key="ph_chart_tf", label_visibility="collapsed",
-                                  help="W = седмична · D = дневна · 4h = 4-часова") or "D"
+                                  help="4h = 4-часова · D = дневна · W = седмична") or "D"
         st.session_state.setdefault("ph_chart_h", "M")
         st.segmented_control("Височина", list(CHART_HEIGHTS), key="ph_chart_h", label_visibility="collapsed",
                              help="Височина на графиката: S / M / L / XL")
