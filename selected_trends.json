@@ -275,6 +275,12 @@
       "symbol": "V0IH.DE",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "8PSB (Invesco Physical Silver ETC (Acc))",
+      "symbol": "8PSB.DE",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
