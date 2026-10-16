@@ -1257,7 +1257,8 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
         column_config={
             "📊 Фундамент": st.column_config.TextColumn(
                 help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
-            "Потенциал до целта (%)": st.column_config.NumberColumn(format="%.1f"),
+            "Потенциал до целта (%)": st.column_config.NumberColumn(
+                "Потенциал %", format="%.1f", width="small", help="До средната целева цена на анализаторите"),
             "Отчет": st.column_config.TextColumn(help=f"⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап при задържане)"),
         },
     )
@@ -1530,6 +1531,8 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
         width="stretch", hide_index=False, column_order=order,
         column_config={
             "Име": st.column_config.TextColumn("Име", pinned=True),
+            "Потенциал до целта (%)": st.column_config.Column(
+                "Потенциал %", width="small", help="До средната целева цена на анализаторите"),
             "Зона": st.column_config.TextColumn("Зона", width="small",
                                                 help="🟢 Discount / 🟠 Premium / 🔵 Над BOS = над дневната съпротива, след пробив нагоре"),
             "📊 Фундамент": st.column_config.TextColumn(
