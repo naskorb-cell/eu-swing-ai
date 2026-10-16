@@ -169,7 +169,7 @@ class PhotonSetup:
     symbol: str
     price: float
     phase: str                  # "A" (Pro Internal) или "B" (Counter Internal)
-    zone: str                   # Discount / Premium / Над съпротивата (BOS)
+    zone: str                   # Discount / Premium / Над BOS (над дневната съпротива, след пробив)
     range_pos: float            # % от дневния диапазон: 0 = подкрепа, 100 = съпротива
     choch_now: bool
     choch_level: float          # 4ч swing high, над който е CHoCH
@@ -285,7 +285,7 @@ def analyze_photon_intraday(name: str, symbol: str, ctx: dict, intraday: pd.Data
 
     return PhotonSetup(
         name=name, symbol=symbol, price=current_price, phase=phase,
-        zone="Над съпротивата (BOS)" if above_resistance else ("Discount" if in_discount else "Premium"),
+        zone="Над BOS" if above_resistance else ("Discount" if in_discount else "Premium"),
         range_pos=range_pos, choch_now=events["choch_bullish_now"], choch_level=events["choch_level"],
         note=note, daily_support=daily_support, daily_resistance=daily_resistance,
         weekly_resistance=ctx["weekly_resistance"],
@@ -905,7 +905,7 @@ LEGEND_MD = f"""
 | **🟦 A · Pro** | 4ч структурата е възходяща - вход в POI зоната над силното 4ч дъно |
 | **🟪 B · Counter** | 4ч е в пулбек - вход след пробив (CHoCH) над силния lower high - върхът преди най-ниското дъно на пулбека; „1ч CHoCH“ = по-ранното потвърждение от настройките |
 | **Силно дъно / слаб връх** | силното дъно е довело до пробив нагоре (BOS) - то е дневната подкрепа и под него структурата е счупена; слабият връх още не е „защитен“ - той е целта (на графиката: BOS линии и надписи) |
-| **🟢 Discount / 🟠 Premium / 🔵 над съпротивата** | долната половина на дневния диапазон / горната / над дневната съпротива |
+| **🟢 Discount / 🟠 Premium / 🔵 Над BOS** | долната половина на дневния диапазон / горната / над дневната съпротива (след пробив нагоре - BOS) |
 | **Позиция %** | 0% = дневна подкрепа, 50% = equilibrium, 100% = съпротива (цел 1) |
 | **Лимит вход** | предложената цена за поръчка; ако е **над** текущата цена, това е buy stop - Phase B, който чака пробив на CHoCH |
 | **⏱ До цел 1** | ориентировъчен срок в търговски дни (типичен и диапазон бързо-бавно) по скоростта на досегашните възходящи swing-ове на акцията; готовите над избрания хоризонт отиват в Watchlist |
@@ -1315,7 +1315,7 @@ def news_checks_today(provider: str) -> int:
     return _store_today()["checks"].get(provider, 0)
 
 
-ZONE_ORDER = {"Discount": 0, "Premium": 1}  # "Над съпротивата (BOS)" и др. - последни
+ZONE_ORDER = {"Discount": 0, "Premium": 1}  # "Над BOS" и др. - последни
 
 
 def sort_by_confirmation(setups: list, fund_data: dict, news: dict) -> list:
@@ -1528,6 +1528,8 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
         width="stretch", hide_index=False, column_order=order,
         column_config={
             "Име": st.column_config.TextColumn("Име", pinned=True),
+            "Зона": st.column_config.TextColumn("Зона", width="small",
+                                                help="🟢 Discount / 🟠 Premium / 🔵 Над BOS = над дневната съпротива, след пробив нагоре"),
             "📊 Фундамент": st.column_config.TextColumn(
                 "📊 Фундамент", help=f"✅ Buy/Strong Buy от поне {fund.MIN_ANALYSTS} анализатори и потенциал ≥ "
                                     f"{fund.MIN_UPSIDE_PCT}% до средната целева цена; ⚠️ Sell или цел под цената; "
