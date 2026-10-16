@@ -263,6 +263,12 @@
       "symbol": "SAF.PA",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "SEC0 (iShares MSCI Global Semiconductors (Acc))",
+      "symbol": "SEC0.DE",
+      "added": "2026-10-16",
+      "price": null
     }
   ]
 }
