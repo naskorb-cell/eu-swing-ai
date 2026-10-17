@@ -438,7 +438,7 @@ PROFILE_HELP = {
 
 # Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
 # основните колони (останалите - с „Още колони“); цена, лимит, валута, EMA, ATR, позиция и R/R са там
-MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Зона", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
+MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "🏛 Fair Value", "❤️ Здраве", "💼 Държа", "Зона", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
 PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
 ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
 DEFAULT_INVESTMENT = 1000  # € за ориентировъчната печалба/загуба
@@ -1202,16 +1202,24 @@ def fetch_held_positions():
             continue  # недостъпен акаунт не бива да чупи скрийнъра
         if open_positions.empty:
             continue
-        for ticker in open_positions["Тикер"]:
+        for _, pos in open_positions.iterrows():
+            ticker = pos["Тикер"]
             entry = by_ticker.get(ticker)
             if entry is None:
                 symbol, name = info.get(ticker, (None, ticker))
                 if symbol is None and "_US_" in ticker:
                     symbol = ticker.split("_US_")[0]  # US листване в T212 (напр. AAPL_US_EQ -> AAPL)
-                entry = by_ticker[ticker] = {"ticker": ticker, "name": name, "symbol": symbol, "accounts": []}
+                entry = by_ticker[ticker] = {"ticker": ticker, "name": name, "symbol": symbol, "accounts": [],
+                                             "cost": 0.0, "value": 0.0}
             if account["label"] not in entry["accounts"]:
                 entry["accounts"].append(account["label"])
-    return [{**e, "accounts": "+".join(e["accounts"])} for e in by_ticker.values()]
+            qty = float(pos.get("Кол-во") or 0)
+            entry["cost"] += qty * float(pos.get("Ср. цена (вход)") or 0)
+            entry["value"] += qty * float(pos.get("Текуща цена") or 0)
+    return [{**{k: v for k, v in e.items() if k not in ("cost", "value")}, "accounts": "+".join(e["accounts"]),
+             # % от входа по цените (без валутния курс; при двата акаунта - средно претеглено)
+             "change_pct": round(100 * (e["value"] / e["cost"] - 1), 1) if e["cost"] else None}
+            for e in by_ticker.values()]
 
 
 def held_symbols(positions):
@@ -1223,49 +1231,45 @@ def held_symbols(positions):
 
 def render_positions_status(positions: list, statuses: dict, scanned_symbols: set, filtered_out: dict,
                             fund_data: dict = None, news: dict = None):
-    """Таблица: всяка отворена позиция, къде е спрямо последния скан и какво
-    казват анализаторите (ниво 1) и новините (ниво 2) - както за сетъпите."""
+    """Таблица: всяка отворена позиция (името е оцветено по акаунта), % от входа и какво казват
+    анализаторите, новините и InvestingPro. statuses / scanned_symbols / filtered_out (статусът спрямо скана)
+    вече не се показват - по желание на Наско, за по-чиста таблица; статусът е в графиката."""
     fund_data, news = fund_data or {}, news or {}
     if not positions:
         st.info("Няма отворени позиции в T212.")
         return
-    rows = []
+    rows, ip_data = [], ip.load_data()
     for p in positions:
         symbol = p["symbol"]
-        if symbol is None:
-            status = "⚠️ Няма съвпадение с Yahoo символ (не може да се сканира)"
-        elif symbol in statuses:
-            status = statuses[symbol]
-        elif symbol in filtered_out:
-            status = filtered_out[symbol]
-        elif symbol in scanned_symbols:
-            status = "Не е сканиран още - пусни скан"
-        else:
-            status = "Извън универса (не минава критериите за ликвидност) - добави го ръчно, за да се сканира"
         cols = fund.fundamental_columns(fund_data.get(symbol))
-        rows.append({"Позиция": p["name"], "📊 Фундамент": cols["📊 Фундамент"],
-                     "📰 Новини": (news.get(symbol) or {}).get("verdict", ""), "Статус": status,
-                     "Анализатори": cols["Анализатори"], "Потенциал до целта (%)": cols["Потенциал до целта (%)"],
-                     "Отчет": cols["Отчет"], "Акаунт": p["accounts"],
-                     "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-"})
-    order = lambda r: (0 if r["Статус"].startswith("✅") else 1 if r["Статус"].startswith("👀") else 2, r["Позиция"])
-    rows = sorted(rows, key=order)
-    items = [(r["Позиция"], r["Сканиран символ"]) for r in rows]
+        rec = ip.lookup(symbol, p["name"], ip_data) if symbol else None
+        rows.append({"Позиция": p["name"], "±% от входа": p.get("change_pct"), "📊 Фундамент": cols["📊 Фундамент"],
+                     "📰 Новини": (news.get(symbol) or {}).get("verdict", ""),
+                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec),
+                     "Анализатори": cols["Анализатори"], "_accounts": p["accounts"], "_symbol": symbol or "-"})
+    rows = sorted(rows, key=lambda r: -(r["±% от входа"] if r["±% от входа"] is not None else -1e9))
+    items = [(r["Позиция"], r["_symbol"]) for r in rows]
     if any(sym != "-" for _, sym in items):
-        st.caption("👆 Кликни името на позицията за графика, анализатори и новини.")
+        st.caption("👆 Кликни името на позицията за графика, анализатори и новини · името: синьо - моя, розово - на "
+                   "съпругата, лилаво - на двамата.")
+    df = numbered(pd.DataFrame(rows))
+    df["±% от входа"] = pd.to_numeric(df["±% от входа"], errors="coerce")
+    accounts = df.pop("_accounts")
+    df = df.drop(columns=["_symbol"])  # служебни - за цвета и за връзката с графиката
+    styled = (df.style.map(change_style, subset=["±% от входа"])
+              .apply(lambda c: [ACCOUNT_COLORS.get(a, "") for a in accounts], subset=["Позиция"])
+              .format("{:+.1f}%", na_rep="", subset=["±% от входа"]))
     st.dataframe(
-        # T212 тикерът и сканираният символ не се показват (служебни - за връзката с графиката)
-        numbered(pd.DataFrame(rows).drop(columns=["T212 тикер", "Сканиран символ"])
-                 .assign(**{"Потенциал до целта (%)": lambda d: pd.to_numeric(d["Потенциал до целта (%)"], errors="coerce")})),
-        hide_index=False, width="stretch",
+        styled, hide_index=False, width="stretch",
         key=(k := table_key("ph_pos_table")),
         selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
+            "±% от входа": st.column_config.NumberColumn(
+                "±%", width=70, help="Цената сега спрямо средната цена на входа (в цената на инструмента, без валутния "
+                                     "курс); при позиция в двата акаунта - средно претеглено"),
             "📊 Фундамент": st.column_config.TextColumn(
                 help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
-            "Потенциал до целта (%)": st.column_config.NumberColumn(
-                "Потенциал %", format="%.1f", width="small", help="До средната целева цена на анализаторите"),
-            "Отчет": st.column_config.TextColumn(help=f"⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап при задържане)"),
+            **IP_COLUMN_CONFIG,
         },
     )
 
@@ -1478,9 +1482,32 @@ def _open_selected(table_key: str, items: list):
         open_instrument(*items[row])
 
 
+# бледи плътни нюанси (полупрозрачните на тъмния фон стават маслинени): промяна нагоре / надолу / 0
+CHANGE_COLORS = {"up": "background-color: #16352A; color: #86EFAC", "down": "background-color: #3A1E26; color: #FCA5A5",
+                 "flat": "background-color: #262E3D; color: #CBD5E1"}
+# чия е позицията: синьо - N (Наско), розово - T (съпругата), смес - и двамата
+ACCOUNT_COLORS = {"N": "background-color: #1B2A44; color: #BFDBFE", "T": "background-color: #45243F; color: #F9A8D4",
+                  "N+T": "background-color: #2E2647; color: #DDD6FE"}
+
+
+def change_style(v) -> str:
+    if v is None or pd.isna(v):
+        return ""
+    return CHANGE_COLORS["up" if v > 0 else "down" if v < 0 else "flat"]
+
+
+IP_COLUMN_CONFIG = {  # колоните от InvestingPro (експорта в „⭐ Селектирани“ → „📥 InvestingPro“)
+    "🏛 Fair Value": st.column_config.TextColumn(
+        "🏛 Fair Value", width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена "
+                                             "и % до справедливата"),
+    "❤️ Здраве": st.column_config.TextColumn(
+        "❤️ Здраве", width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
+}
+
+
 def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
     """PhotonSetup-и като таблица с фундамента и новините (и за AI анализа)."""
-    rows = []
+    rows, ip_data = [], ip.load_data()
     for x in setups:
         row = x.to_row((held or {}).get(x.symbol, ""))
         row["Фаза"] = PHASE_BADGES.get(x.phase, row["Фаза"])
@@ -1498,7 +1525,9 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
             row["R/R (до седм. съпротива)"] = None  # седмичната не е над цел 1 - няма втора цел
         row["💶 Stop"] = fmt_pnl(plan["stop"])
         row["⏱ До цел 1"] = fmt_days(plan["days"])
-        rows.append({**row, **cols, "📰 Новини": verdict})
+        rec = ip.lookup(x.symbol, x.name, ip_data)
+        rows.append({**row, **cols, "📰 Новини": verdict,
+                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec)})
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -1557,6 +1586,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
             "🌊 ATR %": st.column_config.NumberColumn("🌊 ATR %", format="%.1f",
                                                      help="Среден дневен ход (ATR 14) като % от цената - волатилността"),
             "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
+            **IP_COLUMN_CONFIG,
         },
         on_select=lambda: _open_selected(tk, items), selection_mode="single-cell", key=(tk := table_key(key)),
     )
