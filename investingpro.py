@@ -369,7 +369,7 @@ def render_upload(known: dict):
                                            + ("Записано в частното repo." if ok else msg))
         probe = {"records": records, "updated": date.today().isoformat()}
         missing = [n for s, n in known.items() if not lookup(s, n, probe)]
-        st.caption(f"От нашите: {len(known) - len(missing)} от {len(known)} намерени."
+        st.caption(f"От акциите в Селектирани: {len(known) - len(missing)} от {len(known)} намерени."
                    + (f" Без данни: {', '.join(missing[:15])}" + (" ..." if len(missing) > 15 else "") if missing else ""))
         if unmatched:
             st.caption(f"Без разпозната борса ({len(unmatched)}): {', '.join(unmatched[:10])}"
