@@ -510,8 +510,10 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     ip_stale = ip_age is None or ip_age > ip.STALE_DAYS
     with b4.popover("📥 InvestingPro" + (" ⚠️" if ip_stale else ""), width="stretch",
                     help="Fair Value и финансово здраве от експорта на InvestingPro Screener (1-2 пъти в месеца)"):
-        ip.render_upload({x["symbol"]: x["name"] for x in selected  # без ETF-ите - за тях няма Fair Value
-                          if (vals.get(x["symbol"]) or {}).get("verdict") != val.VALUE_ETF})
+        types = load_curated_symbol_info(curated_file_mtime())[2]
+        ip.render_upload({x["symbol"]: x["name"] for x in selected  # без ETF/ETC - за тях няма Fair Value
+                          if types.get(x["symbol"]) != "ETF"
+                          and (vals.get(x["symbol"]) or {}).get("verdict") != val.VALUE_ETF})
     if b3.button("🔄 Опресни", key="tr_sel_reload", width="stretch",
                  help="Презареди списъка (ако е променян от друго устройство) и показателите"):
         load_selected(force=True)

@@ -10,6 +10,7 @@ InvestingPro няма API - Наско експортира Screener-а (изг�
 import io
 import json
 import re
+from collections import Counter
 from datetime import date
 
 import pandas as pd
@@ -164,8 +165,14 @@ def name_key(name: str) -> str:
     return " ".join(w for w in words if w not in LEGAL_WORDS)
 
 
+def exchange_of(rec: dict) -> str:
+    """Борсата на реда за отчета: префиксът от „Full Ticker“ (`ENXTPA`), иначе името на борсата."""
+    ft = rec.get("full_ticker") or ""
+    return ft.split(":", 1)[0] if ":" in ft else (rec.get("exchange") or "?")
+
+
 def parse_export(data: bytes, filename: str) -> tuple:
-    """-> ({символ: запис}, брой редове, [имена без символ])."""
+    """-> ({символ: запис}, брой редове, [имена без символ], Counter по борси)."""
     df = read_table(data, filename)
     fields = {c: _field(c) for c in df.columns}
     pct_cols = [c for c, f in fields.items() if f in ("fv_upside", "analyst_upside")]
@@ -174,7 +181,7 @@ def parse_export(data: bytes, filename: str) -> tuple:
     for c in pct_cols:
         vals = [v for v in df[c] if isinstance(v, (int, float)) and not pd.isna(v)]
         fraction[c] = bool(vals) and pd.Series(vals).abs().median() < 1.5
-    records, unmatched = {}, []
+    records, unmatched, exchanges = {}, [], Counter()
     for _, row in df.iterrows():
         rec, extra = {}, {}
         for c, f in fields.items():
@@ -198,6 +205,7 @@ def parse_export(data: bytes, filename: str) -> tuple:
                     extra[c] = t
         if not rec.get("name"):
             continue
+        exchanges[exchange_of(rec)] += 1
         symbol = yahoo_symbol(rec.get("full_ticker"), rec.get("ticker"), rec.get("exchange"))
         if not symbol:
             unmatched.append(rec["name"])
@@ -207,7 +215,7 @@ def parse_export(data: bytes, filename: str) -> tuple:
         if extra:
             rec["extra"] = extra
         records[symbol] = {k: v for k, v in rec.items() if v is not None}
-    return records, len(df), unmatched
+    return records, len(df), unmatched, exchanges
 
 
 # ---------------------------------------------------------------- съхранение (частно repo)
@@ -236,14 +244,16 @@ def load_data() -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def _name_index(updated: str, count: int, _records: dict) -> dict:
-    index, dup = {}, set()
+def _name_index(updated: str, count: int, _records: dict) -> tuple:
+    """({ключ на името: символ}, {тикер без борсата: [символи]})."""
+    index, dup, bases = {}, set(), {}
     for symbol, rec in _records.items():
         key = name_key(rec.get("name"))
         if key in index:
             dup.add(key)
         index[key] = symbol
-    return {k: v for k, v in index.items() if k and k not in dup}
+        bases.setdefault(symbol.rsplit(".", 1)[0], []).append(symbol)
+    return {k: v for k, v in index.items() if k and k not in dup}, bases
 
 
 def lookup(symbol: str, name: str = None, data: dict = None):
@@ -253,10 +263,17 @@ def lookup(symbol: str, name: str = None, data: dict = None):
     if symbol in records:
         return records[symbol]
     if name:
-        index = _name_index(data.get("updated", ""), len(records), records)
-        found = index.get(name_key(name))
+        index, bases = _name_index(data.get("updated", ""), len(records), records)
+        key = name_key(name)
+        found = index.get(key)
         if found:
             return records[found]
+        # същият тикер на друга борса (напр. различно записана борса във файла) + същата първа дума в името
+        first = key.split(" ")[0] if key else ""
+        same = [s for s in bases.get(symbol.rsplit(".", 1)[0], [])
+                if first and name_key(records[s].get("name")).split(" ")[0] == first]
+        if len(same) == 1:
+            return records[same[0]]
     return None
 
 
@@ -351,16 +368,17 @@ def render_upload(known: dict):
     files = st.file_uploader("Файлове от InvestingPro", type=["xlsx", "xls", "csv"], accept_multiple_files=True,
                              key="ip_upload", label_visibility="collapsed")
     if files and st.button("💾 Обработи и запази", key="ip_save", type="primary"):
-        records, total, unmatched, names = {}, 0, [], []
+        records, total, unmatched, names, exchanges = {}, 0, [], [], Counter()
         for f in files:
             try:
-                r, n, u = parse_export(f.getvalue(), f.name)
+                r, n, u, ex = parse_export(f.getvalue(), f.name)
             except Exception as e:  # noqa: BLE001
                 st.error(f"{f.name}: {e}")
                 continue
             records.update(r)
             total += n
             unmatched += u
+            exchanges += ex
             names.append(f.name)
         if not records:
             return
@@ -371,6 +389,7 @@ def render_upload(known: dict):
         missing = [n for s, n in known.items() if not lookup(s, n, probe)]
         st.caption(f"От акциите в Селектирани: {len(known) - len(missing)} от {len(known)} намерени."
                    + (f" Без данни: {', '.join(missing[:15])}" + (" ..." if len(missing) > 15 else "") if missing else ""))
+        st.caption("По борси: " + ", ".join(f"{k} {v}" for k, v in exchanges.most_common()))
         if unmatched:
             st.caption(f"Без разпозната борса ({len(unmatched)}): {', '.join(unmatched[:10])}"
                        + (" ..." if len(unmatched) > 10 else ""))
