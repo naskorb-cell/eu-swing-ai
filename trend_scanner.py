@@ -356,30 +356,64 @@ def _open_selected(key: str, table: pd.DataFrame):
         st.session_state["tr_dialog"] = (table["Име"].iloc[row], table["Тикер"].iloc[row])
 
 
-def render_table(df: pd.DataFrame, key: str, news: dict):
+SCAN_MAIN_COLUMNS = ["⭐", "Име", "🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка"]
+SCAN_SIGNAL_COLUMNS = ["🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка"]
+
+
+def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = False):
+    """Таблица от скана: кратка (както в Селектирани) - ⭐, Име, Fair Value / Здраве (InvestingPro),
+    💎 Справедлива (Yahoo методите - само при valuations=True: тегли .info за всеки, затова само за „И двата“)
+    и 🤖 AI оценка (ако е проверявана днес); показателите на тренда - с „Още колони“."""
     if df.empty:
         st.info("Няма инструменти в тази група.")
         return
     table = display_table(df, news)
     selected = {x["symbol"] for x in load_selected()}
     table.insert(0, "⭐", ["⭐" if s in selected else "" for s in table["Тикер"]])
-    # положителните новини най-отгоре (при равни - по качество D)
-    table = table.sort_values("📰 Новини", key=lambda c: c.map(NEWS_RANK).fillna(1), kind="stable").reset_index(drop=True)
+    ip_data, ai = ip.load_data(), today_ai_valuations()
+    recs = [ip.lookup(s, n, ip_data) for s, n in zip(table["Тикер"], table["Име"])]
+    table["🏛 Fair Value"] = [ip.fv_summary(r) for r in recs]
+    table["❤️ Здраве"] = [ip.health_summary(r) for r in recs]
+    if valuations:
+        with st.spinner(f"Тегля справедливата цена (Yahoo) за {len(table)} инструмента..."):
+            vals = selected_valuations(tuple(table["Тикер"]))
+        table["💎 Справедлива"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
+    table["🤖 AI оценка"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
+    # най-горе - с най-много 🟢 (после най-малко 🔴), при равни - положителните новини и качеството D
+    signals = table[[c for c in SCAN_SIGNAL_COLUMNS if c in table.columns]].astype(str)
+    table = table.assign(_g=-signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1),
+                         _r=signals.apply(lambda c: c.str.startswith("🔴")).sum(axis=1),
+                         _n=table["📰 Новини"].map(NEWS_RANK).fillna(1)) \
+        .sort_values(["_g", "_r", "_n"], kind="stable").drop(columns=["_g", "_r", "_n"]).reset_index(drop=True)
+    show_all = st.toggle("Още колони", key=f"{key}_all_cols", help="Тикер, цена, методите, EMA, качество, ATR, новини")
+    order = list(table.columns) if show_all else [c for c in SCAN_MAIN_COLUMNS if c in table.columns]
     st.dataframe(
         numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
-        on_select=lambda: _open_selected(tk, table),
+        on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
+            "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
             "Метод": st.column_config.TextColumn(help="А = EMA подреждане на D и W; Б = качество на тренда на D и W"),
             "📈 Качество D": st.column_config.NumberColumn(format="%.0f", help="Годишен наклон % x R² за последните 90 дни"),
             "📈 Качество W": st.column_config.NumberColumn(format="%.0f", help="Годишен наклон % x R² за последните 52 седмици"),
             "R² D": st.column_config.NumberColumn(format="%.2f", help="0-1: колко плътно цената следва правата линия"),
             "R² W": st.column_config.NumberColumn(format="%.2f"),
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f", help="Среден дневен ход (ATR 14) като % от цената"),
+            "🏛 Fair Value": st.column_config.TextColumn(
+                width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена/скъпа "
+                                    "и % до справедливата (от експорта в „⭐ Селектирани“ → „📥 InvestingPro“)"),
+            "❤️ Здраве": st.column_config.TextColumn(
+                width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
+            "💎 Справедлива": st.column_config.TextColumn(
+                width="small", help="🟢 подценена / ⚪ около / 🔴 надценена по методите от Yahoo (анализатори, Греъм, "
+                                    "Линч, FCF, PEG) и % до справедливата (медианата)"),
+            "🤖 AI оценка": st.column_config.TextColumn(
+                width="small", help="От проверката в интернет (бутона „🤖 Справедлива цена AI“ в Селектирани) - "
+                                    "само ако е проверявана днес"),
         },
     )
-    st.caption("👆 Кликни името за графиката - там е и ⭐ за Селектирани. "
-               "Подреждане по колона - клик върху заглавието ѝ.")
+    st.caption("👆 Кликни името за графиката - там е и ⭐ за Селектирани. Най-горе - с най-много 🟢; "
+               "подреждане по колона - клик върху заглавието ѝ.")
 
 
 def render_trend_section():
@@ -442,7 +476,7 @@ def render_trend_section():
     if scanned:
         with tabs[2]:
             st.caption("Минават и двата метода. Провери новините, разгледай графиката и добави най-добрите в ⭐ Селектирани.")
-            render_table(both, "tr_tbl_both", news)
+            render_table(both, "tr_tbl_both", news, valuations=True)
             if not both.empty:
                 st.divider()
                 section_header("📰 Новинарска подкрепа", status="info", subtitle="Само за групата „И двата“ (А + Б)")
