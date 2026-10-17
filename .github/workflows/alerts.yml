@@ -59,9 +59,9 @@ jobs:
           if [ "${{ github.event_name }}" = "schedule" ]; then
             python alerts.py --scheduled
           elif [ "${{ inputs.trend }}" = "true" ]; then
-            python alerts.py --trend
+            python alerts.py --trend --summary
           else
-            python alerts.py
+            python alerts.py --summary
           fi
 
       - name: Save alerts state
