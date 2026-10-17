@@ -15,6 +15,7 @@ import streamlit as st
 import yfinance as yf
 
 import fundamentals as fund
+import investingpro as ip
 import t212_portfolio as t212
 import universe_rules as rules
 from ai_client import AI_KEY_SECRETS, stream_ai
@@ -1094,6 +1095,9 @@ def instrument_dialog(name: str, symbol: str, actions=None):
             facts.append(f"Отчет: {cols['Отчет']}")
         if cols["Анализатори"] or cols["Отчет"] or cols["Потенциал до целта (%)"] is not None:
             st.markdown(" · ".join(facts))  # без празния ред „— няма данни“ (ETF / без покритие)
+        ip_line = ip.detail_markdown(ip.lookup(symbol, name))
+        if ip_line:
+            st.markdown(ip_line)
         tab_chart, tab_news, tab_help = st.tabs(["📈 Графика", "📰 Новини", "ℹ️ Помощ"])
         with tab_help:
             st.markdown("**Как се работи с графиката**\n\n" + "\n".join(f"- {part}" for part in CHART_HINT.split(" · ")))

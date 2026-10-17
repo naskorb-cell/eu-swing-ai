@@ -16,6 +16,7 @@ import pandas as pd
 import streamlit as st
 
 import fundamentals as fund
+import investingpro as ip
 import universe_rules as rules
 import valuation as val
 from ai_client import AI_KEY_SECRETS
@@ -468,9 +469,12 @@ def render_trend_section():
         instrument_dialog(name, symbol, actions=lambda: selection_actions(name, symbol, price))
 
 
-SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна %", "📰 Новини", "💎 Справедлива", "🤖 AI оценка"]
-SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива": "value", "🤖 AI оценка": "value"}
-SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка"]  # най-горе - с най-много 🟢 в тях
+SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна %", "📰 Новини", "💎 Справедлива", "🤖 AI оценка",
+                         "🏛 Fair Value", "❤️ Здраве"]
+SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива": "value", "🤖 AI оценка": "value",
+                           "🏛 Fair Value": "ip", "❤️ Здраве": "ip"}
+# най-горе - с най-много 🟢 в тях
+SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка", "🏛 Fair Value", "❤️ Здраве"]
 
 
 def render_selected(selected: list, news: dict, raw, thresholds):
@@ -493,7 +497,7 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     val_missing = [x for x in selected if (vals.get(x["symbol"]) or {}).get("verdict") != val.VALUE_ETF
                    and (x["symbol"] not in ai or "error" in ai[x["symbol"]])]
 
-    b1, b2, b3 = st.columns([2, 2, 1], vertical_alignment="center")
+    b1, b2, b4, b3 = st.columns([2, 2, 1.3, 1], vertical_alignment="center")
     if b1.button(f"🔎 Новини ({len(news_missing)})", key="tr_sel_news_btn", disabled=not news_missing, width="stretch",
                  help=f"Новини и анализи с {provider} (търсене в интернет, платено; пази се до края на деня за всички "
                       f"сесии). Днес с {provider}: {news_checks_today(provider)} проверки."):
@@ -502,6 +506,11 @@ def render_selected(selected: list, news: dict, raw, thresholds):
                  width="stretch", help="Morningstar, Simply Wall St, GuruFocus, анализатори - с линкове. Платено; "
                                        "пази се до края на деня. Без ETF-ите."):
         st.session_state["tr_val_confirm"] = True
+    ip_age = ip.data_age_days()
+    ip_stale = ip_age is None or ip_age > ip.STALE_DAYS
+    with b4.popover("📥 InvestingPro" + (" ⚠️" if ip_stale else ""), width="stretch",
+                    help="Fair Value и финансово здраве от експорта на InvestingPro Screener (1-2 пъти в месеца)"):
+        ip.render_upload({x["symbol"]: x["name"] for x in selected})
     if b3.button("🔄 Опресни", key="tr_sel_reload", width="stretch",
                  help="Презареди списъка (ако е променян от друго устройство) и показателите"):
         load_selected(force=True)
@@ -540,6 +549,10 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     table.insert(2, "Промяна %", change)
     table["💎 Справедлива"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
     table["🤖 AI оценка"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
+    ip_data = ip.load_data()
+    ip_recs = {s: ip.lookup(s, n, ip_data) for s, n in zip(table["Тикер"], table["Име"])}
+    table["🏛 Fair Value"] = [ip.fv_summary(ip_recs[s]) for s in table["Тикер"]]
+    table["❤️ Здраве"] = [ip.health_summary(ip_recs[s]) for s in table["Тикер"]]
     # най-горе тези с най-много зелени точки (новини + справедлива + AI), после с най-малко червени
     signals = table[SIGNAL_COLUMNS].astype(str)
     greens = signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1)
@@ -568,9 +581,16 @@ def render_selected(selected: list, news: dict, raw, thresholds):
                 width="small",
                 help="От проверката в интернет (бутона горе): Morningstar, Simply Wall St, GuruFocus, анализатори. "
                      "Кликни клетката за справедливите цени и източниците"),
+            "🏛 Fair Value": st.column_config.TextColumn(
+                width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена/скъпа "
+                                    "и % до справедливата. От качения експорт (бутона „📥 InvestingPro“ горе)"),
+            "❤️ Здраве": st.column_config.TextColumn(
+                width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
         },
     )
-    st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 = подробностите тук отдолу.")
+    st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 / 🏛 / ❤️ = подробностите тук "
+               "отдолу." + (f" · ⚠️ Данните от InvestingPro са от преди {ip_age} дни - качи нов експорт."
+                           if ip_age is not None and ip_age > ip.STALE_DAYS else ""))
 
     # подробностите за кликнатата клетка с новини / справедлива цена
     cells = ((st.session_state.get(tk) or {}).get("selection") or {}).get("cells") or []
@@ -587,6 +607,10 @@ def render_selected(selected: list, news: dict, raw, thresholds):
                     st.error(friendly_ai_error(r["error"], provider))
                 else:
                     render_news_item(r)
+            elif kind == "ip":
+                st.markdown(f"##### 🏛 {name}")
+                st.markdown(ip.detail_markdown(ip_recs.get(symbol)) or
+                            "Няма данни от InvestingPro за него (ETF или не е в качения експорт).")
             else:
                 st.markdown(f"##### 💎 {name}")
                 render_valuation_detail(vals.get(symbol) or {}, ai.get(symbol) or {})
