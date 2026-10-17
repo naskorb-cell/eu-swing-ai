@@ -317,6 +317,12 @@
       "symbol": "SXFPEX.DE",
       "added": "2026-10-16",
       "price": null
+    },
+    {
+      "name": "TTE (TotalEnergies)",
+      "symbol": "TTE.PA",
+      "added": "2026-10-17",
+      "price": 80.71
     }
   ]
 }
