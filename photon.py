@@ -438,7 +438,7 @@ PROFILE_HELP = {
 
 # Колони в таблиците: основните се виждат винаги, останалите - с „Още колони“
 # основните колони (останалите - с „Още колони“); цена, лимит, валута, EMA, ATR, позиция и R/R са там
-MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "💼 Държа", "Зона", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
+MAIN_COLUMNS = ["Име", "📊 Фундамент", "📰 Новини", "🏛 Fair Value", "❤️ Здраве", "💼 Държа", "Зона", "💶 Цел 1 / Цел 2", "⏱ До цел 1", "Бележка"]
 PHASE_BADGES = {"A": "🟦 A · Pro", "B": "🟪 B · Counter"}
 ZONE_BADGES = {"Discount": "🟢 Discount", "Premium": "🟠 Premium"}
 DEFAULT_INVESTMENT = 1000  # € за ориентировъчната печалба/загуба
@@ -1229,7 +1229,7 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
     if not positions:
         st.info("Няма отворени позиции в T212.")
         return
-    rows = []
+    rows, ip_data = [], ip.load_data()
     for p in positions:
         symbol = p["symbol"]
         if symbol is None:
@@ -1243,8 +1243,10 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
         else:
             status = "Извън универса (не минава критериите за ликвидност) - добави го ръчно, за да се сканира"
         cols = fund.fundamental_columns(fund_data.get(symbol))
+        rec = ip.lookup(symbol, p["name"], ip_data) if symbol else None
         rows.append({"Позиция": p["name"], "📊 Фундамент": cols["📊 Фундамент"],
-                     "📰 Новини": (news.get(symbol) or {}).get("verdict", ""), "Статус": status,
+                     "📰 Новини": (news.get(symbol) or {}).get("verdict", ""),
+                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec), "Статус": status,
                      "Анализатори": cols["Анализатори"], "Потенциал до целта (%)": cols["Потенциал до целта (%)"],
                      "Отчет": cols["Отчет"], "Акаунт": p["accounts"],
                      "T212 тикер": p["ticker"], "Сканиран символ": symbol or "-"})
@@ -1266,6 +1268,7 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
             "Потенциал до целта (%)": st.column_config.NumberColumn(
                 "Потенциал %", format="%.1f", width="small", help="До средната целева цена на анализаторите"),
             "Отчет": st.column_config.TextColumn(help=f"⚠️ = до {fund.EARNINGS_WARN_DAYS} дни (риск от гап при задържане)"),
+            **IP_COLUMN_CONFIG,
         },
     )
 
@@ -1478,9 +1481,18 @@ def _open_selected(table_key: str, items: list):
         open_instrument(*items[row])
 
 
+IP_COLUMN_CONFIG = {  # колоните от InvestingPro (експорта в „⭐ Селектирани“ → „📥 InvestingPro“)
+    "🏛 Fair Value": st.column_config.TextColumn(
+        "🏛 Fair Value", width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена "
+                                             "и % до справедливата"),
+    "❤️ Здраве": st.column_config.TextColumn(
+        "❤️ Здраве", width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
+}
+
+
 def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
     """PhotonSetup-и като таблица с фундамента и новините (и за AI анализа)."""
-    rows = []
+    rows, ip_data = [], ip.load_data()
     for x in setups:
         row = x.to_row((held or {}).get(x.symbol, ""))
         row["Фаза"] = PHASE_BADGES.get(x.phase, row["Фаза"])
@@ -1498,7 +1510,9 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
             row["R/R (до седм. съпротива)"] = None  # седмичната не е над цел 1 - няма втора цел
         row["💶 Stop"] = fmt_pnl(plan["stop"])
         row["⏱ До цел 1"] = fmt_days(plan["days"])
-        rows.append({**row, **cols, "📰 Новини": verdict})
+        rec = ip.lookup(x.symbol, x.name, ip_data)
+        rows.append({**row, **cols, "📰 Новини": verdict,
+                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec)})
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -1557,6 +1571,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
             "🌊 ATR %": st.column_config.NumberColumn("🌊 ATR %", format="%.1f",
                                                      help="Среден дневен ход (ATR 14) като % от цената - волатилността"),
             "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
+            **IP_COLUMN_CONFIG,
         },
         on_select=lambda: _open_selected(tk, items), selection_mode="single-cell", key=(tk := table_key(key)),
     )
