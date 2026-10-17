@@ -33,7 +33,7 @@ EXCHANGE_SUFFIX = {
 EXCHANGE_NAME_SUFFIX = {
     "xetra": ".DE", "frankfurt": ".F", "euronext paris": ".PA", "euronext amsterdam": ".AS",
     "euronext brussels": ".BR", "euronext lisbon": ".LS", "euronext dublin": ".IR", "irish": ".IR",
-    "borsa italiana": ".MI", "milan": ".MI", "madrid": ".MC", "bme": ".MC", "wiener": ".VI", "vienna": ".VI",
+    "borsa italiana": ".MI", "milan": ".MI", "madrid": ".MC", "bme": ".MC", "bolsas y mercados": ".MC", "wiener": ".VI", "vienna": ".VI",
     "london": ".L", "helsinki": ".HE", "stockholm": ".ST", "copenhagen": ".CO", "oslo": ".OL", "six swiss": ".SW",
     "new york": "", "nyse": "", "nasdaq": "",
 }
