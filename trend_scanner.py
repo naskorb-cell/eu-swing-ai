@@ -469,12 +469,21 @@ def render_trend_section():
         instrument_dialog(name, symbol, actions=lambda: selection_actions(name, symbol, price))
 
 
-SELECTED_MAIN_COLUMNS = ["Име", "Добавен", "Промяна %", "📰 Новини", "💎 Справедлива", "🤖 AI оценка",
+SELECTED_MAIN_COLUMNS = ["Име", "Промяна %", "📰 Новини", "💎 Справедлива", "🤖 AI оценка",
                          "🏛 Fair Value", "❤️ Здраве"]
 SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедлива": "value", "🤖 AI оценка": "value",
                            "🏛 Fair Value": "ip", "❤️ Здраве": "ip"}
 # най-горе - с най-много 🟢 в тях
 SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка", "🏛 Fair Value", "❤️ Здраве"]
+# „Промяна %“ от добавянето - бледо (плътни тъмни нюанси: полупрозрачните на тъмния фон стават маслинени)
+CHANGE_COLORS = {"up": "background-color: #16352A; color: #86EFAC", "down": "background-color: #3A1E26; color: #FCA5A5",
+                 "flat": "background-color: #262E3D; color: #CBD5E1"}
+
+
+def change_style(v) -> str:
+    if v is None or pd.isna(v):
+        return ""
+    return CHANGE_COLORS["up" if v > 0 else "down" if v < 0 else "flat"]
 
 
 def render_selected(selected: list, news: dict, raw, thresholds):
@@ -549,7 +558,7 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     for s in table["Тикер"]:
         p0, p1 = extra.at[s, "price_added"], extra.at[s, "price"]
         change.append(round(100 * (p1 / p0 - 1), 1) if p0 and p1 and pd.notna(p1) else None)
-    table.insert(2, "Промяна %", change)
+    table.insert(2, "Промяна %", pd.to_numeric(pd.Series(change, index=table.index), errors="coerce"))  # NaN, не „None“
     table["💎 Справедлива"] = [valuation_summary(vals.get(s) or {}) for s in table["Тикер"]]
     table["🤖 AI оценка"] = [ai_valuation_summary(ai.get(s) or {}) for s in table["Тикер"]]
     ip_data = ip.load_data()
@@ -566,14 +575,16 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     show_all = st.toggle("Още колони", key="tr_sel_all_cols")
     order = list(table.columns) if show_all else SELECTED_MAIN_COLUMNS
     st.dataframe(
-        numbered(table), hide_index=False, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
+        numbered(table).style.map(change_style, subset=["Промяна %"]).format("{:+.1f}", na_rep="", subset=["Промяна %"]),
+        hide_index=False, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
             "Добавен": st.column_config.TextColumn(width="small"),
-            "Промяна %": st.column_config.NumberColumn(format="%+.1f", width="small",
-                                                       help="Промяна на цената от добавянето в Селектирани"),
+            "Промяна %": st.column_config.NumberColumn("±%", format="%+.1f", width=60,
+                                                       help="Промяна на цената в % от добавянето в Селектирани "
+                                                            "(датата е в „Още колони“)"),
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
             "📰 Новини": st.column_config.TextColumn(width="small", help="Кликни клетката за подробностите и източниците"),
             "💎 Справедлива": st.column_config.TextColumn(
