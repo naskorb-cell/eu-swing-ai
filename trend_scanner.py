@@ -22,7 +22,7 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    check_news, clicked_name_row, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
+    change_style, check_news, clicked_name_row, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
     instrument_dialog, news_provider, render_news_item, render_news_section, render_photon_strategy, today_news,
 )
 from ui_common import claude_news_model, friendly_ai_error, gemini_model, gemini_news_model, section_header
@@ -475,15 +475,6 @@ SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедли
                            "🏛 Fair Value": "ip", "❤️ Здраве": "ip"}
 # най-горе - с най-много 🟢 в тях
 SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка", "🏛 Fair Value", "❤️ Здраве"]
-# „Промяна %“ от добавянето - бледо (плътни тъмни нюанси: полупрозрачните на тъмния фон стават маслинени)
-CHANGE_COLORS = {"up": "background-color: #16352A; color: #86EFAC", "down": "background-color: #3A1E26; color: #FCA5A5",
-                 "flat": "background-color: #262E3D; color: #CBD5E1"}
-
-
-def change_style(v) -> str:
-    if v is None or pd.isna(v):
-        return ""
-    return CHANGE_COLORS["up" if v > 0 else "down" if v < 0 else "flat"]
 
 
 def render_selected(selected: list, news: dict, raw, thresholds):
