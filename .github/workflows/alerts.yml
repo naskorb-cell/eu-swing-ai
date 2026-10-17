@@ -28,10 +28,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -41,7 +41,7 @@ jobs:
 
       # паметта (какво вече е пратено) - в кеша на Actions, не в repo-то (то е публично)
       - name: Restore alerts state
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: alerts_state.json
           key: alerts-state-${{ github.run_id }}
@@ -66,7 +66,7 @@ jobs:
 
       - name: Save alerts state
         if: success()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: alerts_state.json
           key: alerts-state-${{ github.run_id }}
