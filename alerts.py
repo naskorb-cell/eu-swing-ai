@@ -121,11 +121,15 @@ def photon_params() -> dict:
     }
 
 
+STATUS = []  # кратко обобщение на всяка проверка - за „✅ Проверката мина“ при ръчно пускане
+
+
 def check_photon(state: dict, messages: list):
     import photon
     from universe import curated_file_mtime, load_curated_symbol_info
     items = selected_items()
     if not items:
+        STATUS.append("Photon: няма ⭐ Селектирани")
         return
     currencies, _, _ = load_curated_symbol_info(curated_file_mtime())
     results, watch, *_ = photon.run_photon_scan({x["name"]: x["symbol"] for x in items}, photon_params(),
@@ -143,6 +147,7 @@ def check_photon(state: dict, messages: list):
                         f"{kind} {plan['entry']:.2f} · Stop {x.stop:.2f} · Цел 1 {x.daily_resistance:.2f} {x.currency}{rr}\n"
                         f"{x.note}")
     state["ready"] = sorted(ready)
+    STATUS.append(f"Photon: {len(items)} ⭐ Селектирани, {len(ready)} готови, {len(set(ready) - before)} нови")
     print(f"Photon: {len(items)} селектирани, {len(ready)} готови, {len(set(ready) - before)} нови")
 
 
@@ -185,7 +190,7 @@ def check_positions(state: dict, messages: list):
     import t212_portfolio as t212
     names = instrument_names()
     pnl_seen, age_seen = state.get("pnl", {}), state.get("age", {})
-    open_keys, now, accounts, failed = set(), pd.Timestamp.now(tz="UTC"), 0, []
+    open_keys, now, accounts, failed, per_account = set(), pd.Timestamp.now(tz="UTC"), 0, [], []
     for label, key_env, secret_env in ACCOUNTS:
         key, secret = os.environ.get(key_env), os.environ.get(secret_env)
         if not key or not secret:
@@ -199,6 +204,7 @@ def check_positions(state: dict, messages: list):
             print(f"Позиции ({label}): грешка {type(e).__name__}")
             messages.append(f"⚠️ Позиции ({label}): T212 не върна позициите - {error_reason(e)}")
             continue
+        per_account.append(f"{label} - {len(df)}")
         for _, row in df.iterrows():
             k = secret_hash(f"{label}:{row['Тикер']}")
             open_keys.add(k)
@@ -225,6 +231,8 @@ def check_positions(state: dict, messages: list):
     # някой акаунт не е отговорил - тогава не знаем кои негови позиции са затворени)
     state["pnl"] = {k: v for k, v in pnl_seen.items() if k in open_keys or failed}
     state["age"] = {k: v for k, v in age_seen.items() if k in open_keys or failed}
+    STATUS.append("Позиции: " + (", ".join(per_account) + " отворени" if per_account else "няма отговорил акаунт")
+                  + (f" (грешка: {', '.join(failed)})" if failed else ""))
     print(f"Позиции: {accounts} акаунта ({len(failed)} с грешка), {len(open_keys)} отворени позиции")
 
 
@@ -251,6 +259,7 @@ def check_trend(state: dict, messages: list):
             more = f"\n... и още {len(new) - TREND_LIST_MAX}" if len(new) > TREND_LIST_MAX else ""
             messages.append(f"📈 Нови в „🤝 И двата“ (А + Б) - {len(new)}:\n" + "\n".join(lines) + more)
     state["both"] = sorted(current)
+    STATUS.append(f"„🤝 И двата“: {len(current)} инструмента")
     print(f"Тренд: {len(raw)} сканирани, {len(current)} в „И двата“")
 
 
@@ -258,6 +267,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--trend", action="store_true", help="и пълния скан за нови в „И двата“ (вечерта)")
     parser.add_argument("--dry-run", action="store_true", help="само печата съобщенията, без Telegram и запис")
+    parser.add_argument("--summary", action="store_true",
+                        help="при ръчно пускане: ако няма нищо ново, праща „✅ Проверката мина“ с кратко обобщение")
     parser.add_argument("--scheduled", action="store_true",
                         help="от графика: само ако е час за проверка по европейско време (скана за тренда - по часа)")
     args = parser.parse_args()
@@ -279,6 +290,9 @@ def main():
             print(f"{title}: грешка {type(e).__name__}")
     if failed:
         messages.append(f"⚠️ Проверката не мина за: {', '.join(failed)} (виж лога в GitHub Actions)")
+
+    if args.summary and not messages:
+        messages.append("✅ Проверката мина - няма нищо ново.\n" + "\n".join(f"• {x}" for x in STATUS))
 
     if args.dry_run:
         print("\n\n".join(messages) or "(няма известия)")
