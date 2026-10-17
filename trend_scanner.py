@@ -356,8 +356,8 @@ def _open_selected(key: str, table: pd.DataFrame):
         st.session_state["tr_dialog"] = (table["Име"].iloc[row], table["Тикер"].iloc[row])
 
 
-SCAN_MAIN_COLUMNS = ["⭐", "Име", "🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка"]
-SCAN_SIGNAL_COLUMNS = ["🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка"]
+SCAN_MAIN_COLUMNS = ["⭐", "Име", "🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка", "📰 Новини"]
+SCAN_SIGNAL_COLUMNS = ["🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка", "📰 Новини"]
 
 
 def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = False):
@@ -385,7 +385,9 @@ def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
                          _r=signals.apply(lambda c: c.str.startswith("🔴")).sum(axis=1),
                          _n=table["📰 Новини"].map(NEWS_RANK).fillna(1)) \
         .sort_values(["_g", "_r", "_n"], kind="stable").drop(columns=["_g", "_r", "_n"]).reset_index(drop=True)
-    show_all = st.toggle("Още колони", key=f"{key}_all_cols", help="Тикер, цена, методите, EMA, качество, ATR, новини")
+    # „📰 Новини“ - най-отзад (в display_table е по средата)
+    table = table[[c for c in table.columns if c != "📰 Новини"] + ["📰 Новини"]]
+    show_all = st.toggle("Още колони", key=f"{key}_all_cols", help="Тикер, цена, методите, EMA, качество, ATR")
     order = list(table.columns) if show_all else [c for c in SCAN_MAIN_COLUMNS if c in table.columns]
     st.dataframe(
         numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
@@ -408,8 +410,10 @@ def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
                 width="small", help="🟢 подценена / ⚪ около / 🔴 надценена по методите от Yahoo (анализатори, Греъм, "
                                     "Линч, FCF, PEG) и % до справедливата (медианата)"),
             "🤖 AI оценка": st.column_config.TextColumn(
-                width="small", help="От проверката в интернет (бутона „🤖 Справедлива цена AI“ в Селектирани) - "
-                                    "само ако е проверявана днес"),
+                width="small", help="Справедливата цена от проверката в интернет (бутона „🤖 Справедлива цена AI“ в "
+                                    "⭐ Селектирани) - само ако е проверявана днес"),
+            "📰 Новини": st.column_config.TextColumn(
+                width="small", help="От бутона „🔎 Провери новини и анализи“ (в „И двата“ - под таблицата)"),
         },
     )
     st.caption("👆 Кликни името за графиката - там е и ⭐ за Селектирани. Най-горе - с най-много 🟢; "
