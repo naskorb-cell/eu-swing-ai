@@ -385,8 +385,8 @@ def render_upload(known: dict):
         ok, msg = save_data(records, names)
         (st.success if ok else st.warning)(f"Прочетени {total} реда, {len(records)} с разпознат символ. "
                                            + ("Записано в частното repo." if ok else msg))
-        probe = {"records": records, "updated": date.today().isoformat()}
-        missing = [n for s, n in known.items() if not lookup(s, n, probe)]
+        merged = st.session_state["ip_data"]  # всички данни след качването (старите + новите), не само файла
+        missing = [n for s, n in known.items() if not lookup(s, n, merged)]
         st.caption(f"От акциите в Селектирани: {len(known) - len(missing)} от {len(known)} намерени."
                    + (f" Без данни: {', '.join(missing[:15])}" + (" ..." if len(missing) > 15 else "") if missing else ""))
         st.caption("По борси: " + ", ".join(f"{k} {v}" for k, v in exchanges.most_common()))
