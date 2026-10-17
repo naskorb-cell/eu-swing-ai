@@ -363,8 +363,11 @@ def render_upload(known: dict):
                     + (f" (преди {age} дни)" if age else ""))
     else:
         st.markdown("Още няма качени данни.")
-    st.caption("InvestingPro → Screener → изгледа „Nasko“ → **Export as… → Excel**. Лимитът е 1000 реда на файл: "
-               "Европа + Великобритания (Market Cap > 2 млрд.) и отделно САЩ (> 20 млрд.). Качи двата наведнъж.")
+    st.caption("InvestingPro → Screener → изгледа „Nasko“ (Primary Trading Item) → **Export as… → Excel**. Лимитът е "
+               "1000 реда на файл, затова три файла: 1) Europe + UK & Ireland, Market Cap > 2 млрд., борсите XETRA, "
+               "Euronext Paris / Amsterdam / Brussels / Lisbon, SIX, LSE, Borsa Italiana, Wiener Börse; 2) Испания - "
+               "Trading Country = Spain, > 2 млрд. (филтърът по мадридската борса не я хваща); 3) United States, NYSE + "
+               "Nasdaq Global Select, > 7 млрд. Качи ги наведнъж (или поотделно - старите данни остават).")
     files = st.file_uploader("Файлове от InvestingPro", type=["xlsx", "xls", "csv"], accept_multiple_files=True,
                              key="ip_upload", label_visibility="collapsed")
     if files and st.button("💾 Обработи и запази", key="ip_save", type="primary"):
