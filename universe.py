@@ -653,15 +653,16 @@ def render_universe_search(key: str):
 MANUAL_UNIVERSE_FILE = "manual_universe.json"
 
 
-def github_get_file(path: str, github_token: str):
+def github_get_file(path: str, github_token: str, repo: str = None):
     """Чете файл от GitHub Contents API. Връща (decoded_text, sha) или
-    (None, None), ако файлът не съществува/грешка."""
+    (None, None), ако файлът не съществува/грешка. repo - „owner/име“ (по подразбиране това repo,
+    друго - напр. частното с данните от InvestingPro; там е клонът по подразбиране)."""
     import base64
 
-    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/{path}"
+    url = f"https://api.github.com/repos/{repo or f'{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}'}/contents/{path}"
     headers = {"Authorization": f"Bearer {github_token}", "Accept": "application/vnd.github+json"}
     try:
-        resp = requests.get(url, headers=headers, params={"ref": GITHUB_REF}, timeout=15)
+        resp = requests.get(url, headers=headers, params=None if repo else {"ref": GITHUB_REF}, timeout=30)
     except requests.RequestException:
         return None, None
     if resp.status_code != 200:
@@ -674,27 +675,31 @@ def github_get_file(path: str, github_token: str):
     return content, data.get("sha")
 
 
-def github_write_file(path: str, content_str: str, github_token: str, message: str):
-    """Записва (create/update) файл в repo-то през GitHub Contents API.
+def github_write_file(path: str, content_str: str, github_token: str, message: str, repo: str = None):
+    """Записва (create/update) файл в repo-то през GitHub Contents API (repo - както в github_get_file).
     Връща (success, съобщение)."""
     import base64
 
-    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/{path}"
+    url = f"https://api.github.com/repos/{repo or f'{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}'}/contents/{path}"
     headers = {"Authorization": f"Bearer {github_token}", "Accept": "application/vnd.github+json"}
-    _, sha = github_get_file(path, github_token)
+    _, sha = github_get_file(path, github_token, repo)
     payload = {
         "message": message,
         "content": base64.b64encode(content_str.encode("utf-8")).decode("utf-8"),
-        "branch": GITHUB_REF,
     }
+    if not repo:
+        payload["branch"] = GITHUB_REF
     if sha:
         payload["sha"] = sha
     try:
-        resp = requests.put(url, headers=headers, json=payload, timeout=15)
+        resp = requests.put(url, headers=headers, json=payload, timeout=30)
     except requests.RequestException as e:
         return False, f"Грешка при връзка с GitHub: {e}"
     if resp.status_code in (200, 201):
         return True, "Записано в repo-то."
+    if resp.status_code in (403, 404) and repo:
+        return False, (f"{resp.status_code} - токенът няма достъп до {repo} (Contents: Read and write) "
+                       "или repo-то не съществува.")
     if resp.status_code == 403:
         return False, "403 - токенът няма 'Contents: Read and write' право за repo-то."
     if resp.status_code == 401:
