@@ -323,6 +323,12 @@
       "symbol": "TTE.PA",
       "added": "2026-10-17",
       "price": 80.71
+    },
+    {
+      "name": "RUI (Rubis)",
+      "symbol": "RUI.PA",
+      "added": "2026-10-18",
+      "price": 35.34
     }
   ]
 }
