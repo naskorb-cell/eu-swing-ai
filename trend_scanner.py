@@ -6,7 +6,6 @@
 И при двата - ATR % (дневен ход като % от цената) за волатилността."""
 
 import json
-import re
 from datetime import date
 from statistics import median
 from pathlib import Path
@@ -16,6 +15,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+import etf_quality as eq
 import fundamentals as fund
 import investingpro as ip
 import universe_rules as rules
@@ -288,13 +288,8 @@ def analyze_trend(daily: pd.DataFrame):
     ema_w = ema_alignment(weekly["Close"])  # None при под 200 седмици (млада акция)
     q_d = trend_quality(daily["Close"], QUALITY_BARS_DAILY, 252)
     q_w = trend_quality(weekly["Close"], QUALITY_BARS_WEEKLY, 52)
-    close = daily["Close"].dropna()
-    high_52w = float(daily["High"].iloc[-252:].max())
     return {
-        # за ETF-ите: доходност 3 / 6 месеца (за силата спрямо пазара) и колко е под 52-седмичния връх
-        "ret_3m": round(100 * (price / float(close.iloc[-64]) - 1), 1),
-        "ret_6m": round(100 * (price / float(close.iloc[-127]) - 1), 1),
-        "from_high": round(100 * (price / high_52w - 1), 1) if high_52w else None,
+        **eq.returns(daily),  # за ETF-ите: доходност 3 / 6 месеца и колко е под 52-седмичния връх
         "price": price, "atr_pct": round(100 * atr / price, 2) if atr and price else None,
         "ema_d": ema_d[0] if ema_d else None, "ema_w": ema_w[0] if ema_w else None,
         "slope_d": q_d[0] if q_d else None, "r2_d": q_d[1] if q_d else None, "quality_d": q_d[2] if q_d else None,
@@ -318,32 +313,19 @@ def trend_universe() -> dict:
     return {n: resolved.get(s, s) for n, s in tickers.items()}
 
 
-ETF_BENCHMARK = "EUNL.DE"  # iShares Core MSCI World в EUR - мярката за „силата“ на ETF-ите
-ETF_NAME_HINTS = re.compile(r"\b(ETF|ETC|ETN|UCITS|iShares|Xtrackers|Vanguard|Amundi|SPDR|WisdomTree|Invesco|"
-                            r"Lyxor|VanEck|Vaneck|L&G|HSBC MSCI|BNP Paribas Easy|Global X)\b|\((Acc|Dist)\)", re.I)
-
-
-def is_etf(kind: str, name: str) -> bool:
-    """ETF по вида от месечния подбор; за ръчно добавените (без вид) - по името."""
-    return kind == "ETF" if kind else bool(ETF_NAME_HINTS.search(name or ""))
-
-
 def run_trend_scan(tickers: dict, progress) -> pd.DataFrame:
-    data = fetch_ohlc_many(list(tickers.values()) + [ETF_BENCHMARK], TREND_PERIOD, "1d",
+    data = fetch_ohlc_many(list(tickers.values()) + [eq.ETF_BENCHMARK], TREND_PERIOD, "1d",
                            on_progress=lambda done, total: progress.progress(
                                done / total, text=f"Дневни данни за 5 години: {done}/{total}"))
     currencies, _, types = load_curated_symbol_info(curated_file_mtime())
-    bench = analyze_trend(data.get(ETF_BENCHMARK)) or {}
+    bench = eq.returns(data.get(eq.ETF_BENCHMARK))
     rows = []
     for name, symbol in tickers.items():
         m = analyze_trend(data.get(symbol))
         if m:
             kind = types.get(symbol, "")
-            rows.append({"Име": name, "Тикер": symbol, "Вид": kind, "ETF": is_etf(kind, name),
-                         "Валута": currencies.get(symbol, "EUR"), **m,
-                         # сила спрямо MSCI World: с колко процентни пункта ETF-ът го бие за 3 / 6 месеца
-                         "rs_3m": round(m["ret_3m"] - bench["ret_3m"], 1) if bench else None,
-                         "rs_6m": round(m["ret_6m"] - bench["ret_6m"], 1) if bench else None})
+            rows.append({"Име": name, "Тикер": symbol, "Вид": kind, "ETF": eq.is_etf(kind, name),
+                         "Валута": currencies.get(symbol, "EUR"), **m, **eq.relative(m, bench)})
     return pd.DataFrame(rows)
 
 
@@ -405,26 +387,6 @@ def render_split(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
 
 ETF_MAIN_COLUMNS = ["⭐", "Име", "🏛 ETF сила", "📉 От върха", "🌊 ATR %", "📰 Новини"]
 ETF_SIGNAL_COLUMNS = ["🏛 ETF сила", "📉 От върха", "📰 Новини"]
-PULLBACK_ZONE = (-15.0, -3.0)  # „на отстъпка“: 3-15% под 52-седмичния връх - там е подкрепата при възходящ тренд
-
-
-def etf_strength(rs3, rs6) -> str:
-    """🟢 бие MSCI World и за 3, и за 6 месеца · 🔴 изостава и в двата · ⚪ смесено (+3М / +6М в процентни пункта)."""
-    if rs3 is None or rs6 is None or pd.isna(rs3) or pd.isna(rs6):
-        return "—"
-    dot = "🟢" if rs3 > 0 and rs6 > 0 else "🔴" if rs3 < 0 and rs6 < 0 else "⚪"
-    return f"{dot} {rs3:+.0f} / {rs6:+.0f}"
-
-
-def pullback_label(v) -> str:
-    """🟢 3-15% под върха (отстъпка в тренда) · ⚪ на самия връх (под 3%) · 🔴 над 15% под върха (дълбок спад)."""
-    if v is None or pd.isna(v):
-        return "—"
-    lo, hi = PULLBACK_ZONE
-    dot = "🟢" if lo <= v <= hi else "⚪" if v > hi else "🔴"
-    return f"{dot} {v:.0f}%"
-
-
 def render_etf_table(df: pd.DataFrame, key: str, news: dict):
     """ETF-ите от скана: сила спрямо пазара (MSCI World) за 3 / 6 месеца и колко са под 52-седмичния връх -
     най-горе тези, които водят пазара и са на отстъпка (подкрепа); показателите на тренда - с „Още колони“."""
@@ -436,8 +398,8 @@ def render_etf_table(df: pd.DataFrame, key: str, news: dict):
     col = lambda c: [extra.at[s, c] if c in extra.columns else None for s in table["Тикер"]]  # noqa: E731
     selected = {x["symbol"] for x in load_selected()}
     table.insert(0, "⭐", ["⭐" if s in selected else "" for s in table["Тикер"]])
-    table["🏛 ETF сила"] = [etf_strength(a, b) for a, b in zip(col("rs_3m"), col("rs_6m"))]
-    table["📉 От върха"] = [pullback_label(v) for v in col("from_high")]
+    table["🏛 ETF сила"] = [eq.etf_strength(a, b) for a, b in zip(col("rs_3m"), col("rs_6m"))]
+    table["📉 От върха"] = [eq.pullback_label(v) for v in col("from_high")]
     table["3М %"], table["6М %"] = col("ret_3m"), col("ret_6m")
     signals = table[ETF_SIGNAL_COLUMNS].astype(str)
     table = table.assign(_g=-signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1),
@@ -452,13 +414,7 @@ def render_etf_table(df: pd.DataFrame, key: str, news: dict):
         column_config={
             "Име": st.column_config.TextColumn(pinned=True),
             "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
-            "🏛 ETF сила": st.column_config.TextColumn(
-                width="small", help="С колко процентни пункта ETF-ът бие MSCI World (EUNL) за 3 / 6 месеца: "
-                                    "🟢 и в двата · 🔴 изостава и в двата · ⚪ смесено. Водещите сектори по-често "
-                                    "отскачат от подкрепата"),
-            "📉 От върха": st.column_config.TextColumn(
-                width="small", help=f"Колко е под 52-седмичния връх: 🟢 {-PULLBACK_ZONE[1]:.0f}-{-PULLBACK_ZONE[0]:.0f}% "
-                                    "(отстъпка в тренда - зоната на подкрепата) · ⚪ на самия връх · 🔴 дълбок спад"),
+            **{c: st.column_config.TextColumn(width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f", width="small",
                                                      help="Среден дневен ход (ATR 14) като % от цената - колко далеч е stop-ът"),
             "3М %": st.column_config.NumberColumn(format="%+.1f", help="Доходност за 3 месеца"),

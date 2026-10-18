@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
+import etf_quality as eq
 import fundamentals as fund
 import investingpro as ip
 import t212_portfolio as t212
@@ -979,10 +980,17 @@ def render_photon_strategy(universe: dict = None):
             st.caption("Phase A (цена в POI) или Phase B (свеж 4ч CHoCH), в discount и с R/R над минимума. "
                        "Зелено = потвърдено и от анализаторите.")
             shown_ready = sort_control(results, "ph_sort_ready")
-            if st.toggle("Табличен изглед", key="ph_ready_as_table"):
-                render_setup_table(shown_ready, "ph_ready_table", held, fund_data, news)
-            else:
-                render_setup_cards(shown_ready, held, fund_data, news)
+            as_table = st.toggle("Табличен изглед", key="ph_ready_as_table")
+            r_stocks, r_etfs = split_etf(shown_ready)
+            for part, tab, sfx in zip((r_stocks, r_etfs),
+                                      st.tabs([f"📈 Акции ({len(r_stocks)})", f"🧺 ETF ({len(r_etfs)})"]), ("", "_etf")):
+                with tab:
+                    if not part:
+                        st.info("Няма в тази група.")
+                    elif as_table:
+                        render_setup_table(part, f"ph_ready_table{sfx}", held, fund_data, news, etf=bool(sfx))
+                    else:
+                        render_setup_cards(part, held, fund_data, news)
     df_ready = setups_dataframe(results, held, fund_data, news)  # за AI анализа
 
     with tab_watch:
@@ -1001,9 +1009,15 @@ def render_photon_strategy(universe: dict = None):
             shown_watch = sort_control(sort_by_confirmation(shown_watch, fund_data, news), "ph_sort_watch")
             if len(shown_watch) < len(watch_list):
                 st.caption(f"Скрити {len(watch_list) - len(shown_watch)} инструмента далеч над съпротивата.")
-            df_watch = render_setup_table(shown_watch, "ph_watch_table", held, fund_data, news)
-            if df_watch.empty:
-                st.info("Няма инструменти на watchlist в момента.")
+            w_stocks, w_etfs = split_etf(shown_watch)
+            for part, tab, sfx in zip((w_stocks, w_etfs),
+                                      st.tabs([f"📈 Акции ({len(w_stocks)})", f"🧺 ETF ({len(w_etfs)})"]), ("", "_etf")):
+                with tab:
+                    if part:
+                        render_setup_table(part, f"ph_watch_table{sfx}", held, fund_data, news, etf=bool(sfx))
+                    else:
+                        st.info("Няма в тази група.")
+            df_watch = setups_dataframe(shown_watch, held, fund_data, news)  # за AI анализа
         if news_targets:
             st.divider()
             section_header("📰 Новини и анализи", status="info",
@@ -1240,29 +1254,48 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
         st.info("Няма отворени позиции в T212.")
         return
     rows, ip_data = [], ip.load_data()
+    etf_syms = tuple(sorted(p["symbol"] for p in positions if p["symbol"] and instrument_is_etf(p["symbol"], p["name"])))
+    etf_m = etf_metrics(etf_syms) if etf_syms else {}
     for p in positions:
         symbol = p["symbol"]
         cols = fund.fundamental_columns(fund_data.get(symbol))
         rec = ip.lookup(symbol, p["name"], ip_data) if symbol else None
+        m = etf_m.get(symbol, {})
         rows.append({"Позиция": p["name"], "±% от входа": p.get("change_pct"), "📊 Фундамент": cols["📊 Фундамент"],
                      "📰 Новини": (news.get(symbol) or {}).get("verdict", ""),
                      "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec),
-                     "Анализатори": cols["Анализатори"], "_accounts": p["accounts"], "_symbol": symbol or "-"})
+                     "🏛 ETF сила": eq.etf_strength(m.get("rs_3m"), m.get("rs_6m")) if m else "—",
+                     "📉 От върха": eq.pullback_label(m.get("from_high")) if m else "—",
+                     "Анализатори": cols["Анализатори"], "_accounts": p["accounts"], "_symbol": symbol or "-",
+                     "_etf": instrument_is_etf(symbol or "", p["name"])})
     rows = sorted(rows, key=lambda r: -(r["±% от входа"] if r["±% от входа"] is not None else -1e9))
-    items = [(r["Позиция"], r["_symbol"]) for r in rows]
-    if any(sym != "-" for _, sym in items):
+    if any(r["_symbol"] != "-" for r in rows):
         st.caption("👆 Кликни името на позицията за графика, анализатори и новини · името: синьо - моя, розово - на "
                    "съпругата, лилаво - на двамата.")
+    stocks, etfs = [r for r in rows if not r["_etf"]], [r for r in rows if r["_etf"]]
+    t_stocks, t_etfs = st.tabs([f"📈 Акции ({len(stocks)})", f"🧺 ETF ({len(etfs)})"])
+    with t_stocks:
+        _positions_table(stocks, "ph_pos_table", ["Позиция", "±% от входа", "📊 Фундамент", "📰 Новини",
+                                                  "🏛 Fair Value", "❤️ Здраве", "Анализатори"])
+    with t_etfs:
+        _positions_table(etfs, "ph_pos_table_etf", ["Позиция", "±% от входа", "🏛 ETF сила", "📉 От върха", "📰 Новини"])
+
+
+def _positions_table(rows: list, key: str, columns: list):
+    if not rows:
+        st.info("Няма позиции в тази група.")
+        return
+    items = [(r["Позиция"], r["_symbol"]) for r in rows]
     df = numbered(pd.DataFrame(rows))
     df["±% от входа"] = pd.to_numeric(df["±% от входа"], errors="coerce")
-    accounts = df.pop("_accounts")
-    df = df.drop(columns=["_symbol"])  # служебни - за цвета и за връзката с графиката
+    accounts = df["_accounts"]
+    df = df[columns]  # без служебните (_accounts - за цвета, _symbol - за връзката с графиката)
     styled = (df.style.map(change_style, subset=["±% от входа"])
               .apply(lambda c: [ACCOUNT_COLORS.get(a, "") for a in accounts], subset=["Позиция"])
               .format("{:+.1f}%", na_rep="", subset=["±% от входа"]))
     st.dataframe(
         styled, hide_index=False, width="stretch",
-        key=(k := table_key("ph_pos_table")),
+        key=(k := table_key(key)),
         selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
             "±% от входа": st.column_config.NumberColumn(
@@ -1271,6 +1304,7 @@ def render_positions_status(positions: list, statuses: dict, scanned_symbols: se
             "📊 Фундамент": st.column_config.TextColumn(
                 help="⚠️ Против (Sell или цел под цената) при отворена позиция = повод да прегледаш stop-а"),
             **IP_COLUMN_CONFIG,
+            **{c: st.column_config.TextColumn(c, width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
         },
     )
 
@@ -1506,9 +1540,40 @@ IP_COLUMN_CONFIG = {  # колоните от InvestingPro (експорта в 
 }
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def etf_metrics(symbols: tuple) -> dict:
+    """{символ: {rs_3m, rs_6m, from_high, ...}} за ETF-ите - дневни цени за 1 година + MSCI World (бенчмаркът)."""
+    data = fetch_ohlc_many(list(symbols) + [eq.ETF_BENCHMARK], "1y", "1d")
+    bench = eq.returns(data.get(eq.ETF_BENCHMARK))
+    out = {}
+    for s in symbols:
+        m = eq.returns(data.get(s))
+        out[s] = {**m, **eq.relative(m, bench)}
+    return out
+
+
+def instrument_is_etf(symbol: str, name: str) -> bool:
+    _, _, types = load_curated_symbol_info(curated_file_mtime())
+    return eq.is_etf(types.get(symbol, ""), name)
+
+
+def split_etf(items: list, key=lambda x: (x.symbol, x.name)) -> tuple:
+    """(акции, ETF-и) - по вида от месечния подбор, резервно по името."""
+    stocks, etfs = [], []
+    for x in items:
+        (etfs if instrument_is_etf(*key(x)) else stocks).append(x)
+    return stocks, etfs
+
+
+ETF_MAIN_COLUMNS = ["Име", "🏛 ETF сила", "📉 От върха", "📰 Новини", "💼 Държа", "Зона", "💶 Цел 1 / Цел 2",
+                    "⏱ До цел 1", "Бележка"]
+
+
 def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
     """PhotonSetup-и като таблица с фундамента и новините (и за AI анализа)."""
     rows, ip_data = [], ip.load_data()
+    etf_syms = tuple(sorted(x.symbol for x in setups if instrument_is_etf(x.symbol, x.name)))
+    etf_m = etf_metrics(etf_syms) if etf_syms else {}
     for x in setups:
         row = x.to_row((held or {}).get(x.symbol, ""))
         row["Фаза"] = PHASE_BADGES.get(x.phase, row["Фаза"])
@@ -1527,8 +1592,11 @@ def setups_dataframe(setups: list, held: dict, fund_data: dict, news: dict) -> p
         row["💶 Stop"] = fmt_pnl(plan["stop"])
         row["⏱ До цел 1"] = fmt_days(plan["days"])
         rec = ip.lookup(x.symbol, x.name, ip_data)
+        m = etf_m.get(x.symbol, {})
         rows.append({**row, **cols, "📰 Новини": verdict,
-                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec)})
+                     "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec),
+                     "🏛 ETF сила": eq.etf_strength(m.get("rs_3m"), m.get("rs_6m")) if m else "",
+                     "📉 От върха": eq.pullback_label(m.get("from_high")) if m else ""})
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -1546,18 +1614,28 @@ NUMBER_FORMATS = {
 }
 
 
-def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news: dict) -> pd.DataFrame:
+def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news: dict, etf: bool = False) -> pd.DataFrame:
     """Таблица с PhotonSetup-и; клик по ред отваря прозореца с графиката и новините.
     held = {symbol: 'N'/'T'/'N+T'} или None (няма T212 ключове - колоната се скрива).
     Колоните за фундамента (ниво 1) и новините (ниво 2) само подчертават - не филтрират."""
     df = setups_dataframe(setups, held, fund_data, news)
     if df.empty:
         return df
+    if etf:  # за ETF няма фундамент / Fair Value - вместо тях силата спрямо пазара и отстъпката от върха
+        df = df.drop(columns=[c for c in ("📊 Фундамент", "🏛 Fair Value", "❤️ Здраве", "Анализатори",
+                                          "Потенциал до целта (%)", "Ръст EPS (%)", "Отчет") if c in df.columns])
+        main = ETF_MAIN_COLUMNS
+    else:
+        df = df.drop(columns=["🏛 ETF сила", "📉 От върха"])
+        main = MAIN_COLUMNS
     show_all = st.toggle("Още колони", key=f"{key}_all_cols")
-    order = list(df.columns) if show_all else [c for c in MAIN_COLUMNS if c in df.columns]
+    order = list(df.columns) if show_all else [c for c in main if c in df.columns]
 
     def highlight(r):
-        confirmed = r["📊 Фундамент"] in (fund.FUND_CONFIRMED, STAR_LABEL) and r["📰 Новини"] != fund.NEWS_NEGATIVE
+        if etf:  # зелено = води пазара и е на отстъпка
+            confirmed = str(r["🏛 ETF сила"]).startswith("🟢") and str(r["📉 От върха"]).startswith("🟢")
+        else:
+            confirmed = r["📊 Фундамент"] in (fund.FUND_CONFIRMED, STAR_LABEL) and r["📰 Новини"] != fund.NEWS_NEGATIVE
         return ["background-color: rgba(61, 220, 151, 0.14)" if confirmed else ""] * len(r)
 
     items = [(x.name, x.symbol) for x in setups]
@@ -1588,6 +1666,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
                                                      help="Среден дневен ход (ATR 14) като % от цената - волатилността"),
             "💼 Държа": st.column_config.TextColumn("💼", help="Отворена позиция в T212: N / T (акаунт)"),
             **IP_COLUMN_CONFIG,
+            **{c: st.column_config.TextColumn(c, width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
         },
         on_select=lambda: _open_selected(tk, items), selection_mode="single-cell", key=(tk := table_key(key)),
     )
