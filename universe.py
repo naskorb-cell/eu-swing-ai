@@ -710,7 +710,11 @@ def github_write_file(path: str, content_str: str, github_token: str, message: s
 def load_manual_universe():
     """Чете manual_universe.json от локалния checkout (същия начин като
     curated_universe.json) - бързо, без GitHub API извикване, за да не
-    хаби бюджет на всяко презареждане на страницата."""
+    хаби бюджет на всяко презареждане на страницата. След промяна от приложението - версията от
+    сесията (локалният файл се обновява чак при следващото deploy-ване)."""
+    cached = st.session_state.get("manual_universe_cache")
+    if cached is not None:
+        return cached
     path = Path(MANUAL_UNIVERSE_FILE)
     if not path.exists():
         return {"include": [], "exclude": []}
@@ -741,11 +745,12 @@ def add_to_manual_universe(items: dict, github_token: str):
         f"Manual universe: add {len(new)} from uploaded file",
     )
     if ok:
-        msg = f"Добавени {len(new)} в ръчния списък. Streamlit ще се обнови след минута-две."
+        st.session_state["manual_universe_cache"] = manual  # важи веднага в тази сесия
+        msg = f"Добавени {len(new)} в ръчния списък - влизат в следващия скан."
     return ok, msg
 
 
-def render_manual_universe_editor(key: str):
+def render_manual_universe_editor(key: str, only_manual_toggle: bool = True):
     """Трайно (записва се в repo-то) ръчно добавяне/премахване на конкретни
     активи от универса - алтернатива на CSV upload-а, когато просто искаш
     да добавиш/махнеш няколко имена. Промените остават и след presetart на
@@ -761,7 +766,7 @@ def render_manual_universe_editor(key: str):
                 help="Същият token, ползван за макро бутона, но с добавено право 'Contents: Read and write'.",
             )
 
-        scan_only_manual = st.checkbox(
+        scan_only_manual = only_manual_toggle and st.checkbox(
             "🎯 Сканирай само ръчно добавените активи",
             value=False, key=f"{key}_manual_only",
             help="Игнорира целия универс (curated/качен файл/лимит) - сканира се САМО списъкът 'Винаги включвай' по-долу.",
