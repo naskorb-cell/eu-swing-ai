@@ -23,7 +23,7 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    change_style, check_news, clicked_name_row, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
+    change_style, check_news, clicked_name_row, etf_metrics, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
     instrument_dialog, news_provider, render_news_item, render_news_section, render_photon_strategy, today_news,
 )
 from ui_common import (
@@ -621,6 +621,78 @@ SELECTED_DETAIL_COLUMNS = {"📰 Новини": "news", "💎 Справедли
 SIGNAL_COLUMNS = ["📰 Новини", "💎 Справедлива", "🤖 AI оценка", "🏛 Fair Value", "❤️ Здраве"]
 
 
+SELECTED_ETF_COLUMNS = ["Име", "Промяна %", "📰 Новини", "🏛 ETF сила", "📉 От върха"]
+SELECTED_ETF_SIGNALS = ["📰 Новини", "🏛 ETF сила", "📉 От върха"]
+
+
+def sort_by_greens(table: pd.DataFrame, columns: list) -> pd.DataFrame:
+    """Най-горе - с най-много 🟢 в колоните, после с най-малко 🔴."""
+    signals = table[columns].astype(str)
+    return table.assign(_g=-signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1),
+                        _r=signals.apply(lambda c: c.str.startswith("🔴")).sum(axis=1)) \
+        .sort_values(["_g", "_r"], kind="stable").drop(columns=["_g", "_r"]).reset_index(drop=True)
+
+
+def selected_dataframe(table: pd.DataFrame, key: str, order: list) -> str:
+    """Таблицата на Селектирани (акциите или ETF-ите); връща ключа ѝ (за кликнатата клетка)."""
+    st.dataframe(
+        numbered(table).style.map(change_style, subset=["Промяна %"]).format("{:+.1f}", na_rep="", subset=["Промяна %"]),
+        hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
+        on_select=lambda: _open_selected(tk, table), column_order=order,
+        column_config={
+            "Име": st.column_config.TextColumn(pinned=True),
+            "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
+            "Добавен": st.column_config.TextColumn(width="small"),
+            "Промяна %": st.column_config.NumberColumn("±%", format="%+.1f", width=60,
+                                                       help="Промяна на цената в % от добавянето в Селектирани "
+                                                            "(датата е в „Още колони“)"),
+            "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
+            "📰 Новини": st.column_config.TextColumn(width="small", help="Кликни клетката за подробностите и източниците"),
+            "💎 Справедлива": st.column_config.TextColumn(
+                width="small",
+                help="🟢 подценена / ⚪ около / 🔴 надценена по методите от Yahoo (анализатори, Греъм, Линч, FCF, PEG) "
+                     "и % до справедливата (медианата). Кликни клетката за подробностите"),
+            "🤖 AI оценка": st.column_config.TextColumn(
+                width="small",
+                help="От проверката в интернет (бутона горе): Morningstar, Simply Wall St, GuruFocus, анализатори. "
+                     "Кликни клетката за справедливите цени и източниците"),
+            "🏛 Fair Value": st.column_config.TextColumn(
+                width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена/скъпа "
+                                    "и % до справедливата. От качения експорт (бутона „📥 InvestingPro“ горе)"),
+            "❤️ Здраве": st.column_config.TextColumn(
+                width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
+            **{c: st.column_config.TextColumn(width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
+        },
+    )
+    return tk
+
+
+def selected_details(tk: str, table: pd.DataFrame, news: dict, vals: dict, ai: dict, ip_recs: dict, provider: str):
+    """Подробностите за кликнатата клетка с новини / справедлива цена / InvestingPro - под таблицата."""
+    cells = ((st.session_state.get(tk) or {}).get("selection") or {}).get("cells") or []
+    if not (cells and cells[0][1] in SELECTED_DETAIL_COLUMNS and cells[0][0] < len(table)):
+        return
+    row, kind = cells[0][0], SELECTED_DETAIL_COLUMNS[cells[0][1]]
+    name, symbol = table["Име"].iloc[row], table["Тикер"].iloc[row]
+    with st.container(border=True):
+        if kind == "news":
+            st.markdown(f"##### 📰 {name}")
+            r = news.get(symbol)
+            if not r:
+                st.caption("Още няма проверка за днес - бутона „🔎 Новини“ горе.")
+            elif "error" in r:
+                st.error(friendly_ai_error(r["error"], provider))
+            else:
+                render_news_item(r)
+        elif kind == "ip":
+            st.markdown(f"##### 🏛 {name}")
+            st.markdown(ip.detail_markdown(ip_recs.get(symbol)) or
+                        "Няма данни от InvestingPro за него (ETF или не е в качения експорт).")
+        else:
+            st.markdown(f"##### 💎 {name}")
+            render_valuation_detail(vals.get(symbol) or {}, ai.get(symbol) or {})
+
+
 def render_selected(selected: list, news: dict, raw, thresholds):
     """Таб „⭐ Селектирани“: стоят, докато не ги премахнеш ръчно; текущите показатели
     се теглят само за тях (без пълен скан), за всекидневен преглед. Горе - бутоните за новините и
@@ -700,69 +772,39 @@ def render_selected(selected: list, news: dict, raw, thresholds):
     ip_recs = {s: ip.lookup(s, n, ip_data) for s, n in zip(table["Тикер"], table["Име"])}
     table["🏛 Fair Value"] = [ip.fv_summary(ip_recs[s]) for s in table["Тикер"]]
     table["❤️ Здраве"] = [ip.health_summary(ip_recs[s]) for s in table["Тикер"]]
-    # най-горе тези с най-много зелени точки (новини + справедлива + AI), после с най-малко червени
-    signals = table[SIGNAL_COLUMNS].astype(str)
-    greens = signals.apply(lambda c: c.str.startswith("🟢")).sum(axis=1)
-    reds = signals.apply(lambda c: c.str.startswith("🔴")).sum(axis=1)
-    table = table.assign(_g=-greens, _r=reds).sort_values(["_g", "_r"], kind="stable") \
-        .drop(columns=["_g", "_r"]).reset_index(drop=True)
+    # акции / ETF - различни показатели (за ETF: сила спрямо MSCI World и отстъпка от 52-седм. връх)
+    types = load_curated_symbol_info(curated_file_mtime())[2]
+    etf_mask = [eq.is_etf(types.get(s, ""), n) for s, n in zip(table["Тикер"], table["Име"])]
+    etf_syms = tuple(sorted(s for s, e in zip(table["Тикер"], etf_mask) if e))
+    etf_m = etf_metrics(etf_syms) if etf_syms else {}
+    table["🏛 ETF сила"] = [eq.etf_strength((etf_m.get(s) or {}).get("rs_3m"), (etf_m.get(s) or {}).get("rs_6m"))
+                           if s in etf_m else "" for s in table["Тикер"]]
+    table["📉 От върха"] = [eq.pullback_label((etf_m.get(s) or {}).get("from_high")) if s in etf_m else ""
+                           for s in table["Тикер"]]
+    stocks_tbl = sort_by_greens(table[[not e for e in etf_mask]], SIGNAL_COLUMNS)
+    etf_tbl = sort_by_greens(table[etf_mask], SELECTED_ETF_SIGNALS)
+    stale = (f" · ⚠️ Данните от InvestingPro са от преди {ip_age} дни - качи нов експорт."
+             if ip_age is not None and ip_age > ip.STALE_DAYS else "")
 
     show_all = st.toggle("Още колони", key="tr_sel_all_cols")
-    order = list(table.columns) if show_all else SELECTED_MAIN_COLUMNS
-    st.dataframe(
-        numbered(table).style.map(change_style, subset=["Промяна %"]).format("{:+.1f}", na_rep="", subset=["Промяна %"]),
-        hide_index=False, width="stretch", key=(tk := table_key("tr_tbl_sel")), selection_mode="single-cell",
-        on_select=lambda: _open_selected(tk, table), column_order=order,
-        column_config={
-            "Име": st.column_config.TextColumn(pinned=True),
-            "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
-            "Добавен": st.column_config.TextColumn(width="small"),
-            "Промяна %": st.column_config.NumberColumn("±%", format="%+.1f", width=60,
-                                                       help="Промяна на цената в % от добавянето в Селектирани "
-                                                            "(датата е в „Още колони“)"),
-            "🌊 ATR %": st.column_config.NumberColumn(format="%.1f"),
-            "📰 Новини": st.column_config.TextColumn(width="small", help="Кликни клетката за подробностите и източниците"),
-            "💎 Справедлива": st.column_config.TextColumn(
-                width="small",
-                help="🟢 подценена / ⚪ около / 🔴 надценена по методите от Yahoo (анализатори, Греъм, Линч, FCF, PEG) "
-                     "и % до справедливата (медианата). Кликни клетката за подробностите"),
-            "🤖 AI оценка": st.column_config.TextColumn(
-                width="small",
-                help="От проверката в интернет (бутона горе): Morningstar, Simply Wall St, GuruFocus, анализатори. "
-                     "Кликни клетката за справедливите цени и източниците"),
-            "🏛 Fair Value": st.column_config.TextColumn(
-                width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена/скъпа "
-                                    "и % до справедливата. От качения експорт (бутона „📥 InvestingPro“ горе)"),
-            "❤️ Здраве": st.column_config.TextColumn(
-                width="small", help="InvestingPro Financial Health (0-5): 🟢 добро и нагоре · ⚪ средно · 🔴 слабо"),
-        },
-    )
-    st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 / 🏛 / ❤️ = подробностите тук "
-               "отдолу." + (f" · ⚠️ Данните от InvestingPro са от преди {ip_age} дни - качи нов експорт."
-                           if ip_age is not None and ip_age > ip.STALE_DAYS else ""))
-
-    # подробностите за кликнатата клетка с новини / справедлива цена
-    cells = ((st.session_state.get(tk) or {}).get("selection") or {}).get("cells") or []
-    if cells and cells[0][1] in SELECTED_DETAIL_COLUMNS and cells[0][0] < len(table):
-        row, kind = cells[0][0], SELECTED_DETAIL_COLUMNS[cells[0][1]]
-        name, symbol = table["Име"].iloc[row], table["Тикер"].iloc[row]
-        with st.container(border=True):
-            if kind == "news":
-                st.markdown(f"##### 📰 {name}")
-                r = news.get(symbol)
-                if not r:
-                    st.caption("Още няма проверка за днес - бутона „🔎 Новини“ горе.")
-                elif "error" in r:
-                    st.error(friendly_ai_error(r["error"], provider))
-                else:
-                    render_news_item(r)
-            elif kind == "ip":
-                st.markdown(f"##### 🏛 {name}")
-                st.markdown(ip.detail_markdown(ip_recs.get(symbol)) or
-                            "Няма данни от InvestingPro за него (ETF или не е в качения експорт).")
-            else:
-                st.markdown(f"##### 💎 {name}")
-                render_valuation_detail(vals.get(symbol) or {}, ai.get(symbol) or {})
+    t_stocks, t_etfs = st.tabs([f"📈 Акции ({len(stocks_tbl)})", f"🧺 ETF ({len(etf_tbl)})"])
+    with t_stocks:
+        if stocks_tbl.empty:
+            st.info("Няма акции в Селектирани.")
+        else:
+            tk = selected_dataframe(stocks_tbl, "tr_tbl_sel", list(stocks_tbl.columns) if show_all else SELECTED_MAIN_COLUMNS)
+            st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 / 💎 / 🤖 / 🏛 / ❤️ = подробностите "
+                       "тук отдолу." + stale)
+            selected_details(tk, stocks_tbl, news, vals, ai, ip_recs, provider)
+    with t_etfs:
+        if etf_tbl.empty:
+            st.info("Няма ETF-и в Селектирани.")
+        else:
+            etf_cols = [c for c in etf_tbl.columns if c not in ("💎 Справедлива", "🤖 AI оценка", "🏛 Fair Value", "❤️ Здраве")]
+            tk = selected_dataframe(etf_tbl, "tr_tbl_sel_etf", etf_cols if show_all else SELECTED_ETF_COLUMNS)
+            st.caption("👆 Името = графиката (там е и 🗑 за премахване) · клетка 📰 = новините тук отдолу. "
+                       "Най-горе - водят пазара (MSCI World) и са на отстъпка от върха.")
+            selected_details(tk, etf_tbl, news, vals, ai, ip_recs, provider)
 
     if st.toggle("💎 Подробна таблица на справедливата цена", key="tr_val_table"):
         render_valuation_table(selected, vals, ai)
