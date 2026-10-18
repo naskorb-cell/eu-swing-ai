@@ -23,7 +23,7 @@ import valuation as val
 from ai_client import AI_KEY_SECRETS
 from indicators import average_true_range, ema_alignment, resample_ohlc
 from photon import (
-    change_style, check_news, clicked_name_row, etf_metrics, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
+    NAME_WIDTH, change_style, check_news, clicked_name_row, etf_metrics, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
     instrument_dialog, news_provider, render_news_item, render_news_section, render_photon_strategy, today_news,
 )
 from ui_common import (
@@ -195,7 +195,7 @@ def render_valuation_table(selected: list, vals: dict, ai: dict):
     st.dataframe(
         pd.DataFrame(rows), hide_index=True, width="stretch",
         column_config={
-            "Име": st.column_config.TextColumn(pinned=True),
+            "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "💎 Оценка": st.column_config.TextColumn(help=f"По медианата на методите: над +{val.MARGIN_PCT}% до справедливата "
                                                          f"и поне половината гласове = подценена; под -{val.MARGIN_PCT}% = надценена"),
             "До справедливата %": st.column_config.NumberColumn(format="%+.1f", help="Медианата на методите спрямо цената"),
@@ -412,7 +412,7 @@ def render_etf_table(df: pd.DataFrame, key: str, news: dict):
         numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
-            "Име": st.column_config.TextColumn(pinned=True),
+            "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
             **{c: st.column_config.TextColumn(width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
             "🌊 ATR %": st.column_config.NumberColumn(format="%.1f", width="small",
@@ -473,7 +473,7 @@ def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
         numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
-            "Име": st.column_config.TextColumn(pinned=True),
+            "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
             "Метод": st.column_config.TextColumn(help="А = EMA подреждане на D и W; Б = качество на тренда на D и W"),
             "📈 Качество D": st.column_config.NumberColumn(format="%.0f", help="Годишен наклон % x R² за последните 90 дни"),
@@ -640,7 +640,7 @@ def selected_dataframe(table: pd.DataFrame, key: str, order: list) -> str:
         hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
         on_select=lambda: _open_selected(tk, table), column_order=order,
         column_config={
-            "Име": st.column_config.TextColumn(pinned=True),
+            "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "Метод": st.column_config.TextColumn(help="Днес: А = EMA подреждане на D и W; Б = качество на тренда"),
             "Добавен": st.column_config.TextColumn(width="small"),
             "Промяна %": st.column_config.NumberColumn("±%", format="%+.1f", width=60,
