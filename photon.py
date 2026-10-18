@@ -1298,6 +1298,7 @@ def _positions_table(rows: list, key: str, columns: list):
         key=(k := table_key(key)),
         selection_mode="single-cell", on_select=lambda: _open_selected(k, [it if it[1] != "-" else (None, None) for it in items]),
         column_config={
+            "Позиция": st.column_config.TextColumn(width=NAME_WIDTH),
             "±% от входа": st.column_config.NumberColumn(
                 "±%", width=70, help="Цената сега спрямо средната цена на входа (в цената на инструмента, без валутния "
                                      "курс); при позиция в двата акаунта - средно претеглено"),
@@ -1531,6 +1532,7 @@ def change_style(v) -> str:
     return CHANGE_COLORS["up" if v > 0 else "down" if v < 0 else "flat"]
 
 
+NAME_WIDTH = 140  # px - колоната с името е тясна (дългите имена се съкращават с „…“), да се виждат другите на телефон
 IP_COLUMN_CONFIG = {  # колоните от InvestingPro (експорта в „⭐ Селектирани“ → „📥 InvestingPro“)
     "🏛 Fair Value": st.column_config.TextColumn(
         "🏛 Fair Value", width="small", help="InvestingPro Fair Value: 🟢 изгодна/подценена · ⚪ справедлива · 🔴 надценена "
@@ -1644,7 +1646,7 @@ def render_setup_table(setups: list, key: str, held: dict, fund_data: dict, news
                                                            na_rep="—"),
         width="stretch", hide_index=False, column_order=order,
         column_config={
-            "Име": st.column_config.TextColumn("Име", pinned=True),
+            "Име": st.column_config.TextColumn("Име", pinned=True, width=NAME_WIDTH),
             "Потенциал до целта (%)": st.column_config.Column(
                 "Потенциал %", width="small", help="До средната целева цена на анализаторите"),
             "Зона": st.column_config.TextColumn("Зона", width="small",
