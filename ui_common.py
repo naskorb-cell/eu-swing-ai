@@ -1,5 +1,7 @@
 """Общи UI елементи: CSS темата, секционни заглавия, форматиране на суми."""
 
+import re
+
 import streamlit as st
 
 from ai_client import AI_KEY_SECRETS, AI_PROVIDERS, CLAUDE_NEWS_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL, GEMINI_NEWS_DEFAULT_MODEL
@@ -227,3 +229,19 @@ def show_ai_error(error, provider: str, key: str):
     st.error(friendly_ai_error(error, provider))
     other = next(p for p in AI_PROVIDERS if p != provider)
     st.button(f"🔁 Превключи на {other}", key=f"{key}_switch_ai", on_click=_switch_ai_provider, args=(other,))
+
+
+_CITE_TAG = re.compile(r"</?cite\b[^>]*>")
+
+
+def strip_cites(text) -> str:
+    """Маха маркерите за цитати <cite index="..."> ... </cite>, които Claude слага при търсене в интернет."""
+    return _CITE_TAG.sub("", text) if isinstance(text, str) else text
+
+
+def md_safe(text) -> str:
+    """Текст от AI за st.markdown: без маркерите за цитати и с екраниран „$“ (иначе Streamlit приема
+    текста между два „$“ за математическа формула - $331.46 ... $5.75 излиза в друг шрифт)."""
+    if not isinstance(text, str):
+        return "" if text is None else str(text)
+    return strip_cites(text).replace("$", "\\$")
