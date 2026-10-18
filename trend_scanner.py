@@ -29,8 +29,9 @@ from ui_common import (
     claude_news_model, friendly_ai_error, gemini_model, gemini_news_model, md_safe, section_header,
 )
 from universe import (
-    apply_manual_universe, curated_file_mtime, github_get_file, github_write_file, load_curated_symbol_info,
-    load_manual_universe, load_universe,
+    add_to_manual_universe, apply_manual_universe, curated_file_mtime, github_get_file, github_write_file,
+    load_curated_symbol_info, load_manual_universe, load_universe, render_manual_universe_editor,
+    render_universe_uploader,
 )
 
 TREND_PERIOD = "5y"  # седмичната EMA200 иска ~4 години история
@@ -437,10 +438,34 @@ def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
                "подреждане по колона - клик върху заглавието ѝ.")
 
 
+def render_universe_panel(tickers: dict):
+    """Изскачащият панел „📤 Универс“: качване на списък от InvestingPro (CSV/Excel - съпоставя се с
+    инструментите в T212, новите се записват трайно в manual_universe.json) и ръчният списък."""
+    st.markdown(f"Сканират се **{len(tickers)}** инструмента: месечният подбор + ръчно добавените.")
+    mapped = render_universe_uploader(key="tr")
+    if mapped:
+        known = set(tickers.values())
+        new_items = {n: s for n, s in mapped.items() if s not in known}
+        st.caption(f"От файла {len(mapped)} са в Trading 212: {len(mapped) - len(new_items)} вече се сканират, "
+                   f"{len(new_items)} са нови.")
+        if new_items:
+            st.dataframe(pd.DataFrame({"Инструмент": list(new_items), "Символ": list(new_items.values())}),
+                         hide_index=True, width="stretch", height=min(35 * len(new_items) + 38, 260))
+            if st.button(f"💾 Добави новите {len(new_items)} трайно", key="tr_csv_save", type="primary",
+                         help="Записват се в ръчния списък и влизат във всеки следващ скан."):
+                token = st.secrets.get("GITHUB_TOKEN", None)
+                if not token:
+                    st.error("Липсва GITHUB_TOKEN в Streamlit Secrets.")
+                else:
+                    ok, msg = add_to_manual_universe(new_items, token)
+                    (st.success if ok else st.error)(msg + (" Натисни „🔍 Сканирай“." if ok else ""))
+    render_manual_universe_editor(key="tr", only_manual_toggle=False)
+
+
 def render_trend_section():
     tickers = trend_universe()
     # чист начален екран: бутонът за скан, а праговете и обяснението на методите - в изскачащи панели
-    scan_col, thr_col, info_col = st.columns([2, 1, 1], vertical_alignment="center")
+    scan_col, thr_col, uni_col, info_col = st.columns([2, 1, 1, 1], vertical_alignment="center")
     scan_clicked = scan_col.button("🔍 Сканирай за възходящ тренд", type="primary", key="tr_scan", width="stretch")
     with thr_col.popover("⚙️ Прагове", width="stretch"):
         min_r2 = st.slider("Метод Б: мин. R²", 0.3, 0.95, 0.6, 0.05, key="tr_min_r2",
@@ -448,6 +473,8 @@ def render_trend_section():
         min_slope = st.slider("Метод Б: мин. наклон (% годишно)", 0, 60, 10, 5, key="tr_min_slope")
         atr_range = st.slider("ATR % (и двата метода)", 0.0, ATR_SLIDER_MAX, (0.0, ATR_SLIDER_MAX), 0.5,
                               key="tr_atr", help="10 = без горна граница. За swing до месец ~1.5-4% е добре.")
+    with uni_col.popover("📤 Универс", width="stretch"):
+        render_universe_panel(tickers)
     with info_col.popover("ℹ️ Методите", width="stretch"):
         st.markdown(
             "**📈 Възходящ тренд на дневна и седмична графика** - два метода един до друг за нагледно "
