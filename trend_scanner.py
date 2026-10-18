@@ -25,7 +25,9 @@ from photon import (
     change_style, check_news, clicked_name_row, fetch_ohlc_many, news_checks_today, numbered, table_key, install_chart_scripts,
     instrument_dialog, news_provider, render_news_item, render_news_section, render_photon_strategy, today_news,
 )
-from ui_common import claude_news_model, friendly_ai_error, gemini_model, gemini_news_model, section_header
+from ui_common import (
+    claude_news_model, friendly_ai_error, gemini_model, gemini_news_model, md_safe, section_header,
+)
 from universe import (
     apply_manual_universe, curated_file_mtime, github_get_file, github_write_file, load_curated_symbol_info,
     load_manual_universe, load_universe,
@@ -233,11 +235,12 @@ def render_valuation_detail(v: dict, a: dict):
     elif "error" in a:
         st.error(friendly_ai_error(a["error"], news_provider()))
     else:
-        st.markdown(f"**🤖 AI: {a['verdict']}** - {a['summary'] or '—'}")
+        st.markdown(f"**🤖 AI: {a['verdict']}** - {md_safe(a['summary']) or '—'}")
         if a["estimates"]:
-            st.markdown(" · ".join(f"**{e['source']}**: {e['fair_value']:.2f} {e['currency']}" for e in a["estimates"]))
+            st.markdown(" · ".join(f"**{md_safe(e['source'])}**: {e['fair_value']:.2f} {md_safe(e['currency'])}"
+                                   for e in a["estimates"]))
         if a["sources"]:
-            st.markdown("Източници: " + " · ".join(f"[{s_['title']}]({s_['url']})" for s_ in a["sources"]))
+            st.markdown("Източници: " + " · ".join(f"[{md_safe(s_['title'])}]({s_['url']})" for s_ in a["sources"]))
 
 
 def confirm_paid_check(key: str, count: int, what: str) -> bool:

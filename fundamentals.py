@@ -164,6 +164,8 @@ _JSON_FIELDS = ("verdict", "summary", "analyst_actions", "next_earnings", "sourc
 
 
 def _extract_json(text: str) -> dict:
+    # Claude с web_search слага <cite index="..."> около цитатите - кавичките в тях чупят JSON-а
+    text = re.sub(r"</?cite\b[^>]*>", "", text)
     match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL) or re.search(r"(\{.*\})", text, re.DOTALL)
     if not match:
         raise ValueError("моделът не върна JSON")

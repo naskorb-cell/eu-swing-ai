@@ -26,7 +26,7 @@ from indicators import (
 from portfolio_ui import T212_ACCOUNTS
 from ui_common import (
     ai_api_key, ai_provider, claude_news_model, format_eur, friendly_ai_error, gemini_model, gemini_news_model,
-    levels_html, section_header,
+    levels_html, md_safe, section_header,
     show_ai_error,
 )
 from universe import (
@@ -1123,13 +1123,14 @@ def instrument_dialog(name: str, symbol: str, actions=None):
 
 
 def render_news_item(r: dict):
-    st.markdown(f"**{r['verdict']}** - {r['summary']}")
+    st.markdown(f"**{r['verdict']}** - {md_safe(r['summary'])}")
     if r.get("analyst_actions"):
-        st.markdown(f"**Анализатори:** {r['analyst_actions']}")
+        st.markdown(f"**Анализатори:** {md_safe(r['analyst_actions'])}")
     if r.get("next_earnings"):
-        st.markdown(f"**Следващ отчет:** {r['next_earnings']}")
+        st.markdown(f"**Следващ отчет:** {md_safe(r['next_earnings'])}")
     if r.get("sources"):
-        st.markdown("**Източници:** " + " · ".join(f"[{s.get('title') or s['url']}]({s['url']})" for s in r["sources"]))
+        st.markdown("**Източници:** " + " · ".join(f"[{md_safe(s.get('title') or s['url'])}]({s['url']})"
+                                                   for s in r["sources"]))
 
 
 # ---------------------------------------------------------------- карти за „Готови“
