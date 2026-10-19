@@ -341,6 +341,12 @@
       "symbol": "CBRS.DE",
       "added": "2026-10-19",
       "price": 55.94
+    },
+    {
+      "name": "QDVE (iShares S&P 500 Information Technology Sector (Acc))",
+      "symbol": "QDVE.DE",
+      "added": "2026-10-19",
+      "price": 46.44
     }
   ]
 }
