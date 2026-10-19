@@ -41,17 +41,33 @@ TELEGRAM_LIMIT = 3800         # знака на съобщение (лимитъ
 # двата варианта (лятно/зимно време), а тук се изпълнява само този, който съвпада с часа в Берлин.
 MARKET_TZ = ZoneInfo("Europe/Berlin")
 SLOTS = {(10, 0): False, (13, 0): False, (16, 30): True}  # (час, минута): с ли е скана за „И двата“
-SLOT_TOLERANCE_MIN = 45       # GitHub често закъснява 5-30 мин.; другото часово време е на 60 мин.
+SLOT_EARLY_MIN = 5            # пускане до 5 мин. преди часа още се брои за него
 
 
-def current_slot(now: datetime = None):
-    """(час, минута) на проверката, за която е това пускане, или None (пускането е за другото часово време)."""
+def current_slot(state: dict, now: datetime = None):
+    """(час, минута) на проверката, която трябва да се изпълни сега, или None.
+
+    GitHub пуска насрочените задачи с голямо закъснение (понякога часове) или изобщо не ги пуска, затова
+    графикът е на всеки 30 мин. в работното време, а тук се взима последният настъпил час за проверка
+    (по берлинско време), който днес още не е изпълнен (`state["slots"]`). Пропуснатите по-ранни часове не се
+    наваксват поотделно - последният покрива и тях."""
     now = (now or datetime.now(timezone.utc)).astimezone(MARKET_TZ)
-    for hour, minute in SLOTS:
-        delay = now - now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if timedelta(minutes=-5) <= delay <= timedelta(minutes=SLOT_TOLERANCE_MIN):
-            return hour, minute
-    return None
+    if now.weekday() >= 5:
+        return None
+    today = now.date().isoformat()
+    done = (state.get("slots") or {}).get(today, [])
+    due = [(h, m) for h, m in SLOTS
+           if now >= now.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=SLOT_EARLY_MIN)]
+    if not due:
+        return None
+    slot = max(due)
+    return None if f"{slot[0]:02d}:{slot[1]:02d}" in done else slot
+
+
+def mark_slot_done(state: dict, slot, now: datetime = None):
+    today = (now or datetime.now(timezone.utc)).astimezone(MARKET_TZ).date().isoformat()
+    slots = state.get("slots") or {}
+    state["slots"] = {today: sorted(set(slots.get(today, [])) | {f"{slot[0]:02d}:{slot[1]:02d}"})}  # само днешните
 
 
 class _NoProgress:
@@ -272,15 +288,17 @@ def main():
     parser.add_argument("--scheduled", action="store_true",
                         help="от графика: само ако е час за проверка по европейско време (скана за тренда - по часа)")
     args = parser.parse_args()
+    state, messages, failed = load_state(), [], []
+    slot = None
     if args.scheduled:
-        slot = current_slot()
+        slot = current_slot(state)
         if slot is None:
-            print("Не е час за проверка (пускането е за другото часово време) - пропускам.")
+            print("Няма неизпълнена проверка за сега - пропускам.")
             return
+        # скана за „И двата“ - на проверката в 16:30 (и ако тя е закъсняла)
         args.trend = args.trend or SLOTS[slot]
         print(f"Проверка за {slot[0]:02d}:{slot[1]:02d} европейско време" + (" + тренд" if args.trend else ""))
 
-    state, messages, failed = load_state(), [], []
     checks = [("Photon", check_photon), ("Позиции", check_positions)] + ([("Тренд", check_trend)] if args.trend else [])
     for title, check in checks:
         try:
@@ -297,6 +315,8 @@ def main():
     if args.dry_run:
         print("\n\n".join(messages) or "(няма известия)")
         return
+    if slot is not None:
+        mark_slot_done(state, slot)
     if messages and not send_telegram(messages):
         sys.exit(1)  # паметта не се записва - следващият път се опитва пак
     save_state(state)
