@@ -335,6 +335,12 @@
       "symbol": "WCBR.MI",
       "added": "2026-10-19",
       "price": 39.325
+    },
+    {
+      "name": "CBRS (First Trust Nasdaq Cybersecurity (Acc))",
+      "symbol": "CBRS.DE",
+      "added": "2026-10-19",
+      "price": 55.94
     }
   ]
 }
