@@ -329,6 +329,12 @@
       "symbol": "RUI.PA",
       "added": "2026-10-18",
       "price": 35.34
+    },
+    {
+      "name": "WCBR (WisdomTree Cybersecurity (Acc))",
+      "symbol": "WCBR.MI",
+      "added": "2026-10-19",
+      "price": 39.325
     }
   ]
 }
