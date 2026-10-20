@@ -353,6 +353,12 @@
       "symbol": "OXY",
       "added": "2026-10-20",
       "price": 62.618
+    },
+    {
+      "name": "IS4S (iShares Digital Security (Dist))",
+      "symbol": "IS4S.DE",
+      "added": "2026-10-20",
+      "price": 12.796
     }
   ]
 }
