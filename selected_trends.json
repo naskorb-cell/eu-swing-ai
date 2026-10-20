@@ -347,6 +347,12 @@
       "symbol": "QDVE.DE",
       "added": "2026-10-19",
       "price": 46.44
+    },
+    {
+      "name": "OPC (Occidental Petroleum)",
+      "symbol": "OXY",
+      "added": "2026-10-20",
+      "price": 62.618
     }
   ]
 }
