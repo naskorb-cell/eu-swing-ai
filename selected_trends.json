@@ -359,6 +359,12 @@
       "symbol": "IS4S.DE",
       "added": "2026-10-20",
       "price": 12.796
+    },
+    {
+      "name": "XUTC (Xtrackers MSCI USA Information Technology (Dist))",
+      "symbol": "XUTC.DE",
+      "added": "2026-10-22",
+      "price": 152.08
     }
   ]
 }
