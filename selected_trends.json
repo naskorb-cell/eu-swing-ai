@@ -371,6 +371,12 @@
       "symbol": "VHVE.MI",
       "added": "2026-10-22",
       "price": 134.6
+    },
+    {
+      "name": "IUSQ (iShares MSCI All Country World (Acc))",
+      "symbol": "IUSQ.DE",
+      "added": "2026-10-22",
+      "price": 108.4
     }
   ]
 }
