@@ -377,6 +377,12 @@
       "symbol": "IUSQ.DE",
       "added": "2026-10-22",
       "price": 108.4
+    },
+    {
+      "name": "LYY0 (Amundi MSCI All Country World Swap (Acc))",
+      "symbol": "LYY0.DE",
+      "added": "2026-10-22",
+      "price": 616.2
     }
   ]
 }
