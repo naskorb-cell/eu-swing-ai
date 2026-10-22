@@ -365,6 +365,12 @@
       "symbol": "XUTC.DE",
       "added": "2026-10-22",
       "price": 152.08
+    },
+    {
+      "name": "VHVE (Vanguard FTSE Developed World (Acc))",
+      "symbol": "VHVE.MI",
+      "added": "2026-10-22",
+      "price": 134.6
     }
   ]
 }
