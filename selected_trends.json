@@ -383,6 +383,12 @@
       "symbol": "LYY0.DE",
       "added": "2026-10-22",
       "price": 616.2
+    },
+    {
+      "name": "I500 (iShares S&P 500 Swap (Acc))",
+      "symbol": "I500.DE",
+      "added": "2026-10-22",
+      "price": 11.4635
     }
   ]
 }
