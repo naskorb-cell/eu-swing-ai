@@ -389,6 +389,12 @@
       "symbol": "I500.DE",
       "added": "2026-10-22",
       "price": 11.4635
+    },
+    {
+      "name": "5ESG (Invesco S&P 500 Scored & Screened (Acc))",
+      "symbol": "5ESG.DE",
+      "added": "2026-10-22",
+      "price": 95.94
     }
   ]
 }
