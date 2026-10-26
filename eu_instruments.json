@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-10-25 08:08:32",
+  "fetched_at": "2026-10-26 08:34:01",
   "total": 6067,
   "instruments": [
     {
@@ -57076,11 +57076,11 @@
       "ticker": "AMId_EQ",
       "type": "STOCK",
       "workingScheduleId": 54,
-      "isin": "DE0008131350",
+      "isin": "DE000A41YGH1",
       "currencyCode": "EUR",
       "name": "Medondo",
-      "shortName": "AMI",
-      "maxOpenQuantity": 4610.0,
+      "shortName": "AMI0",
+      "maxOpenQuantity": 461.0,
       "extendedHours": false,
       "addedOn": "2026-04-15T11:41:44.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
