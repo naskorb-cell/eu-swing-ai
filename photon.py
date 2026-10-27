@@ -3,6 +3,7 @@
 import dataclasses
 import hashlib
 import json
+import re
 import threading
 from dataclasses import dataclass
 from datetime import datetime
@@ -353,6 +354,12 @@ def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     return results, watch_list, funnel, rejects, statuses
 
 
+def plain_name(label: str) -> str:
+    """„VOIH (Vanguard FTSE All-World)“ -> „Vanguard FTSE All-World“ - името от T212 без тикера отпред."""
+    m = re.match(r"^\S+ \((.+)\)$", label or "")
+    return m.group(1) if m else (label or "")
+
+
 def positions_dataframe(positions: list, statuses: dict, fund_data: dict, news: dict) -> pd.DataFrame:
     """Всички отворени позиции за AI плана - и тези, които не са в Готови / Watchlist (отпаднали от
     скана или извън Селектираните), иначе AI изобщо не ги вижда."""
@@ -363,7 +370,7 @@ def positions_dataframe(positions: list, statuses: dict, fund_data: dict, news: 
         rec = ip.lookup(symbol, p["name"], ip_data) if symbol else None
         change = p.get("change_pct")
         rows.append({
-            "Позиция": p["name"], "Символ": symbol or "-", "Акаунт": p["accounts"],
+            "Позиция": plain_name(p["name"]), "Символ": symbol or "-", "Акаунт": p["accounts"],
             "±% от входа": f"{change:+.1f}%" if change is not None else "?",
             "Статус в скана": (statuses or {}).get(symbol) or "не е сканирана (не е в Селектираните)",
             "📊 Фундамент": cols["📊 Фундамент"], "Анализатори": cols["Анализатори"], "Отчет": cols["Отчет"],
@@ -425,6 +432,9 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     {pos_text}
 
     ЖЕЛЕЗНИ ПРАВИЛА:
+    - Пиши инструментите с ИМЕТО им от колоните "Име" / "Позиция" (имената от Trading 212),
+      НЕ с тикера/символа - и в таблиците, и в текста (напр. "Safran", не "SAF.PA").
+      Ако името е много дълго, съкрати го разумно, но да остане разпознаваемо.
     - Избирай ЕДИНСТВЕНО измежду инструментите по-долу.
     - Ако категория е празна, кажи го ясно.
     - За Watchlist ползвай колоната "Бележка" за конкретното условие, което чакаме.
