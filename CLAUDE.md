@@ -16,7 +16,7 @@
 | `universe.py` | Универсът: curated/ръчен списък, CSV upload, търсене, макро сигнал, GitHub (dispatch/запис - `github_get_file`/`github_write_file` и за друго repo с `repo=`, статус на обновяването) |
 | `indicators.py` | Чисти изчисления: RSI/MACD/ATR, swing точки, структура, свещи (weekly/4ч по сесия) |
 | `portfolio_ui.py` | Секция Портфолио & P&L (`T212_ACCOUNTS`) |
-| `ai_client.py` | `call_claude` / `stream_claude` (модел `CLAUDE_MODEL`), `stream_gemini`, `stream_ai(prompt, provider, ...)`; `AI_PROVIDERS` (Gemini първи = по подразбиране) |
+| `ai_client.py` | `call_claude` / `stream_claude` (модел `CLAUDE_MODEL`; анализите - `CLAUDE_STREAM_MAX_TOKENS` 32000 + `output_config.effort` `low` (`CLAUDE_ANALYSIS_EFFORT`): мисленето на Claude е включено по подразбиране и влиза в лимита - при 4096 изяждаше всичко и отговорът беше празен, `stop_reason: max_tokens`), `stream_gemini`, `stream_ai(prompt, provider, ...)`; `AI_PROVIDERS` (Gemini първи = по подразбиране) |
 | `ui_common.py` | CSS тема, `section_header`, `format_eur`, `md_safe` (AI текст за `st.markdown`: без маркерите `<cite …>` от Claude web_search и с екраниран `$` - иначе текстът между два `$` става формула), `stream_with_status` (обвивка за `st.write_stream` на AI анализите - плана и портфолиото: „⏳ … анализира“ с въртяща се икона веднага след натискането, „✍️ пише“, „✅ Готово за N сек.“ / ❌) |
 | `legacy_strategies.py` | Мъртъв код: старите стратегии (не се импортират от UI) |
 | `t212_portfolio.py` | Trading 212 API клиент (Portfolio / History, Basic auth от key+secret) |

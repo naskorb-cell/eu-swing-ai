@@ -33,12 +33,20 @@ def call_claude(prompt: str, api_key: str, max_tokens: int = 4096) -> str:
     return text
 
 
-def stream_claude(prompt: str, api_key: str, max_tokens: int = 4096):
+# Анализите (план, портфолио): Claude „мисли“ вътрешно по подразбиране и мисленето влиза в
+# max_tokens - при 4096 понякога изяждаше целия лимит и отговорът оставаше празен
+# (stop_reason: max_tokens). Затова лимитът е голям (плаща се само реално генерираното),
+# а мисленето - ниско, както при Gemini (LOW).
+CLAUDE_STREAM_MAX_TOKENS = 32000
+CLAUDE_ANALYSIS_EFFORT = "low"
+
+
+def stream_claude(prompt: str, api_key: str, max_tokens: int = CLAUDE_STREAM_MAX_TOKENS):
     """Същото, но текстът идва на части (за st.write_stream) - отговорът се
     вижда веднага, вместо след цялото генериране."""
     got_text = False
     with Anthropic(api_key=api_key).messages.stream(
-        model=CLAUDE_MODEL, max_tokens=max_tokens,
+        model=CLAUDE_MODEL, max_tokens=max_tokens, output_config={"effort": CLAUDE_ANALYSIS_EFFORT},
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
         for text in stream.text_stream:
@@ -77,7 +85,8 @@ def stream_gemini(prompt: str, api_key: str, model: str = GEMINI_DEFAULT_MODEL):
         raise ValueError("Gemini върна празен отговор. Опитай пак.")
 
 
-def stream_ai(prompt: str, provider: str, api_key: str, max_tokens: int = 4096, gemini_model: str = GEMINI_DEFAULT_MODEL):
+def stream_ai(prompt: str, provider: str, api_key: str, max_tokens: int = CLAUDE_STREAM_MAX_TOKENS,
+              gemini_model: str = GEMINI_DEFAULT_MODEL):
     """Стрийминг от избрания доставчик ("Gemini" или "Claude")."""
     if provider == "Gemini":
         yield from stream_gemini(prompt, api_key, gemini_model)

@@ -143,7 +143,7 @@ def generate_ai_analysis_portfolio(open_df, closed_df, summary: dict, period_lab
     Бъди кратък и конкретен, удобен за преглед на телефон. Не давай дисклеймъри
     за инвестиционни съвети по-дълги от едно изречение, ако изобщо е нужно.
     """
-    yield from stream_ai(prompt, provider, api_key, max_tokens=2048, gemini_model=gemini_model())
+    yield from stream_ai(prompt, provider, api_key, gemini_model=gemini_model())
 
 
 # Именувани T212 профили - всеки със свои Secrets ключове, за да могат
