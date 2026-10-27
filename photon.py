@@ -353,10 +353,33 @@ def run_photon_scan(tickers: dict, p: dict, progress, currencies: dict = None):
     return results, watch_list, funnel, rejects, statuses
 
 
-def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, provider: str, api_key: str):
+def positions_dataframe(positions: list, statuses: dict, fund_data: dict, news: dict) -> pd.DataFrame:
+    """Всички отворени позиции за AI плана - и тези, които не са в Готови / Watchlist (отпаднали от
+    скана или извън Селектираните), иначе AI изобщо не ги вижда."""
+    ip_data, rows = ip.load_data(), []
+    for p in positions or []:
+        symbol = p["symbol"]
+        cols = fund.fundamental_columns((fund_data or {}).get(symbol))
+        rec = ip.lookup(symbol, p["name"], ip_data) if symbol else None
+        change = p.get("change_pct")
+        rows.append({
+            "Позиция": p["name"], "Символ": symbol or "-", "Акаунт": p["accounts"],
+            "±% от входа": f"{change:+.1f}%" if change is not None else "?",
+            "Статус в скана": (statuses or {}).get(symbol) or "не е сканирана (не е в Селектираните)",
+            "📊 Фундамент": cols["📊 Фундамент"], "Анализатори": cols["Анализатори"], "Отчет": cols["Отчет"],
+            "📰 Новини": ((news or {}).get(symbol) or {}).get("verdict", ""),
+            "🏛 Fair Value": ip.fv_summary(rec), "❤️ Здраве": ip.health_summary(rec),
+        })
+    return pd.DataFrame(rows)
+
+
+def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, provider: str, api_key: str,
+                                df_pos: pd.DataFrame | None = None):
 
     ready_text = df_ready.to_string(index=False) if not df_ready.empty else "НЯМА готови сетъпи в момента."
     watch_text = df_watch.to_string(index=False) if not df_watch.empty else "НЯМА инструменти на watchlist в момента."
+    pos_text = (df_pos.to_string(index=False) if df_pos is not None and not df_pos.empty
+                else "НЯМА отворени позиции (или няма T212 ключове).")
 
     prompt = f"""
     Ти си суинг търговец, ползващ Photon Trading MTF Phases методологията
@@ -398,6 +421,9 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     === WATCHLIST ===
     {watch_text}
 
+    === ОТВОРЕНИ ПОЗИЦИИ (реални, в Trading 212) ===
+    {pos_text}
+
     ЖЕЛЕЗНИ ПРАВИЛА:
     - Избирай ЕДИНСТВЕНО измежду инструментите по-долу.
     - Ако категория е празна, кажи го ясно.
@@ -406,6 +432,18 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     За "ГОТОВИ ЗА ВХОД": обясни фазата, входа с ЛИМИТ поръчка (колоните "Лимит вход"
     и "Вид поръчка"), Stop (колоната "Stop"), Target 1 на дневна съпротива, Target 2
     на седмична съпротива и ориентировъчната печалба/загуба (колоните с 💶).
+
+    За "ОТВОРЕНИ ПОЗИЦИИ" - отделен раздел с ПРЕПОРЪКА ЗА ВСЯКА позиция от таблицата,
+    без изключение (и на печалба, и на загуба): Задръж / Премести stop (на безубитък
+    или под последното дъно) / Вземи частична печалба / Затвори - с 1-2 изречения защо.
+    - "Акаунт": N = на Наско, T = на съпругата, N+T = и в двата. И двата са РЕАЛНИ
+      акаунти (не демо).
+    - "±% от входа": текущата печалба/загуба спрямо средната цена на входа.
+    - "Статус в скана": "Отпадна: ..." = Photon структурата вече не е бича (сигнал за
+      преглед на позицията, особено на загуба); "✅ Готов" / "👀 Watchlist" = структурата
+      е запазена (нивата са в таблиците горе); "не е сканирана" = преценявай по
+      фундамента, новините и ±%.
+    - При ⚠️ Против във фундамента, 🔴 новини или отчет до дни - кажи го изрично.
     Бъди кратък, удобен за телефон.
     """
     yield from stream_ai(prompt, provider, api_key, max_tokens=4096, gemini_model=gemini_model())
@@ -1041,7 +1079,8 @@ def render_photon_strategy(universe: dict = None):
     with tab_ai:
         provider = ai_provider()
         api_key = ai_api_key(provider, key="ph_key")
-        st.caption("Търговски план за готовите + какво да следиш в Watchlist, на база последния скан.")
+        st.caption("Търговски план за готовите + какво да следиш в Watchlist + препоръка за всяка отворена "
+                   "позиция, на база последния скан.")
         if st.button(f"🚀 Генерирай Анализ и Търговски План с {provider}", type="primary", width="stretch",
                      key="ph_ai_btn", disabled=not scanned):
             if not api_key:
@@ -1049,7 +1088,9 @@ def render_photon_strategy(universe: dict = None):
             else:
                 try:
                     st.session_state["photon_ai_text"] = st.write_stream(
-                        generate_ai_analysis_photon(df_ready, df_watch, provider, api_key)
+                        generate_ai_analysis_photon(df_ready, df_watch, provider, api_key,
+                                                    positions_dataframe(positions, st.session_state.get("photon_statuses"),
+                                                                        fund_data, news))
                     )
                 except Exception as e:
                     show_ai_error(e, provider, key="ph_ai")
