@@ -156,6 +156,31 @@ T212_ACCOUNTS = [
 ]
 
 
+PNL_CARD_CSS = """<style>
+.pnl-card { background: var(--panel, #0E1A2B); border: 1px solid var(--hairline, #1E2D44); border-left: 3px solid var(--info, #5B9BF5);
+    border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.pnl-card .lbl { color: var(--ink-muted, #8497B0); font-size: 0.875rem; }
+.pnl-card .val { font-family: 'JetBrains Mono', monospace; font-size: 2.25rem; line-height: 1.25; color: var(--ink, #E6EDF3); }
+.pnl-card .delta { display: inline-block; font-size: 0.8rem; padding: 1px 8px; border-radius: 999px; }
+.pnl-card .delta.neg { color: #F87171; background: rgba(248, 113, 113, 0.14); }
+.pnl-card .delta.pos { color: #4ADE80; background: rgba(74, 222, 128, 0.14); }
+.pnl-card .split { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; line-height: 1.6;
+    white-space: nowrap; }
+.pnl-card .split .up { color: #4ADE80; } .pnl-card .split .down { color: #F87171; }
+.pnl-card .split span { color: #8497B0; font-size: 0.8rem; }
+</style>"""
+
+
+def pnl_card_html(total: float, invested: float, gains, losses) -> str:
+    """Картата „Нереализирана P&L (€)“: общата сума, а вдясно по-дребно - сборът на позициите на плюс (зелено)
+    и на минус (червено), с броя им."""
+    pct = total / invested * 100 if invested else None
+    delta = (f'<span class="delta {"pos" if pct >= 0 else "neg"}">{"↑" if pct >= 0 else "↓"} {pct:+.2f}%</span>'
+             if pct is not None else "")
+    return (PNL_CARD_CSS + '<div class="pnl-card"><div><div class="lbl">Нереализирана P&L (€)</div>'
+            f'<div class="val">{total:.2f}</div>{delta}</div>'
+            f'<div class="split"><div class="up">+{gains.sum():,.2f} € <span>({len(gains)})</span></div>'
+            f'<div class="down">{losses.sum():,.2f} € <span>({len(losses)})</span></div></div></div>')
 PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
 # Цветовете са ПЛЪТНИ (не полупрозрачни): на тъмния фон прозрачното жълто става маслинено, а червените
 # нюанси се сливат. На светлите фонове текстът е тъмен, на тъмните - бял.
@@ -252,8 +277,9 @@ def render_open_positions(df_open, slug: str):
     col1, col2, col3 = st.columns(3)
     col1.metric("Брой позиции", len(df_open))
     col2.metric("Общо инвестирано (€)", round(total_invested, 2))
-    col3.metric("Нереализирана P&L (€)", round(total_pl, 2),
-                delta=f"{total_pl / total_invested * 100:+.2f}%" if total_invested else None)
+    pnl = df_open["P&L (€)"]
+    gains, losses = pnl[pnl > 0], pnl[pnl < 0]
+    col3.markdown(pnl_card_html(total_pl, total_invested, gains, losses), unsafe_allow_html=True)
     table, has_partial, names = positions_table(df_open)
     st.caption("**Актив**: 🟩 печалба / 🟥 загуба - по-наситено при 100 / 200 / 300+ € · "
                "**Кол-во и Седмица** (откога е отворена): 🟨 1-ва → 🟧 4-та седмица → 🟥 8-ма и нататък"
