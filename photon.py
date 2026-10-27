@@ -880,8 +880,9 @@ def fetch_pending_fund_data(slot):
     st.rerun()
 
 
-def render_status_box(tickers: dict, params: dict, scan_label: str = "🔍 Сканирай пазара"):
-    """Горната част: голям бутон за скан, ред със статус и фунията."""
+def render_status_box(tickers: dict, params: dict, scan_label: str = "🔍 Сканирай пазара", shown: tuple = None):
+    """Горната част: голям бутон за скан, ред със статус и фунията. shown = (Watchlist, Готови) след
+    филтрите за хоризонт / EMA / ATR - фунията показва същите числа като табовете отдолу."""
     currencies, _, types = load_curated_symbol_info(curated_file_mtime())
     scan_col, info_col = st.columns([1, 2], vertical_alignment="center")
     with scan_col:
@@ -919,7 +920,14 @@ def render_status_box(tickers: dict, params: dict, scan_label: str = "🔍 Ск�
 
     if "photon_funnel" in st.session_state:
         funnel, rejects, scanned_at = st.session_state["photon_funnel"]
+        moved = 0
+        if shown and "Готови за вход" in funnel:
+            moved = funnel["Готови за вход"] - shown[1]
+            funnel = {**funnel, "Watchlist": shown[0], "Готови за вход": shown[1]}
         st.markdown(funnel_bar_html(funnel), unsafe_allow_html=True)
+        if moved > 0:
+            st.caption(f"ℹ️ {moved} от готовите {'е преместен' if moved == 1 else 'са преместени'} в Watchlist от "
+                       "филтрите в „🛠 Настройки“ (хоризонт до цел 1, EMA, ATR) - причината е в колоната „Бележка“.")
         fund_data = st.session_state.get("photon_fund", {})
         with st.expander("📉 Детайли: защо отпаднаха инструментите, покритие на анализаторите"):
             if fund_data:
@@ -996,7 +1004,7 @@ def render_photon_strategy(universe: dict = None):
                 open_instrument(selected_name, tickers[selected_name])
 
     with status_box:
-        render_status_box(tickers, params, scan_label)
+        render_status_box(tickers, params, scan_label, shown=(len(watch_list), len(results)))
         fund_slot = st.empty()
 
     held = held_symbols(positions)
