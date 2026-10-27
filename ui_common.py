@@ -1,6 +1,7 @@
 """Общи UI елементи: CSS темата, секционни заглавия, форматиране на суми."""
 
 import re
+import time
 
 import streamlit as st
 
@@ -245,3 +246,28 @@ def md_safe(text) -> str:
     if not isinstance(text, str):
         return "" if text is None else str(text)
     return strip_cites(text).replace("$", "\\$")
+
+
+def stream_with_status(chunks, provider: str):
+    """Обвива потока от AI за st.write_stream с видим индикатор: „⏳ Gemini анализира…“ (с въртящата се
+    икона), докато дойде първият текст - моделът мисли / търси преди да започне да пише, а дотогава
+    страницата изглеждаше замръзнала. След края: „✅ Готово за N сек.“; при грешка - ❌.
+    Индикаторът се рисува веднага (не при първото четене от потока)."""
+    start = time.time()
+    status = st.status(f"⏳ {provider} анализира данните… обикновено 20-60 сек., текстът ще се появи отдолу",
+                       state="running", expanded=False)
+
+    def gen():
+        writing = False
+        try:
+            for chunk in chunks:
+                if not writing and chunk:
+                    writing = True
+                    status.update(label=f"✍️ {provider} пише анализа…", state="running")
+                yield chunk
+        except Exception:
+            status.update(label=f"❌ {provider} - грешка след {time.time() - start:.0f} сек.", state="error")
+            raise
+        status.update(label=f"✅ Готово за {time.time() - start:.0f} сек. ({provider})", state="complete")
+
+    return gen()

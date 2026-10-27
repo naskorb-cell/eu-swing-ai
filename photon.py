@@ -28,7 +28,7 @@ from portfolio_ui import T212_ACCOUNTS
 from ui_common import (
     ai_api_key, ai_provider, claude_news_model, format_eur, friendly_ai_error, gemini_model, gemini_news_model,
     levels_html, md_safe, section_header,
-    show_ai_error,
+    show_ai_error, stream_with_status,
 )
 from universe import (
     INSTRUMENTS_FILE, add_to_manual_universe, apply_manual_universe, curated_file_mtime, exchange_to_yahoo_suffix,
@@ -1088,9 +1088,10 @@ def render_photon_strategy(universe: dict = None):
             else:
                 try:
                     st.session_state["photon_ai_text"] = st.write_stream(
-                        generate_ai_analysis_photon(df_ready, df_watch, provider, api_key,
-                                                    positions_dataframe(positions, st.session_state.get("photon_statuses"),
-                                                                        fund_data, news))
+                        stream_with_status(generate_ai_analysis_photon(
+                            df_ready, df_watch, provider, api_key,
+                            positions_dataframe(positions, st.session_state.get("photon_statuses"), fund_data, news)),
+                            provider)
                     )
                 except Exception as e:
                     show_ai_error(e, provider, key="ph_ai")

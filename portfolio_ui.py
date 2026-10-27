@@ -12,7 +12,7 @@ import streamlit as st
 import t212_portfolio as t212
 from universe import INSTRUMENTS_FILE
 from ai_client import AI_KEY_SECRETS, stream_ai
-from ui_common import ai_api_key, ai_provider, gemini_model, section_header, show_ai_error
+from ui_common import ai_api_key, ai_provider, gemini_model, section_header, show_ai_error, stream_with_status
 
 # ============================================================================
 # ПОРТФОЛИО: Trading 212 отворени позиции + P&L анализ (READ-ONLY)
@@ -434,7 +434,8 @@ def render_portfolio_section():
         else:
             try:
                 st.session_state[f"t212_ai_text_{slug}"] = st.write_stream(
-                    generate_ai_analysis_portfolio(df_open, df_period, summary, preset, provider, api_key)
+                    stream_with_status(generate_ai_analysis_portfolio(df_open, df_period, summary, preset, provider, api_key),
+                                       provider)
                 )
             except Exception as e:
                 show_ai_error(e, provider, key=f"t212_ai_{slug}")

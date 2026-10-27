@@ -17,7 +17,7 @@
 | `indicators.py` | Чисти изчисления: RSI/MACD/ATR, swing точки, структура, свещи (weekly/4ч по сесия) |
 | `portfolio_ui.py` | Секция Портфолио & P&L (`T212_ACCOUNTS`) |
 | `ai_client.py` | `call_claude` / `stream_claude` (модел `CLAUDE_MODEL`), `stream_gemini`, `stream_ai(prompt, provider, ...)`; `AI_PROVIDERS` (Gemini първи = по подразбиране) |
-| `ui_common.py` | CSS тема, `section_header`, `format_eur`, `md_safe` (AI текст за `st.markdown`: без маркерите `<cite …>` от Claude web_search и с екраниран `$` - иначе текстът между два `$` става формула) |
+| `ui_common.py` | CSS тема, `section_header`, `format_eur`, `md_safe` (AI текст за `st.markdown`: без маркерите `<cite …>` от Claude web_search и с екраниран `$` - иначе текстът между два `$` става формула), `stream_with_status` (обвивка за `st.write_stream` на AI анализите - плана и портфолиото: „⏳ … анализира“ с въртяща се икона веднага след натискането, „✍️ пише“, „✅ Готово за N сек.“ / ❌) |
 | `legacy_strategies.py` | Мъртъв код: старите стратегии (не се импортират от UI) |
 | `t212_portfolio.py` | Trading 212 API клиент (Portfolio / History, Basic auth от key+secret) |
 | `fetch_eu_instruments.py` | Тегли всички T212 инструменти, филтрира EUR + ЕС/ЕИП борси → `eu_instruments.json` (без филтър по ликвидност - него прави месечният подбор) |
