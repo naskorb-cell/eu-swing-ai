@@ -446,7 +446,7 @@ def generate_ai_analysis_photon(df_ready: pd.DataFrame, df_watch: pd.DataFrame, 
     - При ⚠️ Против във фундамента, 🔴 новини или отчет до дни - кажи го изрично.
     Бъди кратък, удобен за телефон.
     """
-    yield from stream_ai(prompt, provider, api_key, max_tokens=4096, gemini_model=gemini_model())
+    yield from stream_ai(prompt, provider, api_key, gemini_model=gemini_model())
 
 
 # ============================================================================
