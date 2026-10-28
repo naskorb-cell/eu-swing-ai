@@ -225,10 +225,23 @@ def instrument_names(mtime: float) -> dict:
     return {i["ticker"]: i.get("name") or i["ticker"] for i in data.get("instruments", []) if i.get("ticker")}
 
 
+def t212_names() -> dict:
+    """{T212 тикер: име} - кешът се обновява, когато eu_instruments.json се смени."""
+    path = Path(INSTRUMENTS_FILE)
+    return instrument_names(path.stat().st_mtime if path.exists() else 0.0)
+
+
+def closed_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Затворените сделки за показване: „Актив“ (името от T212) вместо тикера."""
+    names = t212_names()
+    show = df.copy()
+    show.insert(show.columns.get_loc("Тикер"), "Актив", show["Тикер"].map(lambda t: names.get(t, t)))
+    return show.drop(columns=["Тикер"])
+
+
 def positions_table(df_open: pd.DataFrame):
     """За показване: „Актив“ (името) вместо тикера, а частично в пай - оцветен ред вместо колона."""
-    path = Path(INSTRUMENTS_FILE)
-    names = instrument_names(path.stat().st_mtime if path.exists() else 0.0)
+    names = t212_names()
     import photon  # тук, а не горе: photon импортира T212_ACCOUNTS от този модул
     show = photon.numbered(df_open)  # „№“ първа - иначе сортирането по колона отваря графиката
     show.insert(0, "Актив", show["Тикер"].map(lambda t: names.get(t, t)))
@@ -415,13 +428,13 @@ def render_portfolio_section():
     col3.metric("Реализирана P&L (€)", summary["total_pl"])
     col4.metric(
         "Най-добра / Най-лоша",
-        f"{summary['best'][0]}" if summary["best"] else "—",
+        t212_names().get(summary["best"][0], summary["best"][0]) if summary["best"] else "—",
         f"{summary['best'][1]} € / {summary['worst'][1]} €" if summary["best"] and summary["worst"] else None,
     )
     if df_period.empty:
         st.info("Няма затворени сделки в избрания период.")
     else:
-        st.dataframe(df_period, width="stretch", hide_index=True)
+        st.dataframe(closed_table(df_period), width="stretch", hide_index=True)
 
     st.divider()
     section_header("🤖 AI Анализ на представянето", status="info")
