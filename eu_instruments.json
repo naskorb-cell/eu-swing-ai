@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-10-29 09:26:32",
-  "total": 6068,
+  "fetched_at": "2026-10-30 09:39:30",
+  "total": 6067,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -32399,19 +32399,6 @@
       "exchangeName": "Gettex"
     },
     {
-      "ticker": "XCOPe_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 74,
-      "isin": "BRCPLEACNOR8",
-      "currencyCode": "EUR",
-      "name": "Companhia Paranaense de Energia",
-      "shortName": "XCOPO",
-      "maxOpenQuantity": 212.0,
-      "extendedHours": false,
-      "addedOn": "2021-08-11T12:34:07.000+03:00",
-      "exchangeName": "Bolsa de Madrid"
-    },
-    {
       "ticker": "XB4Dd_EQ",
       "type": "ETF",
       "workingScheduleId": 166,
@@ -47848,7 +47835,7 @@
       "workingScheduleId": 166,
       "isin": "IE000H92C4B8",
       "currencyCode": "EUR",
-      "name": "iShares EUR High Yield Corp Bond ESG Paris-Aligned Climate (Dist)",
+      "name": "iShares EUR High Yield Corp Bond Select",
       "shortName": "HYPE",
       "maxOpenQuantity": 810480.0,
       "extendedHours": false,
