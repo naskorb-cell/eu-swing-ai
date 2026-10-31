@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-10-30 09:39:30",
-  "total": 6067,
+  "fetched_at": "2026-10-31 09:19:23",
+  "total": 6068,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -7528,6 +7528,19 @@
       "extendedHours": false,
       "addedOn": "2025-08-06T16:50:20.000+03:00",
       "exchangeName": "Deutsche Börse Xetra"
+    },
+    {
+      "ticker": "WISAd_EQ",
+      "type": "STOCK",
+      "workingScheduleId": 172,
+      "isin": "FI4000603345",
+      "currencyCode": "EUR",
+      "name": "Wisa Group",
+      "shortName": "WISA",
+      "maxOpenQuantity": 1.0,
+      "extendedHours": false,
+      "addedOn": "2026-10-30T12:30:27.000+02:00",
+      "exchangeName": "Gettex"
     },
     {
       "ticker": "BCFKd_EQ",
