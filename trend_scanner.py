@@ -41,6 +41,11 @@ ATR_SLIDER_MAX = 10.0  # горната граница на плъзгача = �
 
 
 SELECTED_FILE = "selected_trends.json"  # „⭐ Селектирани“ - трайно в repo-то (като manual_universe.json)
+# 🆕 в колоната „№“: откога всеки инструмент минава метод А / Б (праговете по подразбиране) - трайно в
+# repo-то, за да се помни между сесиите; новите = влезли в списъка през последните NEW_DAYS дни
+SEEN_FILE = "trend_seen.json"
+NEW_DAYS = 7
+DEFAULT_THRESHOLDS = (0.6, 10, (0.0, 10.0))  # мин. R², мин. наклон, ATR % - като плъзгачите по подразбиране
 
 
 # ---------------------------------------------------------------- ⭐ Селектирани
@@ -342,6 +347,78 @@ def classify(df: pd.DataFrame, min_r2: float, min_slope: float, atr_range: tuple
     return out
 
 
+# ---------------------------------------------------------------- 🆕 новите в списъците
+
+def load_seen() -> dict:
+    """{"since": дата на първия запис, "А": {символ: дата}, "Б": {...}} - веднъж на сесия."""
+    if "tr_seen" in st.session_state:
+        return st.session_state["tr_seen"]
+    text, token = None, st.secrets.get("GITHUB_TOKEN", None)
+    if token:
+        text, _ = github_get_file(SEEN_FILE, token)
+    if text is None and Path(SEEN_FILE).exists():
+        text = Path(SEEN_FILE).read_text(encoding="utf-8")
+    try:
+        seen = json.loads(text) if text else {}
+    except json.JSONDecodeError:
+        seen = {}
+    st.session_state["tr_seen"] = seen
+    return seen
+
+
+def update_seen(raw: pd.DataFrame):
+    """След скан: новите в метод А / Б получават днешната дата, отпадналите се махат (ако влязат пак - пак са
+    нови). Инструменти без данни в този скан (неуспешно теглене) не се пипат. Записва се само при промяна."""
+    if raw is None or raw.empty:
+        return
+    seen, today = dict(load_seen()), date.today().isoformat()
+    first = "since" not in seen  # първият път - само запомня, без 🆕 (всички щяха да са „нови“)
+    seen.setdefault("since", today)
+    df = classify(raw, *DEFAULT_THRESHOLDS)
+    changed = first
+    for method in ("А", "Б"):
+        old = dict(seen.get(method, {}))
+        passing = set(df.loc[df[method], "Тикер"])
+        new = {s: d for s, d in old.items() if s in passing or s not in set(df["Тикер"])}
+        new.update({s: today for s in passing if s not in new})
+        changed |= new != old
+        seen[method] = new
+    st.session_state["tr_seen"] = seen
+    token = st.secrets.get("GITHUB_TOKEN", None)
+    if changed and token:
+        github_write_file(SEEN_FILE, json.dumps(seen, ensure_ascii=False, indent=1, sort_keys=True), token,
+                          f"Тренд: нови в списъците ({today})")
+
+
+def new_symbols(symbols, methods: tuple) -> set:
+    """Символите, влезли през последните NEW_DAYS дни в групата (за „И двата“ - когато е влязъл и във втория
+    метод). Тези от първия запис (since) не са нови."""
+    seen = load_seen()
+    since = seen.get("since")
+    if not since:
+        return set()
+    limit = (date.today() - pd.Timedelta(days=NEW_DAYS)).isoformat()
+    out = set()
+    for s in symbols:
+        dates = [seen.get(m, {}).get(s) for m in methods]
+        if all(dates):
+            d = max(dates)
+            if d > since and d >= limit:
+                out.add(s)
+    return out
+
+
+def numbered_new(table: pd.DataFrame, new: set) -> pd.DataFrame:
+    """Като numbered(), но „№“ е текст: „🆕 3“ за новите в списъка."""
+    out = numbered(table)
+    out.index = pd.Index([f"🆕 {i}" if s in new else str(i) for i, s in zip(out.index, out["Тикер"])], name="№")
+    return out
+
+
+NEW_INDEX_CONFIG = {"_index": st.column_config.TextColumn(
+    "№", width=56, help=f"🆕 = влязъл в този списък през последните {NEW_DAYS} дни (по праговете по подразбиране)")}
+
+
 def display_table(df: pd.DataFrame, news: dict) -> pd.DataFrame:
     def mark(v):
         return "✓" if v is True else ("✗" if v is False else "—")
@@ -370,7 +447,7 @@ SCAN_AI_TOP = 20  # платената AI проверка на справедл
 SCAN_SIGNAL_COLUMNS = ["🏛 Fair Value", "❤️ Здраве", "💎 Справедлива", "🤖 AI оценка", "📰 Новини"]
 
 
-def render_split(df: pd.DataFrame, key: str, news: dict, valuations: bool = False):
+def render_split(df: pd.DataFrame, key: str, news: dict, valuations: bool = False, methods: tuple = ()):
     """Групата от скана на два подтаба: акциите (Fair Value, справедлива цена...) и ETF-ите (сила спрямо пазара,
     отстъпка от върха) - показателите им са различни."""
     if df.empty:
@@ -380,14 +457,14 @@ def render_split(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
     stocks, etfs = df[~etf_mask], df[etf_mask]
     t_stocks, t_etfs = st.tabs([f"📈 Акции ({len(stocks)})", f"🧺 ETF ({len(etfs)})"])
     with t_stocks:
-        render_table(stocks, key, news, valuations)
+        render_table(stocks, key, news, valuations, methods)
     with t_etfs:
-        render_etf_table(etfs, f"{key}_etf", news)
+        render_etf_table(etfs, f"{key}_etf", news, methods)
 
 
 ETF_MAIN_COLUMNS = ["⭐", "Име", "🏛 ETF сила", "📉 От върха", "🌊 ATR %", "📰 Новини"]
 ETF_SIGNAL_COLUMNS = ["🏛 ETF сила", "📉 От върха", "📰 Новини"]
-def render_etf_table(df: pd.DataFrame, key: str, news: dict):
+def render_etf_table(df: pd.DataFrame, key: str, news: dict, methods: tuple = ()):
     """ETF-ите от скана: сила спрямо пазара (MSCI World) за 3 / 6 месеца и колко са под 52-седмичния връх -
     най-горе тези, които водят пазара и са на отстъпка (подкрепа); показателите на тренда - с „Още колони“."""
     if df.empty:
@@ -409,9 +486,11 @@ def render_etf_table(df: pd.DataFrame, key: str, news: dict):
     show_all = st.toggle("Още колони", key=f"{key}_all_cols", help="Тикер, цена, доходност 3М / 6М, методите, EMA, качество")
     order = list(table.columns) if show_all else [c for c in ETF_MAIN_COLUMNS if c in table.columns]
     st.dataframe(
-        numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
-        on_select=lambda: _open_selected(tk, table), column_order=order,
+        numbered_new(table, new_symbols(table["Тикер"], methods)), hide_index=False, width="stretch",
+        key=(tk := table_key(key)), selection_mode="single-cell", on_select=lambda: _open_selected(tk, table),
+        column_order=order,
         column_config={
+            **NEW_INDEX_CONFIG,
             "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
             **{c: st.column_config.TextColumn(width="small", help=h) for c, h in eq.ETF_COLUMN_HELP.items()},
@@ -427,7 +506,7 @@ def render_etf_table(df: pd.DataFrame, key: str, news: dict):
     st.caption("👆 Кликни името за графиката - там е и ⭐ за Селектирани. Най-горе - водят пазара и са на отстъпка.")
 
 
-def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = False):
+def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = False, methods: tuple = ()):
     """Таблица от скана: кратка (както в Селектирани) - ⭐, Име, Fair Value / Здраве (InvestingPro),
     💎 Справедлива (Yahoo методите - само при valuations=True: тегли .info за всеки, затова само за „И двата“)
     и 🤖 AI оценка (ако е проверявана днес); показателите на тренда - с „Още колони“."""
@@ -470,9 +549,11 @@ def render_table(df: pd.DataFrame, key: str, news: dict, valuations: bool = Fals
     show_all = st.toggle("Още колони", key=f"{key}_all_cols", help="Тикер, цена, методите, EMA, качество, ATR")
     order = list(table.columns) if show_all else [c for c in SCAN_MAIN_COLUMNS if c in table.columns]
     st.dataframe(
-        numbered(table), hide_index=False, width="stretch", key=(tk := table_key(key)), selection_mode="single-cell",
-        on_select=lambda: _open_selected(tk, table), column_order=order,
+        numbered_new(table, new_symbols(table["Тикер"], methods)), hide_index=False, width="stretch",
+        key=(tk := table_key(key)), selection_mode="single-cell", on_select=lambda: _open_selected(tk, table),
+        column_order=order,
         column_config={
+            **NEW_INDEX_CONFIG,
             "Име": st.column_config.TextColumn(pinned=True, width=NAME_WIDTH),
             "⭐": st.column_config.TextColumn("⭐", width=40, help="В ⭐ Селектирани"),
             "Метод": st.column_config.TextColumn(help="А = EMA подреждане на D и W; Б = качество на тренда на D и W"),
@@ -550,6 +631,7 @@ def render_trend_section():
         progress = st.progress(0.0, text="Тегля дневни данни за 5 години...")
         st.session_state["tr_results"] = run_trend_scan(tickers, progress)
         progress.empty()
+        update_seen(st.session_state["tr_results"])
 
     news = today_news()
     selected = load_selected()
@@ -586,7 +668,7 @@ def render_trend_section():
     if scanned:
         with tabs[2]:
             st.caption("Минават и двата метода. Провери новините, разгледай графиката и добави най-добрите в ⭐ Селектирани.")
-            render_split(both, "tr_tbl_both", news, valuations=True)
+            render_split(both, "tr_tbl_both", news, valuations=True, methods=("А", "Б"))
             if not both.empty:
                 st.divider()
                 section_header("📰 Новинарска подкрепа", status="info", subtitle="Само за групата „И двата“ (А + Б)")
@@ -594,10 +676,10 @@ def render_trend_section():
                                     news, key="tr_news")
         with tabs[3]:
             st.caption("EMA-тата са подредени, но ръстът е накъсан или бавен (нисък R² или наклон).")
-            render_split(only_a, "tr_tbl_a", news)
+            render_split(only_a, "tr_tbl_a", news, methods=("А",))
         with tabs[4]:
             st.caption("Равномерен ръст, но EMA20/50/200 не са подредени - често след скорошен пулбек или млад тренд.")
-            render_split(only_b, "tr_tbl_b", news)
+            render_split(only_b, "tr_tbl_b", news, methods=("Б",))
     elif raw is None:
         st.info("Натисни **🔍 Сканирай за възходящ тренд** за нови кандидати. Първият скан тегли 5 години история - "
                 "1-3 минути. „⭐ Селектирани“ работи и без скан.")
