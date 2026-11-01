@@ -395,6 +395,12 @@
       "symbol": "5ESG.DE",
       "added": "2026-10-22",
       "price": 95.94
+    },
+    {
+      "name": "2HP (Hewlett Packard Enterprise)",
+      "symbol": "HPE",
+      "added": "2026-11-01",
+      "price": 55.09
     }
   ]
 }
