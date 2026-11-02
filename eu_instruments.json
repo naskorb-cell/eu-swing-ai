@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-01 10:07:43",
+  "fetched_at": "2026-11-02 10:36:36",
   "total": 6068,
   "instruments": [
     {
@@ -16906,10 +16906,10 @@
       "ticker": "RPLd_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
-      "isin": "FI0009005987",
+      "isin": "FI4000603337",
       "currencyCode": "EUR",
       "name": "UPM-Kymmene",
-      "shortName": "RPL",
+      "shortName": "RPL1",
       "maxOpenQuantity": 85.0,
       "extendedHours": false,
       "addedOn": "2025-01-24T14:50:50.000+02:00",
@@ -28348,7 +28348,7 @@
       "workingScheduleId": 166,
       "isin": "FR0010655712",
       "currencyCode": "EUR",
-      "name": "Amundi ETF DAX DR (Acc)",
+      "name": "Amundi Dax (Acc)",
       "shortName": "CG1GR",
       "maxOpenQuantity": 9954.0,
       "extendedHours": false,
