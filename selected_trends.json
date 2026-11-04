@@ -467,6 +467,12 @@
       "symbol": "WELU.DE",
       "added": "2026-11-04",
       "price": 27.435
+    },
+    {
+      "name": "2B70 (iShares Nasdaq US Biotechnology (Acc))",
+      "symbol": "2B70.DE",
+      "added": "2026-11-04",
+      "price": 9.481
     }
   ]
 }
