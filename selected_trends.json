@@ -461,6 +461,12 @@
       "symbol": "XSVT.DE",
       "added": "2026-11-04",
       "price": 50.61
+    },
+    {
+      "name": "WELU (Amundi S&P World Information technology Screened (Acc))",
+      "symbol": "WELU.DE",
+      "added": "2026-11-04",
+      "price": 27.435
     }
   ]
 }
