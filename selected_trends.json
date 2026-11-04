@@ -431,6 +431,12 @@
       "symbol": "WDNR.DE",
       "added": "2026-11-04",
       "price": 530.5
+    },
+    {
+      "name": "IS0D (iShares Oil & Gas Exploration & Production (Acc))",
+      "symbol": "IS0D.DE",
+      "added": "2026-11-04",
+      "price": 31.83
     }
   ]
 }
