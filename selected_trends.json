@@ -443,6 +443,12 @@
       "symbol": "UIQK.DE",
       "added": "2026-11-04",
       "price": 131.06
+    },
+    {
+      "name": "XAAG (Invesco Bloomberg Commodity ex-Agriculture (Acc))",
+      "symbol": "XAAG.DE",
+      "added": "2026-11-04",
+      "price": 41.505
     }
   ]
 }
