@@ -479,6 +479,12 @@
       "symbol": "XZMU.DE",
       "added": "2026-11-04",
       "price": 74.29
+    },
+    {
+      "name": "XZW0 (Xtrackers MSCI World ESG (Acc))",
+      "symbol": "XZW0.DE",
+      "added": "2026-11-04",
+      "price": 50.74
     }
   ]
 }
