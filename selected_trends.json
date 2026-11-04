@@ -419,6 +419,12 @@
       "symbol": "5MVW.DE",
       "added": "2026-11-04",
       "price": 9.196
+    },
+    {
+      "name": "SXR6 (iShares MSCI Japan SRI (Acc))",
+      "symbol": "SXR6.DE",
+      "added": "2026-11-04",
+      "price": 8.551
     }
   ]
 }
