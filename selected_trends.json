@@ -407,6 +407,12 @@
       "symbol": "ESIE.DE",
       "added": "2026-11-04",
       "price": 17.966
+    },
+    {
+      "name": "XDW0 (Xtrackers MSCI World Energy (Acc))",
+      "symbol": "XDW0.DE",
+      "added": "2026-11-04",
+      "price": 69.78
     }
   ]
 }
