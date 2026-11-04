@@ -1,6 +1,7 @@
 """Секция 💼 Портфолио & P&L (Trading 212, само четене) + AI анализ на представянето."""
 
 import hashlib
+import html
 import json
 import threading
 from datetime import date, datetime, timedelta
@@ -158,41 +159,57 @@ T212_ACCOUNTS = [
 
 PNL_CARD_CSS = """<style>
 .pnl-card { background: var(--panel, #0E1A2B); border: 1px solid var(--hairline, #1E2D44); border-left: 3px solid var(--info, #5B9BF5);
-    border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    border-radius: 8px; padding: 12px 16px; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    box-sizing: border-box; height: 124px; margin-bottom: 1rem; }
+.pnl-card .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.pnl-card .main { min-width: 0; }
 .pnl-card .lbl { color: var(--ink-muted, #8497B0); font-size: 0.875rem; }
-.pnl-card .val { font-family: 'JetBrains Mono', monospace; font-size: 2.25rem; line-height: 1.25; color: var(--ink, #E6EDF3); }
+.pnl-card .val { font-family: 'JetBrains Mono', monospace; font-size: clamp(1.4rem, 2.6vw, 2.25rem); line-height: 1.25; color: var(--ink, #E6EDF3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pnl-card .lbl, .pnl-card .delta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.pnl-card .side { text-align: right; white-space: nowrap; }
+.pnl-card .side .big { font-family: 'JetBrains Mono', monospace; font-size: clamp(1.1rem, 1.7vw, 1.5rem); line-height: 1.3; color: var(--ink, #E6EDF3); }
 .pnl-card .delta { display: inline-block; font-size: 0.8rem; padding: 1px 8px; border-radius: 999px; }
 .pnl-card .delta.neg { color: #F87171; background: rgba(248, 113, 113, 0.14); }
 .pnl-card .delta.pos { color: #4ADE80; background: rgba(74, 222, 128, 0.14); }
-.pnl-card .split { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; line-height: 1.6;
+.pnl-card .split { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: clamp(0.8rem, 1.1vw, 0.95rem); line-height: 1.6;
     white-space: nowrap; }
 .pnl-card .split .up { color: #4ADE80; } .pnl-card .split .down { color: #F87171; }
 .pnl-card .split span { color: #8497B0; font-size: 0.8rem; }
-.pnl-card .note { color: var(--ink-muted, #8497B0); font-size: 0.75rem; margin-top: 4px; }
+.pnl-card .note { color: var(--ink-muted, #8497B0); font-size: 0.75rem; }
 </style>"""
+
+
+def card_html(label: str, value, delta: str = "", positive: bool = True, side: str = "", title: str = "") -> str:
+    """Карта вместо st.metric - еднаква височина за всички (st.metric с / без делта е с различна височина)."""
+    pill = f'<span class="delta {"pos" if positive else "neg"}">{delta}</span>' if delta else ""
+    tip = f' title="{html.escape(title)}"' if title else ""
+    value = html.escape(str(value))
+    return (PNL_CARD_CSS + f'<div class="pnl-card"{tip}><div class="lbl">{label}</div><div class="row"><div class="main">'
+            f'<div class="val">{value}</div>{pill}</div>{side}</div></div>')
 
 
 def pnl_card_html(total: float, invested: float, gains, losses) -> str:
     """Картата „Нереализирана P&L (€)“: общата сума, а вдясно по-дребно - сборът на позициите на плюс (зелено)
     и на минус (червено), с броя им."""
     pct = total / invested * 100 if invested else None
-    delta = (f'<span class="delta {"pos" if pct >= 0 else "neg"}">{"↑" if pct >= 0 else "↓"} {pct:+.2f}%</span>'
-             if pct is not None else "")
-    return (PNL_CARD_CSS + '<div class="pnl-card"><div><div class="lbl">Нереализирана P&L (€)</div>'
-            f'<div class="val">{total:.2f}</div>{delta}</div>'
-            f'<div class="split"><div class="up">+{gains.sum():,.2f} € <span>({len(gains)})</span></div>'
-            f'<div class="down">{losses.sum():,.2f} € <span>({len(losses)})</span></div></div></div>')
+    delta = f'{"↑" if pct >= 0 else "↓"} {pct:+.2f}%' if pct is not None else ""
+    split = (f'<div class="split"><div class="up">+{gains.sum():,.2f} € <span>({len(gains)})</span></div>'
+             f'<div class="down">{losses.sum():,.2f} € <span>({len(losses)})</span></div></div>')
+    return card_html("Нереализирана P&L (€)", f"{total:.2f}", delta, pct is None or pct >= 0, split)
 
 
-def realized_card_html(total: float, invested: float) -> str:
-    """Картата „Реализирана P&L (€)“: сумата и какъв % е от инвестираното в момента без пайовете."""
+def realized_card_html(total: float, invested: float, win_rate) -> str:
+    """Картата „Реализирана P&L (€)“: сумата и какъв % е от инвестираното в момента без пайовете, а вдясно -
+    win rate (отделната карта за него е махната - решение на Наско)."""
     pct = total / invested * 100 if invested else None
-    delta = note = ""
-    if pct is not None:
-        delta = f'<span class="delta {"pos" if pct >= 0 else "neg"}">{"↑" if pct >= 0 else "↓"} {pct:+.2f}%</span>'
-        note = f'<div class="note">от {invested:,.0f} € инвестирани (без пайовете)</div>'.replace(",", " ")
-    return (PNL_CARD_CSS + '<div class="pnl-card"><div><div class="lbl">Реализирана P&L (€)</div>'
-            f'<div class="val">{total:.2f}</div>{delta}{note}</div></div>')
+    delta = f'{"↑" if pct >= 0 else "↓"} {pct:+.2f}%' if pct is not None else ""
+    note = f"от {invested:,.0f} € инв.".replace(",", " ") if invested else ""
+    side = (f'<div class="side"><div class="note">Win rate</div>'
+            f'<div class="big">{f"{win_rate:g}%" if win_rate is not None else "—"}</div>'
+            f'<div class="note">{note}</div></div>')
+    return card_html("Реализирана P&L (€)", f"{total:.2f}", delta, pct is None or pct >= 0, side,
+                     title="% от инвестираното в отворените позиции в момента, без пайовете")
 
 
 PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
@@ -305,8 +322,8 @@ def render_open_positions(df_open, slug: str):
     total_pl = df_open["P&L (€)"].sum()
     total_invested = df_open["Инвестирано (€)"].sum()
     col1, col2, col3 = st.columns(3)
-    col1.metric("Брой позиции", len(df_open))
-    col2.metric("Общо инвестирано (€)", round(total_invested, 2))
+    col1.markdown(card_html("Брой позиции", len(df_open)), unsafe_allow_html=True)
+    col2.markdown(card_html("Общо инвестирано (€)", f"{total_invested:.2f}"), unsafe_allow_html=True)
     pnl = df_open["P&L (€)"]
     gains, losses = pnl[pnl > 0], pnl[pnl < 0]
     col3.markdown(pnl_card_html(total_pl, total_invested, gains, losses), unsafe_allow_html=True)
@@ -439,16 +456,16 @@ def render_portfolio_section():
     summary = t212.summarize_closed_trades(df_period)
 
     section_header("📊 Затворени сделки (избран период)", status="go", subtitle=preset)
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Сделки", summary["trades"])
-    col2.metric("Win rate", f"{summary['win_rate']}%" if summary["win_rate"] is not None else "—")
-    col3.markdown(realized_card_html(summary["total_pl"] or 0.0, st.session_state.get(f"t212_invested_np_{slug}", 0.0)),
-                  unsafe_allow_html=True)
-    col4.metric(
-        "Най-добра / Най-лоша",
-        t212_names().get(summary["best"][0], summary["best"][0]) if summary["best"] else "—",
-        f"{summary['best'][1]} € / {summary['worst'][1]} €" if summary["best"] and summary["worst"] else None,
-    )
+    col1, col2, col3 = st.columns(3)
+    col1.markdown(card_html("Сделки", summary["trades"]), unsafe_allow_html=True)
+    col2.markdown(realized_card_html(summary["total_pl"] or 0.0, st.session_state.get(f"t212_invested_np_{slug}", 0.0),
+                                     summary["win_rate"]), unsafe_allow_html=True)
+    best = t212_names().get(summary["best"][0], summary["best"][0]) if summary["best"] else "—"
+    worst = t212_names().get(summary["worst"][0], summary["worst"][0]) if summary["worst"] else ""
+    col3.markdown(card_html(
+        "Най-добра / Най-лоша", best,
+        f"{summary['best'][1]} € / {summary['worst'][1]} €" if summary["best"] and summary["worst"] else "",
+        title=f"Най-добра: {best} · Най-лоша: {worst}"), unsafe_allow_html=True)
     if df_period.empty:
         st.info("Няма затворени сделки в избрания период.")
     else:
