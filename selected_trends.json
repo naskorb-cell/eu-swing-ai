@@ -449,6 +449,12 @@
       "symbol": "XAAG.DE",
       "added": "2026-11-04",
       "price": 41.505
+    },
+    {
+      "name": "COMO (Amundi Bloomberg Equal-weight Commodity ex-Agriculture (Acc))",
+      "symbol": "COMO.PA",
+      "added": "2026-11-04",
+      "price": 37.06
     }
   ]
 }
