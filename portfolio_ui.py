@@ -168,6 +168,7 @@ PNL_CARD_CSS = """<style>
     white-space: nowrap; }
 .pnl-card .split .up { color: #4ADE80; } .pnl-card .split .down { color: #F87171; }
 .pnl-card .split span { color: #8497B0; font-size: 0.8rem; }
+.pnl-card .note { color: var(--ink-muted, #8497B0); font-size: 0.75rem; margin-top: 4px; }
 </style>"""
 
 
@@ -181,6 +182,19 @@ def pnl_card_html(total: float, invested: float, gains, losses) -> str:
             f'<div class="val">{total:.2f}</div>{delta}</div>'
             f'<div class="split"><div class="up">+{gains.sum():,.2f} € <span>({len(gains)})</span></div>'
             f'<div class="down">{losses.sum():,.2f} € <span>({len(losses)})</span></div></div></div>')
+
+
+def realized_card_html(total: float, invested: float) -> str:
+    """Картата „Реализирана P&L (€)“: сумата и какъв % е от инвестираното в момента без пайовете."""
+    pct = total / invested * 100 if invested else None
+    delta = note = ""
+    if pct is not None:
+        delta = f'<span class="delta {"pos" if pct >= 0 else "neg"}">{"↑" if pct >= 0 else "↓"} {pct:+.2f}%</span>'
+        note = f'<div class="note">от {invested:,.0f} € инвестирани (без пайовете)</div>'.replace(",", " ")
+    return (PNL_CARD_CSS + '<div class="pnl-card"><div><div class="lbl">Реализирана P&L (€)</div>'
+            f'<div class="val">{total:.2f}</div>{delta}{note}</div></div>')
+
+
 PARTIAL_PIE_BG = "background-color: rgba(167, 139, 250, 0.35)"  # лилаво - позицията е частично в пай
 # Цветовете са ПЛЪТНИ (не полупрозрачни): на тъмния фон прозрачното жълто става маслинено, а червените
 # нюанси се сливат. На светлите фонове текстът е тъмен, на тъмните - бял.
@@ -280,6 +294,9 @@ def render_open_positions(df_open, slug: str):
     section_header("📌 Отворени позиции", status="watch")
     no_pies = st.toggle("Без позициите в пайовете", value=True, key=f"t212_no_pies_{slug}",
                         help="Пайовете (дългосрочните кошници) не влизат в бройката и P&L")
+    # за % на реализираната P&L - инвестираното без пайовете, независимо от превключвателя
+    st.session_state[f"t212_invested_np_{slug}"] = (
+        float(t212.exclude_pies(df_open)["Инвестирано (€)"].sum()) if not df_open.empty else 0.0)
     if no_pies:
         df_open = t212.exclude_pies(df_open)
     if df_open.empty:
@@ -425,7 +442,8 @@ def render_portfolio_section():
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Сделки", summary["trades"])
     col2.metric("Win rate", f"{summary['win_rate']}%" if summary["win_rate"] is not None else "—")
-    col3.metric("Реализирана P&L (€)", summary["total_pl"])
+    col3.markdown(realized_card_html(summary["total_pl"] or 0.0, st.session_state.get(f"t212_invested_np_{slug}", 0.0)),
+                  unsafe_allow_html=True)
     col4.metric(
         "Най-добра / Най-лоша",
         t212_names().get(summary["best"][0], summary["best"][0]) if summary["best"] else "—",
