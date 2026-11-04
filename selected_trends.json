@@ -473,6 +473,12 @@
       "symbol": "2B70.DE",
       "added": "2026-11-04",
       "price": 9.481
+    },
+    {
+      "name": "XZMU (Xtrackers MSCI USA ESG (Acc))",
+      "symbol": "XZMU.DE",
+      "added": "2026-11-04",
+      "price": 74.29
     }
   ]
 }
