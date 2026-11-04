@@ -425,6 +425,12 @@
       "symbol": "SXR6.DE",
       "added": "2026-11-04",
       "price": 8.551
+    },
+    {
+      "name": "WDNR (Amundi Global Bioenergy (Acc))",
+      "symbol": "WDNR.DE",
+      "added": "2026-11-04",
+      "price": 530.5
     }
   ]
 }
