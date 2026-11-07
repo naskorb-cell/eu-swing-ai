@@ -485,6 +485,12 @@
       "symbol": "XZW0.DE",
       "added": "2026-11-04",
       "price": 50.74
+    },
+    {
+      "name": "XDEQ (Xtrackers MSCI World Quality (Acc))",
+      "symbol": "XDEQ.DE",
+      "added": "2026-11-07",
+      "price": 81.1
     }
   ]
 }
