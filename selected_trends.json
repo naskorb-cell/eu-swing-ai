@@ -491,6 +491,12 @@
       "symbol": "XDEQ.DE",
       "added": "2026-11-07",
       "price": 81.1
+    },
+    {
+      "name": "IWQU (iShares Edge MSCI World Quality Factor (Acc))",
+      "symbol": "IWQU.MI",
+      "added": "2026-11-07",
+      "price": 79.68
     }
   ]
 }
