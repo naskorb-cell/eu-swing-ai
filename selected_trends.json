@@ -497,6 +497,12 @@
       "symbol": "IWQU.MI",
       "added": "2026-11-07",
       "price": 79.68
+    },
+    {
+      "name": "SR9 (Swiss Re)",
+      "symbol": "SREN.SW",
+      "added": "2026-11-09",
+      "price": 150.25
     }
   ]
 }
