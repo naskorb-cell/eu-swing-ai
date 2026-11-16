@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-11-15 10:26:17",
+  "fetched_at": "2026-11-16 10:41:30",
   "total": 6096,
   "instruments": [
     {
@@ -19948,7 +19948,7 @@
       "ticker": "2XM0d_EQ",
       "type": "STOCK",
       "workingScheduleId": 172,
-      "isin": "CA62930A1021",
+      "isin": "CA62930A2011",
       "currencyCode": "EUR",
       "name": "NGEx Minerals",
       "shortName": "2XM0",
