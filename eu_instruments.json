@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-11-20 10:57:26",
-  "total": 6079,
+  "fetched_at": "2026-11-21 10:40:40",
+  "total": 6078,
   "instruments": [
     {
       "ticker": "ZGYd_EQ",
@@ -26066,19 +26066,6 @@
       "extendedHours": false,
       "addedOn": "2025-01-24T14:50:11.000+02:00",
       "exchangeName": "Gettex"
-    },
-    {
-      "ticker": "INPSTa_EQ",
-      "type": "STOCK",
-      "workingScheduleId": 57,
-      "isin": "LU2290522684",
-      "currencyCode": "EUR",
-      "name": "InPost",
-      "shortName": "INPST",
-      "maxOpenQuantity": 58335.0,
-      "extendedHours": false,
-      "addedOn": "2021-01-27T15:51:37.000+02:00",
-      "exchangeName": "Euronext Amsterdam"
     },
     {
       "ticker": "SHUR_BE_EQ",
